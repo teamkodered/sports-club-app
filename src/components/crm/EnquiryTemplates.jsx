@@ -24,9 +24,17 @@ www.pka-kickboxing.com
 www.teamkodered.com`
 
 // Templates belong to a group: 'enquiry' (default), 'starter' (new member joined), 'stopped' (stopped training)
-export const TEMPLATE_KINDS = [['enquiry', 'Enquiry'], ['starter', 'New starter'], ['stopped', 'Stopped training']]
+export const TEMPLATE_KINDS = [['enquiry', 'Enquiry'], ['starter', 'New starter'], ['stopped', 'Stopped training'], ['grading', 'Grading approved']]
 export const kindOf = t => t?.kind || 'enquiry'
 export const DEFAULT_KIND_TEMPLATES_RAW = {
+  grading: [{ id: 'grading_approved', kind: 'grading', label: 'Grading approved', subject: 'Grading approved 🥋', body: `Hi {name}
+Great news -- the coaches have approved {who_is} grading request! 🥋🎉
+
+We'll confirm the date, time and fee for the grading shortly. In the meantime, keep training hard and practise your syllabus at home.
+
+If you've any questions, just reply to this message.
+
+{SIG}` }],
   starter: [{ id: 'starter_welcome', kind: 'starter', label: 'Welcome — new starter', subject: 'Welcome to Derby PKA!', body: `Hi {name}
 Welcome to Derby PKA Kickboxing — we're really pleased {who_is} joining us! 🥳
 

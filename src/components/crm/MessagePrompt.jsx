@@ -43,7 +43,7 @@ export default function MessagePrompt({ kind, recipients = [], onClose, onSent }
   }, [])
   if (!recipients.length) return null
   const names = recipients.map(r => r.name).filter(Boolean).join(', ')
-  const label = kind === 'starter' ? 'new starter' : 'stopped training'
+  const label = kind === 'starter' ? 'new starter' : kind === 'grading' ? 'grading approved' : 'stopped training'
   const list = all ? withKindDefaults(all, kind) : []
   async function save(nextForKind) {   // merge this group's templates back into the full list
     const merged = [...list.filter(t => kindOf(t) !== kind), ...nextForKind.map(t => ({ ...t, kind }))]
@@ -52,16 +52,16 @@ export default function MessagePrompt({ kind, recipients = [], onClose, onSent }
     if (error) alert('Could not save templates: ' + saveErrorText(error))
   }
   if (open && all) return (
-    <EnquirySendTemplates kind={kind} title={kind === 'starter' ? `🎉 New starter message — ${names}` : `👋 Stopped training message — ${names}`}
+    <EnquirySendTemplates kind={kind} title={kind === 'starter' ? `🎉 New starter message — ${names}` : kind === 'grading' ? `🥋 Grading approved message — ${names}` : `👋 Stopped training message — ${names}`}
       enquiries={recipients} templates={list.filter(t => kindOf(t) === kind)} onSaveTemplates={save}
       sendEmail={sendEmail} onSent={async r => { onSent && onSent(r) }} onClose={onClose} />
   )
   return (
     <div className="ets-backdrop" onClick={onClose}>
       <div className="ets-sheet" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()} role="dialog" aria-label={`Send a ${label} message`}>
-        <b style={{ fontSize: 16 }}>{kind === 'starter' ? '🎉' : '👋'} Send a {label} message?</b>
+        <b style={{ fontSize: 16 }}>{kind === 'starter' ? '🎉' : kind === 'grading' ? '🥋' : '👋'} Send a {label} message?</b>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '8px 0 14px' }}>
-          {kind === 'starter' ? `${names} has joined.` : `${names} ${recipients.length === 1 ? 'has' : 'have'} been marked as stopped training.`} Choose a template or write your own — you'll see the message before it's sent.
+          {kind === 'starter' ? `${names} has joined.` : kind === 'grading' ? `Grading approved for ${names}.` : `${names} ${recipients.length === 1 ? 'has' : 'have'} been marked as stopped training.`} Choose a template or write your own — you'll see the message before it's sent.
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!all} onClick={() => setOpen(true)}>Choose message</button>

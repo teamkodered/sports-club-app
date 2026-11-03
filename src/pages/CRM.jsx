@@ -847,6 +847,14 @@ export default function CRM() {
   const [gradingLoaded, setGradingLoaded] = useState(false)
   const [gradingLoading, setGradingLoading] = useState(false)
   const [approvingGradingId, setApprovingGradingId] = useState(null)
+  const [gradingMsg, setGradingMsg] = useState(null)       // recipients for the 'grading approved' message
+  const [gradingSel, setGradingSel] = useState([])          // ticked requests (group approve / message)
+  // who a grading message goes to: the parent for a child, the student for an adult (contact from the form if needed)
+  const gradingRecipient = r => {
+    let extra = {}; try { extra = JSON.parse(r.notes || '{}') } catch { /* */ }
+    const base = r.students ? recipientFromStudent(r.students) : { id: r.id, name: r.name || '', enquiry_for: { self: true, greeting: String(r.name || '').split(' ')[0] } }
+    return { ...base, id: r.id, contact_phone: base.contact_phone || extra.contact_phone || r.phone || null, contact_email: base.contact_email || extra.contact_email || r.email || null }
+  }
   const [gradingView, setGradingView] = useState('requests') // 'requests' | 'list'
   const [gradingDisciplineFilter, setGradingDisciplineFilter] = useState('all')
   const [gradingApprovedOnly, setGradingApprovedOnly] = useState(false)
@@ -893,7 +901,7 @@ export default function CRM() {
     const [{ data, error }, { data: settingsRows }] = await Promise.all([
       supabase
         .from('grading_expressions')
-        .select('*, students(id, discipline, pka_belt, krba_level, members(first_name, last_name, date_of_birth))')
+        .select('*, students(id, discipline, pka_belt, krba_level, guardian_name, guardian_phone, members(first_name, last_name, date_of_birth, email, phone))')
         .order('created_at', { ascending: false }),
       supabase.from('settings').select('key,value').in('key', ['krba_levels', 'grading_belt_size_rule', 'grading_belt_stock']),
     ])
@@ -1041,14 +1049,22 @@ export default function CRM() {
   }
 
 
-  async function approveGrading(id) {
+  async function approveGrading(id, quiet = false) {
     setApprovingGradingId(id)
     const by = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Admin'
     let { error } = await supabase.from('grading_expressions').update({ coach_approved: true, coach_approved_by: by, coach_approved_at: new Date().toISOString() }).eq('id', id)
     if (error && /coach_approved_(by|at)/.test(error.message || '')) ({ error } = await supabase.from('grading_expressions').update({ coach_approved: true }).eq('id', id))
     setApprovingGradingId(null)
-    if (error) { alert('Error approving: ' + error.message); return }
+    if (error) { alert('Error approving: ' + error.message); return false }
     setGradingRequests(prev => prev.map(r => r.id === id ? { ...r, coach_approved: true, coach_approved_by: by } : r))
+    // offer the 'grading approved' message straight away (not when approving a group -- that asks once at the end)
+    if (!quiet) { const r = gradingRequests.find(x => x.id === id); if (r) setGradingMsg([gradingRecipient(r)]) }
+    return true
+  }
+  async function approveSelectedGradings() {
+    const picked = gradingRequests.filter(r => gradingSel.includes(r.id))
+    for (const r of picked) if (!r.coach_approved) { const ok = await approveGrading(r.id, true); if (!ok) return }
+    setGradingMsg(picked.map(gradingRecipient)); setGradingSel([])
   }
 
   async function deleteGradingRequest(id) {
@@ -3296,7 +3312,7 @@ export default function CRM() {
   // Pays another coach directly: shown in that coach's own list, not in paid / unpaid
   const coachLists = payCoachOptions.map(c => ({ coach: c, students: venueFilteredStudents.filter(s => s.pays_coach === c).sort(sortByName) }))
   const paysCoach = s => !!s.pays_coach
-  const unpaidStudents = venueFilteredStudents.filter(s => !paysCoach(s) && !matchedStudentIds.has(s.id) && !s.sponsored && !cashIds.has(s.id)).sort(sortByName)
+  const unpaidStudents = venueFilteredStudents.filter(s => s.members?.status !== 'pending' && !paysCoach(s) && !matchedStudentIds.has(s.id) && !s.sponsored && !cashIds.has(s.id)).sort(sortByName)
   const paidStudents = venueFilteredStudents.filter(s => !paysCoach(s) && (matchedStudentIds.has(s.id) || s.sponsored)).sort(sortByName)
   const cashStudents = venueFilteredStudents.filter(s => !paysCoach(s) && cashIds.has(s.id) && !matchedStudentIds.has(s.id) && !s.sponsored).sort(sortByName)
 
@@ -5011,6 +5027,16 @@ export default function CRM() {
             <div className="empty-state"><h3>No grading requests</h3><p>Nobody has submitted a grading expression of interest yet.</p></div>
           ) : gradingView === 'requests' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {gradingMsg && <MessagePrompt kind="grading" recipients={gradingMsg} onClose={() => setGradingMsg(null)} />}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Tick requests to approve and message them together.</span>
+                {gradingSel.length > 0 && <>
+                  <button className="btn btn-sm btn-primary" onClick={approveSelectedGradings}>✓ Approve &amp; message ({gradingSel.length})</button>
+                  <button className="btn btn-sm" onClick={() => setGradingMsg(gradingRequests.filter(r => gradingSel.includes(r.id)).map(gradingRecipient))}>✉️ Message only ({gradingSel.length})</button>
+                  <button className="btn btn-sm" onClick={() => setGradingSel([])}>Clear</button>
+                </>}
+                <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setGradingSel(gradingRequests.filter(r => !r.coach_approved).map(r => r.id))}>Tick all waiting</button>
+              </div>
               {gradingRequests.map(r => {
                 const m = r.students?.members
                 let extra = {}
@@ -5096,8 +5122,13 @@ export default function CRM() {
                         </p>
                       </div>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                        <input type="checkbox" checked={gradingSel.includes(r.id)} title="Tick to approve / message together"
+                          onChange={e => setGradingSel(sel => e.target.checked ? [...sel, r.id] : sel.filter(x => x !== r.id))} style={{ width: 18, height: 18 }} />
                         {r.coach_approved ? (
+                          <>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#1D9E75' }}>✓ Approved{r.coach_approved_by ? ` · ${r.coach_approved_by}` : ''}</span>
+                          <button className="btn btn-sm" title="Send the grading approved message" onClick={() => setGradingMsg([gradingRecipient(r)])}>✉️</button>
+                          </>
                         ) : (
                           <button className="btn btn-sm btn-primary" disabled={approvingGradingId === r.id}
                             onClick={() => approveGrading(r.id)}>
