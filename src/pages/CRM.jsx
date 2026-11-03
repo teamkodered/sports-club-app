@@ -860,6 +860,14 @@ export default function CRM() {
   const [gradingCol, setGradingCol] = useState({ date: 'next', current: '', gradingFor: '', cls: '', coach: '', approved: '' })
   const [nextGradingDate, setNextGradingDate] = useState('')       // settings.grading_next_date -- new requests are filed under it
   const [editGradingDate, setEditGradingDate] = useState(null)
+  const [openGradingGroups, setOpenGradingGroups] = useState({})   // requests grouped by grading date, closed until pressed
+  function gradingDateGroups() {
+    const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB')
+    const groups = {}
+    gradingRequests.forEach(r => { const k = r.grading_date || 'none'; (groups[k] ||= []).push(r) })
+    return Object.entries(groups).sort(([a], [b]) => a === 'none' ? 1 : b === 'none' ? -1 : b.localeCompare(a))
+      .map(([k, rows]) => ({ key: k, rows, waiting: rows.filter(r => !r.coach_approved).length, label: k === 'none' ? 'No grading date' : `${fmt(k)} Grading` }))
+  }
   const [gradingDisciplineFilter, setGradingDisciplineFilter] = useState('all')
   const [gradingApprovedOnly, setGradingApprovedOnly] = useState(false)
   const [gradingSelected, setGradingSelected] = useState({}) // id -> bool, defaults to selected
@@ -5026,22 +5034,6 @@ export default function CRM() {
             <button className={gradingView === 'requests' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('requests')}>Requests</button>
             <button className={gradingView === 'list' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('list')}>Grading list</button>
             <button className="btn btn-sm" onClick={loadGradingRequests} disabled={gradingLoading}>{gradingLoading ? 'Refreshing…' : '🔄 Refresh'}</button>
-            {/* 📅 the grading new requests are filed under (not shown to students) */}
-            {editGradingDate != null ? (
-              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input type="date" value={editGradingDate} onChange={e => setEditGradingDate(e.target.value)} style={{ fontSize: 13 }} />
-                <button className="btn btn-sm btn-primary" onClick={async () => {
-                  const { error } = await supabase.from('settings').upsert({ key: 'grading_next_date', value: editGradingDate }, { onConflict: 'key' })
-                  if (error) return alert('Could not save: ' + error.message)
-                  setNextGradingDate(editGradingDate); setEditGradingDate(null)
-                }}>Save</button>
-                <button className="btn btn-sm" onClick={() => setEditGradingDate(null)}>Cancel</button>
-              </span>
-            ) : (
-              <button className="btn btn-sm" title="New grading requests are filed under this date" onClick={() => setEditGradingDate(nextGradingDate || '')}>
-                📅 Next grading: <b>{nextGradingDate ? new Date(nextGradingDate + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'not set'}</b> ✏️
-              </button>
-            )}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(gradingRequests.map(r => ({
               Name: `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''}`.trim(),
               Discipline: r.students?.discipline || '',
@@ -5070,7 +5062,16 @@ export default function CRM() {
                 </>}
                 <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setGradingSel(gradingRequests.filter(r => !r.coach_approved).map(r => r.id))}>Tick all waiting</button>
               </div>
-              {gradingRequests.map(r => {
+              {gradingDateGroups().map(g => (
+                <div key={g.key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <button type="button" onClick={() => setOpenGradingGroups(o => ({ ...o, [g.key]: !o[g.key] }))}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
+                    <b style={{ fontSize: 15, flex: 1 }}>📅 {g.label}</b>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{g.rows.length} request{g.rows.length === 1 ? '' : 's'}{g.waiting ? ` · ${g.waiting} waiting` : ''}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{openGradingGroups[g.key] ? '▲' : '▼'}</span>
+                  </button>
+                  <div className={`kc-slide${openGradingGroups[g.key] ? ' open' : ''}`}><div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: openGradingGroups[g.key] ? '0 10px 10px' : 0 }}>
+              {g.rows.map(r => {
                 const m = r.students?.members
                 let extra = {}
                 try { extra = JSON.parse(r.notes || '{}') } catch { /* ignore malformed notes */ }
@@ -5201,6 +5202,9 @@ export default function CRM() {
                   </div>
                 )
               })}
+                  </div></div>
+                </div>
+              ))}
             </div>
           ) : (() => {
             const allRows = computeGradingRows()

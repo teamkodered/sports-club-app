@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
+import { useAuth } from '../../hooks/useAuth.jsx'
 
 // Derby PKA grade order, per age band (from the club's official grading guide).
 const PKA_GRADE_ORDERS = {
@@ -25,6 +26,23 @@ function ageBandForAge(age) {
 }
 
 export default function GradingExpression() {
+  // 📅 Grading date -- staff only (students never see this): set the grading these requests are for.
+  // It stays until changed; every request submitted is filed under it.
+  const { isAdmin, isStaff } = useAuth()
+  const canSetDate = isAdmin || isStaff
+  const [gDate, setGDate] = useState(''), [gSaved, setGSaved] = useState(''), [gMsg, setGMsg] = useState('')
+  useEffect(() => {
+    if (!canSetDate) return
+    supabase.from('settings').select('value').eq('key', 'grading_next_date').maybeSingle().then(({ data }) => {
+      const v = typeof data?.value === 'string' ? data.value : ''
+      setGDate(v); setGSaved(v)
+    })
+  }, [canSetDate])
+  async function saveGDate() {
+    const { error } = await supabase.from('settings').upsert({ key: 'grading_next_date', value: gDate }, { onConflict: 'key' })
+    if (error) { setGMsg('Could not save: ' + error.message); return }
+    setGSaved(gDate); setGMsg('✓ Saved -- new requests go under this grading'); setTimeout(() => setGMsg(''), 3000)
+  }
   const [matchedStudent, setMatchedStudent] = useState(null) // set once a typed name matches an existing student, else null
   const [checkingMatch, setCheckingMatch] = useState(false)
   const [pkaClasses, setPkaClasses] = useState([])
@@ -172,6 +190,18 @@ export default function GradingExpression() {
           <h1 style={{ fontSize: 20, fontWeight: 600 }}>Grading expression of interest</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>Let your coach know you want to grade</p>
         </div>
+
+        {canSetDate && (
+          <div className="card" style={{ marginBottom: 14, border: '1px dashed #8B5CF6' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#8B5CF6', marginBottom: 6 }}>📅 GRADING DATE · staff only (students don't see this)</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input type="date" value={gDate} onChange={e => setGDate(e.target.value)} style={{ fontSize: 15 }} />
+              <button type="button" className="btn btn-sm btn-primary" disabled={!gDate || gDate === gSaved} onClick={saveGDate}>Save</button>
+              {gSaved && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Requests are filed under the <b>{new Date(gSaved + 'T12:00:00').toLocaleDateString('en-GB')}</b> grading</span>}
+            </div>
+            {gMsg && <div style={{ fontSize: 12, marginTop: 6, color: gMsg.startsWith('✓') ? '#1D9E75' : '#E24B4A' }}>{gMsg}</div>}
+          </div>
+        )}
 
         <form onSubmit={submit}>
           <div className="card">
