@@ -3101,7 +3101,7 @@ export default function AthleteProfiles() {
   const dashLevelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : (s.competition_team || '—')   // level: KRBA level, otherwise experience (never the grade)
   const [dashCompFilter, setDashCompFilter] = useState('all') // TEAM banner: all | in (comp) | out (of comp)
   const [dashLevel, setDashLevel] = useState('all') // TEAM banner level: 'all' or one level -- filters the whole dashboard
-  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access) && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))
+  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access) && !s.archived_at && s.members?.status !== 'stopped' && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))
   const pillSwipe = useRef(null)
   const swipeProps = (step, onTap) => ({
     onTouchStart: e => { pillSwipe.current = { x: e.touches[0].clientX, moved: false } },
