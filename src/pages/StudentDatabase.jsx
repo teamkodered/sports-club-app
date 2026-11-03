@@ -222,6 +222,7 @@ export default function StudentDatabase() {
       const isStopped = s.members?.status === 'stopped'
       const isNotStarted = s.members?.status === 'not_started'
       const isStoppedSquad = !!s.squad_stopped_at
+      if (tab === 'Archived athletes') return !!s.archived_at
       if (tab === 'Stopped') return isStopped
       if (tab === 'Not Started') return isNotStarted
       if (tab === 'Stopped Squad') return isStoppedSquad
@@ -417,7 +418,7 @@ export default function StudentDatabase() {
 
       {/* Discipline tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-        {['PKA', 'KRBA', 'All', 'Stopped', 'Not Started', 'Stopped Squad'].map(t => (
+        {['PKA', 'KRBA', 'All', 'Stopped', 'Not Started', 'Stopped Squad', 'Archived athletes'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '8px 18px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
             borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
@@ -478,7 +479,31 @@ export default function StudentDatabase() {
         <button className="btn btn-sm" onClick={() => setStudentsZoom(z => Math.min(200, z + 10))}>+</button>
         {studentsZoom !== 100 && <button className="btn btn-sm" onClick={() => setStudentsZoom(100)}>Reset</button>}
       </div>
-      <div className="card" style={{ padding: 0, overflowX: 'auto', zoom: `${studentsZoom}%` }}>
+      {tab === 'Archived athletes' && (
+        // stopped training -> archived: everything kept, off the registers, app login off
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>Athletes who stopped training. All their data is kept here -- they're off every register and their app login is switched off. Restore puts them back to active (login back on; add their classes again).</p>
+          {filtered.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No archived athletes.</p>}
+          {filtered.map(st => { const m = st.members || {}; return (
+            <div key={st.id} data-sid={st.id} className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{m.first_name} {m.last_name}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{st.discipline || ''}{st.is_kr ? ' · KR' : ''}{m.joined_date ? ` · started ${new Date(m.joined_date + 'T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : ''} · archived {new Date(st.archived_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{(st.wins || st.losses || st.draws) ? `Record ${st.wins || 0}W ${st.losses || 0}L ${st.draws || 0}D · ` : ''}{st.individual_points || 0} pts</div>
+              </div>
+              <button className="btn btn-sm" onClick={() => navigate(`/athletes?id=${st.id}`)}>Athlete data ›</button>
+              <button className="btn btn-sm" onClick={() => setSelected(st)}>Student record</button>
+              <button className="btn btn-sm btn-primary" onClick={async () => {
+                if (!confirm(`Restore ${m.first_name} ${m.last_name} to active? Their app login is switched back on; add their classes again on their profile.`)) return
+                const { error } = await supabase.from('members').update({ status: 'active', stopped_at: null }).eq('id', m.id)
+                if (error) { alert('Could not restore: ' + error.message); return }
+                setStudents(prev => prev.map(x => x.id === st.id ? { ...x, archived_at: null, members: { ...x.members, status: 'active', stopped_at: null } } : x))
+              }}>↩ Restore</button>
+            </div>
+          ) })}
+        </div>
+      )}
+      {tab !== 'Archived athletes' && <div className="card" style={{ padding: 0, overflowX: 'auto', zoom: `${studentsZoom}%` }}>
         <table>
           <thead>
             <tr>
@@ -774,7 +799,7 @@ export default function StudentDatabase() {
             })}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {selected && (
         <StudentProfile student={selected} onClose={() => {

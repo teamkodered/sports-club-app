@@ -5570,6 +5570,17 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
+          {/* stopped training -> archived: the app is closed for them */}
+          {(student?.members?.status === 'stopped' || student?.archived_at) && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#0E1012', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+              <div style={{ maxWidth: 360 }}>
+                <div style={{ fontSize: 40 }}>👋</div>
+                <h2 style={{ fontSize: 20, margin: '10px 0' }}>Your athlete app is closed</h2>
+                <p style={{ fontSize: 14, color: '#9A9A9A', lineHeight: 1.5 }}>Your membership has been set to stopped training, so your app access has been switched off. Everything you logged is kept safely -- if you come back to training, your coach can switch it back on.</p>
+                <button type="button" className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/athlete-login' })}>Sign out</button>
+              </div>
+            </div>
+          )}
           {/* 📊 last month in one card (first 7 days of the month) */}
           {student?.id && <MonthlyReport studentId={student.id} name={student?.members?.first_name} attendanceData={attendanceData} sessions={sessions}
             pdpDone={apData?.pdp_done || {}} classesById={Object.fromEntries((assignedClasses || []).filter(x => x.classes).map(x => [x.classes.id, x.classes]))} />}
