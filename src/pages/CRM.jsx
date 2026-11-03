@@ -856,6 +856,10 @@ export default function CRM() {
     return { ...base, id: r.id, contact_phone: base.contact_phone || extra.contact_phone || r.phone || null, contact_email: base.contact_email || extra.contact_email || r.email || null }
   }
   const [gradingView, setGradingView] = useState('requests') // 'requests' | 'list'
+  // grading list: drop-down filters on each column + which grading (date) it's for
+  const [gradingCol, setGradingCol] = useState({ date: 'next', current: '', gradingFor: '', cls: '', coach: '', approved: '' })
+  const [nextGradingDate, setNextGradingDate] = useState('')       // settings.grading_next_date -- new requests are filed under it
+  const [editGradingDate, setEditGradingDate] = useState(null)
   const [gradingDisciplineFilter, setGradingDisciplineFilter] = useState('all')
   const [gradingApprovedOnly, setGradingApprovedOnly] = useState(false)
   const [gradingSelected, setGradingSelected] = useState({}) // id -> bool, defaults to selected
@@ -903,7 +907,7 @@ export default function CRM() {
         .from('grading_expressions')
         .select('*, students(id, discipline, pka_belt, krba_level, guardian_name, guardian_phone, members(first_name, last_name, date_of_birth, email, phone))')
         .order('created_at', { ascending: false }),
-      supabase.from('settings').select('key,value').in('key', ['krba_levels', 'grading_belt_size_rule', 'grading_belt_stock']),
+      supabase.from('settings').select('key,value').in('key', ['krba_levels', 'grading_belt_size_rule', 'grading_belt_stock', 'grading_next_date']),
     ])
     if (error) { alert('Error loading grading requests: ' + error.message); setGradingLoading(false); return }
 
@@ -911,6 +915,7 @@ export default function CRM() {
     setKrbaLevelsForGrading(sm.krba_levels || [])
     if (sm.grading_belt_size_rule) setBeltSizeRule(sm.grading_belt_size_rule)
     setBeltStock(sm.grading_belt_stock || [])
+    setNextGradingDate(typeof sm.grading_next_date === 'string' ? sm.grading_next_date : (sm.grading_next_date?.date || ''))
 
     const enriched = await Promise.all((data || []).map(async (r) => {
       if (!r.student_id) return { ...r, attendanceCount: null }
@@ -966,12 +971,24 @@ export default function CRM() {
         const orderIdx = beltOrderIndex(r.discipline, band, r.grading_for, krbaLevelsForGrading)
         return {
           ...r,
+          clsLabel: [...new Set((r.trainClasses || []).map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}`.trim()))].join(', '),
+          coachLabel: [...new Set((r.trainClasses || []).map(c => c.instructor).filter(Boolean))].join(', '),
           name: m ? `${m.first_name} ${m.last_name}` : (gradingTypedName(r) || 'Unknown student'),
           age: ageFromDOB(dob),
           band,
           orderIdx,
           size: beltSizeFor(dob, beltSizeRule),
         }
+      })
+      .filter(r => {
+        const f = gradingCol, d = f.date === 'next' ? nextGradingDate : f.date
+        if (d && d !== 'all' && (r.grading_date || '') !== (d === 'none' ? '' : d)) return false
+        if (f.current && (r.current_belt || '—') !== f.current) return false
+        if (f.gradingFor && r.grading_for !== f.gradingFor) return false
+        if (f.cls && !r.clsLabel.split(', ').includes(f.cls)) return false
+        if (f.coach && !r.coachLabel.split(', ').includes(f.coach)) return false
+        if (f.approved && (r.coach_approved ? 'yes' : 'no') !== f.approved) return false
+        return true
       })
       .sort((a, b) => {
         const bandDiff = PKA_BAND_ORDER.indexOf(a.band) - PKA_BAND_ORDER.indexOf(b.band)
@@ -5009,6 +5026,22 @@ export default function CRM() {
             <button className={gradingView === 'requests' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('requests')}>Requests</button>
             <button className={gradingView === 'list' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('list')}>Grading list</button>
             <button className="btn btn-sm" onClick={loadGradingRequests} disabled={gradingLoading}>{gradingLoading ? 'Refreshing…' : '🔄 Refresh'}</button>
+            {/* 📅 the grading new requests are filed under (not shown to students) */}
+            {editGradingDate != null ? (
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="date" value={editGradingDate} onChange={e => setEditGradingDate(e.target.value)} style={{ fontSize: 13 }} />
+                <button className="btn btn-sm btn-primary" onClick={async () => {
+                  const { error } = await supabase.from('settings').upsert({ key: 'grading_next_date', value: editGradingDate }, { onConflict: 'key' })
+                  if (error) return alert('Could not save: ' + error.message)
+                  setNextGradingDate(editGradingDate); setEditGradingDate(null)
+                }}>Save</button>
+                <button className="btn btn-sm" onClick={() => setEditGradingDate(null)}>Cancel</button>
+              </span>
+            ) : (
+              <button className="btn btn-sm" title="New grading requests are filed under this date" onClick={() => setEditGradingDate(nextGradingDate || '')}>
+                📅 Next grading: <b>{nextGradingDate ? new Date(nextGradingDate + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'not set'}</b> ✏️
+              </button>
+            )}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(gradingRequests.map(r => ({
               Name: `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''}`.trim(),
               Discipline: r.students?.discipline || '',
@@ -5186,6 +5219,17 @@ export default function CRM() {
                       <option value="KRBA">KRBA</option>
                     </select>
                   </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: 11 }}>Grading date</label>
+                    <select value={gradingCol.date} onChange={e => setGradingCol(f => ({ ...f, date: e.target.value }))}>
+                      <option value="next">Next grading{nextGradingDate ? ` (${new Date(nextGradingDate + 'T12:00:00').toLocaleDateString('en-GB')})` : ''}</option>
+                      {[...new Set(gradingRequests.map(r => r.grading_date).filter(Boolean))].sort().reverse().filter(d => d !== nextGradingDate)
+                        .map(d => <option key={d} value={d}>{new Date(d + 'T12:00:00').toLocaleDateString('en-GB')}</option>)}
+                      <option value="none">No date</option>
+                      <option value="all">All dates</option>
+                    </select>
+                  </div>
+                  <button className="btn btn-sm" onClick={() => setGradingCol({ date: 'next', current: '', gradingFor: '', cls: '', coach: '', approved: '' })}>Clear filters</button>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
                     <input type="checkbox" checked={gradingApprovedOnly} onChange={e => setGradingApprovedOnly(e.target.checked)} />
                     Approved only
@@ -5292,8 +5336,37 @@ export default function CRM() {
                         <th style={{ padding: 8, textAlign: 'left' }}>Belt size</th>
                         <th style={{ padding: 8, textAlign: 'left' }}>Current belt</th>
                         <th style={{ padding: 8, textAlign: 'left' }}>Grading for</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Class</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Coach</th>
                         <th style={{ padding: 8, textAlign: 'left' }}>Approved</th>
                       </tr>
+                      {(() => {
+                        // drop-down filters on each column (options from all requests for the chosen grading date)
+                        const base = gradingRequests.map(r => ({ ...r,
+                          cl: (r.trainClasses || []).map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}`.trim()),
+                          co: (r.trainClasses || []).map(c => c.instructor).filter(Boolean) }))
+                        const uniq = arr => [...new Set(arr.filter(Boolean))].sort()
+                        const sel = (key, opts) => (
+                          <select value={gradingCol[key]} onChange={e => setGradingCol(f => ({ ...f, [key]: e.target.value }))} style={{ fontSize: 11, padding: '3px 4px', maxWidth: 150 }}>
+                            <option value="">All</option>
+                            {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        )
+                        return (
+                          <tr style={{ background: 'var(--bg-secondary)' }}>
+                            <th></th><th></th><th></th><th></th>
+                            <th style={{ padding: '0 6px 6px' }}>{sel('current', uniq(base.map(r => r.current_belt || '—')))}</th>
+                            <th style={{ padding: '0 6px 6px' }}>{sel('gradingFor', uniq(base.map(r => r.grading_for)))}</th>
+                            <th style={{ padding: '0 6px 6px' }}>{sel('cls', uniq(base.flatMap(r => r.cl)))}</th>
+                            <th style={{ padding: '0 6px 6px' }}>{sel('coach', uniq(base.flatMap(r => r.co)))}</th>
+                            <th style={{ padding: '0 6px 6px' }}>
+                              <select value={gradingCol.approved} onChange={e => setGradingCol(f => ({ ...f, approved: e.target.value }))} style={{ fontSize: 11, padding: '3px 4px' }}>
+                                <option value="">All</option><option value="yes">✓ Approved</option><option value="no">Not yet</option>
+                              </select>
+                            </th>
+                          </tr>
+                        )
+                      })()}
                     </thead>
                     <tbody>
                       {allRows.map(r => {
@@ -5303,7 +5376,7 @@ export default function CRM() {
                           <Fragment key={r.id}>
                             {showBandHeader && (
                               <tr key={r.band + '-header'} style={{ background: 'var(--bg-tertiary)' }}>
-                                <td colSpan={7} style={{ padding: '6px 8px', fontWeight: 700, fontSize: 12 }}>{r.band}</td>
+                                <td colSpan={9} style={{ padding: '6px 8px', fontWeight: 700, fontSize: 12 }}>{r.band}</td>
                               </tr>
                             )}
                             <tr style={{ borderTop: '1px solid var(--border)' }}>
@@ -5314,6 +5387,8 @@ export default function CRM() {
                               <td style={{ padding: 8 }}>{r.size}</td>
                               <td style={{ padding: 8 }}>{r.current_belt || '—'}</td>
                               <td style={{ padding: 8, fontWeight: 600 }}>{r.grading_for}</td>
+                              <td style={{ padding: 8 }}>{r.clsLabel || '—'}</td>
+                              <td style={{ padding: 8 }}>{r.coachLabel || '—'}</td>
                               <td style={{ padding: 8 }}>{r.coach_approved ? <span style={{ color: '#1D9E75' }}>✓</span> : '—'}</td>
                             </tr>
                           </Fragment>
