@@ -11485,8 +11485,12 @@ export default function AthleteProfiles() {
                         const off = !editForm.weight_division || !opts.length || isOfficial(editForm.weight_division, kbDiv, sex) || isOfficial(editForm.weight_division, bxDiv, sex)
                         return (
                           <div className="field"><label>Weight division{kicker && boxer ? ' — KR kickboxing + KRBA boxing' : boxer ? ` — KRBA boxing${bxDiv ? `, ${bxDiv}` : ''}` : ` — KR kickboxing${kbDiv ? `, ${kbDiv}` : ''}`}{sex ? ` (${sex === 'M' ? 'male' : 'female'})` : ''}</label>
-                            <input list="wd-official" value={editForm.weight_division} onChange={e => setEditForm(f => ({ ...f, weight_division: e.target.value }))} placeholder={opts.length ? 'Pick from the list…' : 'Choose an age division first'} />
-                            <datalist id="wd-official">{opts.map(o => <option key={o} value={o} />)}</datalist>
+                            <select value={editForm.weight_division || ''} onChange={e => { let v = e.target.value; if (v === '__other') { v = prompt('Weight division (e.g. -60kg or +91kg)', editForm.weight_division || '') || ''; if (!v) return } setEditForm(f => ({ ...f, weight_division: v })) }}>
+                              <option value="">— choose —</option>
+                              {editForm.weight_division && !opts.includes(editForm.weight_division) && <option value={editForm.weight_division}>{editForm.weight_division}</option>}
+                              {[...new Set(opts)].map(o => <option key={o} value={o}>{o}</option>)}
+                              <option value="__other">Other…</option>
+                            </select>
                             {sugg && sugg !== editForm.weight_division && (
                               <button type="button" className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => setEditForm(f => ({ ...f, weight_division: sugg }))}>Use {sugg} (from {selected.weight_kg}kg)</button>
                             )}
