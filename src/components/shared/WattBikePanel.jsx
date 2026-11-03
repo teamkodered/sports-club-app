@@ -13,7 +13,8 @@ const SINGLE_SHORT = { 'Watt bike 10 second (output)': '10 sec output', 'Watt bi
 const secLabel = t => t.split(/(\d+)s\b/).map((part, i) => i % 2 ? <span key={i}>{part}<span style={{ color: '#000', textShadow: 'none' }}>s</span></span> : part)
 const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n }
 
-export default function WattBikePanel({ entries = [], onSaveEntries, history = [], groups, presets, normalize = m => m, singleTests = [], todaysTest = {}, onSaveTest, saving, pdpNotesFor, groupLabel }) {
+export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries, history = [], groups, presets, normalize = m => m, singleTests = [], todaysTest = {}, onSaveTest, saving, pdpNotesFor, groupLabel }) {
+  const entries = Array.isArray(entriesRaw) ? entriesRaw : (entriesRaw && typeof entriesRaw === 'object' && Object.keys(entriesRaw).length ? [entriesRaw] : [])
   const [sel, setSel] = useState(null) // effort key | '__new__'
   const [single, setSingle] = useState(null) // single-set test name
   const [other, setOther] = useState('')
@@ -54,9 +55,11 @@ export default function WattBikePanel({ entries = [], onSaveEntries, history = [
     const today = new Date().toISOString().split('T')[0]
     const past = [...history].filter(s => s.session_date < today).sort((a, b) => b.session_date.localeCompare(a.session_date))
     let ghost = [], bestW = null, bestD = null
-    for (const s of past) for (const e of (s.watt_bike || [])) {
+    // older days can hold a single entry (an object) instead of a list -- treat both the same
+    const asList = v => Array.isArray(v) ? v : (v && typeof v === 'object' && Object.keys(v).length ? [v] : [])
+    for (const s of past) for (const e of asList(s.watt_bike)) {
       if (normalize(e.interval_mode || '') !== mode) continue
-      const sets = (e.sets || []).map(x => (x && typeof x === 'object') ? x : { wattage: x })
+      const sets = (Array.isArray(e.sets) ? e.sets : []).map(x => (x && typeof x === 'object') ? x : { wattage: x })
       if (!ghost.length && sets.length) ghost = sets
       for (const x of sets) { const w = num(x.wattage), d = num(x.distance); if (w != null && (bestW == null || w > bestW)) bestW = w; if (d != null && (bestD == null || d > bestD)) bestD = d }
     }

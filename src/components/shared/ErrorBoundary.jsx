@@ -31,6 +31,7 @@ export default class ErrorBoundary extends Component {
             </p>
             <pre style={{ textAlign: 'left', background: '#1a1a1a', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', color: '#e24b4a', marginBottom: 16 }}>
               {this.state.error.message}
+              {'\n'}<span style={{ color: '#777', fontSize: 10 }}>{String(this.state.error.stack || '').split('\n').slice(0, 4).join('\n')}</span>
             </pre>
             <button
               style={{ padding: '10px 20px', background: '#378ADD', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14 }}
