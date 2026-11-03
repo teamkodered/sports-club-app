@@ -9547,7 +9547,7 @@ export default function AthleteProfiles() {
                         </select>
                       ) : (selected.discipline || '—') },
                       ...(selected.is_kr ? [{ label: 'Discipline', editable: true, render: () => {
-                        const CODES = [['PC', 'Points'], ['LC', 'Light contact'], ['KL', 'Kick light'], ['FC', 'Full contact'], ['LK', 'Low kick'], ['K1', 'K1']]
+                        const CODES = [['PF', 'Points fighting'], ['LC', 'Light contact'], ['KL', 'Kick light'], ['FC', 'Full contact'], ['LK', 'Low kick'], ['K1', 'K1']]
                         const have = String(selected.discipline_codes || '').split('/').map(x => x.trim()).filter(Boolean)
                         if (!isAdmin) return have.join(' / ') || '—'
                         const open = disciplinePickOpen === selected.id
