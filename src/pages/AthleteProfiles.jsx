@@ -2991,6 +2991,26 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
   TECHNIQUE_STYLES.forEach(st => sortObjKeys(st.categories))
 })()
 
+
+// comp weight drop-down: one group per kind of fighting the athlete does -- tatami kickboxing (PF / LC / KL),
+// ring kickboxing (FC / LK / K1) and boxing -- each with its age group's divisions
+function compWeightGroups(st, ap, kbOverride, bxOverride) {
+  if (!st) return []
+  const g = divisionsForAge(st.members?.date_of_birth)
+  const sex = st.gender === 'M' || st.gender === 'F' ? st.gender : null
+  const codes = String(st.discipline_codes || '').split('/').map(x => x.trim().toUpperCase()).filter(Boolean)
+  const boxer = st.discipline === 'KRBA', kicker = !!st.is_kr || st.discipline !== 'KRBA'
+  const kbChosen = kbOverride ?? ap?.age_division_kickboxing ?? ''
+  const chosenIsRing = /ring/i.test(kbChosen)
+  const wantRing = codes.some(c => ['FC', 'LK', 'K1'].includes(c)) || chosenIsRing
+  const wantTatami = !codes.length || codes.some(c => ['PF', 'PC', 'LC', 'KL'].includes(c)) || (kbChosen && !chosenIsRing)
+  const out = []
+  if (kicker && wantTatami) { const d = (kbChosen && !chosenIsRing ? kbChosen : g.kickboxing?.label); const o = weightsFor(d, sex); if (o.length) out.push({ label: `Kickboxing tatami${d ? ' · ' + d : ''}`, opts: o }) }
+  if (kicker && wantRing) { const d = (chosenIsRing ? kbChosen : g.ring?.label); const o = weightsFor(d, sex); if (o.length) out.push({ label: `Kickboxing ring${d ? ' · ' + d : ''}`, opts: o }) }
+  if (boxer) { const d = bxOverride ?? ap?.age_division_boxing ?? g.boxing?.label; const o = weightsFor(d, sex); if (o.length) out.push({ label: `Boxing${d ? ' · ' + d : ''}`, opts: o }) }
+  return out
+}
+
 export default function AthleteProfiles() {
   const [testSessionOpen, setTestSessionOpen] = useState(false)
   const [testBatchOpen, setTestBatchOpen] = useState(false)
@@ -9671,7 +9691,8 @@ export default function AthleteProfiles() {
                           const g = divisionsForAge(selected.members?.date_of_birth)
                           const boxer = selected.discipline === 'KRBA', kicker = !!selected.is_kr || selected.discipline !== 'KRBA'
                           const sex = selected.gender === 'M' || selected.gender === 'F' ? selected.gender : null
-                          const opts = [...new Set([...(kicker ? weightsFor(apData?.age_division_kickboxing || g.kickboxing?.label, sex) : []), ...(boxer ? weightsFor(apData?.age_division_boxing || g.boxing?.label, sex) : [])])]
+                          const groups = compWeightGroups(selected, apData)
+                          const opts = groups.flatMap(x => x.opts)
                           const cur = apData?.weight_division || ''
                           return (
                             <select key={`compweight-${selected.id}`} value={cur}
@@ -9679,7 +9700,7 @@ export default function AthleteProfiles() {
                               style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
                               <option value="">— choose —</option>
                               {cur && !opts.includes(cur) && <option value={cur}>{cur}</option>}
-                              {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                              {groups.map(gr => <optgroup key={gr.label} label={gr.label}>{gr.opts.map(o => <option key={gr.label + o} value={o}>{o}</option>)}</optgroup>)}
                               <option value="__other">Other…</option>
                             </select>
                           )
@@ -11487,8 +11508,10 @@ export default function AthleteProfiles() {
                           <div className="field"><label>Weight division{kicker && boxer ? ' — KR kickboxing + KRBA boxing' : boxer ? ` — KRBA boxing${bxDiv ? `, ${bxDiv}` : ''}` : ` — KR kickboxing${kbDiv ? `, ${kbDiv}` : ''}`}{sex ? ` (${sex === 'M' ? 'male' : 'female'})` : ''}</label>
                             <select value={editForm.weight_division || ''} onChange={e => { let v = e.target.value; if (v === '__other') { v = prompt('Weight division (e.g. -60kg or +91kg)', editForm.weight_division || '') || ''; if (!v) return } setEditForm(f => ({ ...f, weight_division: v })) }}>
                               <option value="">— choose —</option>
-                              {editForm.weight_division && !opts.includes(editForm.weight_division) && <option value={editForm.weight_division}>{editForm.weight_division}</option>}
-                              {[...new Set(opts)].map(o => <option key={o} value={o}>{o}</option>)}
+                              {(() => { const gs = compWeightGroups(selected, apData, editForm.age_division_kickboxing || null, editForm.age_division_boxing || null); const all = gs.flatMap(x => x.opts); return <>
+                                {editForm.weight_division && !all.includes(editForm.weight_division) && <option value={editForm.weight_division}>{editForm.weight_division}</option>}
+                                {gs.map(gr => <optgroup key={gr.label} label={gr.label}>{gr.opts.map(o => <option key={gr.label + o} value={o}>{o}</option>)}</optgroup>)}
+                              </> })()}
                               <option value="__other">Other…</option>
                             </select>
                             {sugg && sugg !== editForm.weight_division && (
