@@ -323,7 +323,8 @@ export default function Layout() {
       {/* Mobile hamburger */}
       {!hideMobileMenuButton && (
         <button onClick={() => setMobileOpen(v => !v)} className="app-menu-btn" style={{
-          position: 'fixed', top: 12, left: 12,
+          // clear of the iPhone notch / status bar (installed app draws under it)
+          position: 'fixed', top: 'calc(12px + env(safe-area-inset-top, 0px))', left: 'calc(12px + env(safe-area-inset-left, 0px))',
           background: 'var(--text)', color: 'var(--bg)',
           border: 'none', borderRadius: 8,
           width: 40, height: 40, fontSize: 18,
