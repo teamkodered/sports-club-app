@@ -5007,15 +5007,14 @@ export default function AthleteApp() {
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
         <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Attach photo/video</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, false)}>
+          <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} title="Photos, Files, Dropbox, Drive…" onClick={() => openMediaPicker(sectionKey, questionLabel, 'files')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-            Upload
+            Upload <span style={{ fontSize: 10, opacity: 0.7 }}>photos · files · Dropbox</span>
           </button>
           <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, true)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
             Take photo / video
           </button>
-          <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, 'files')}>📁 Files / Dropbox</button>
 
         </div>
         {attached.length > 0 && (
