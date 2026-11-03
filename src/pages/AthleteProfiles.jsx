@@ -3589,6 +3589,7 @@ export default function AthleteProfiles() {
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
   const [selected, setSelected]     = useState(null)
+  const [disciplinePickOpen, setDisciplinePickOpen] = useState(null) // profile: discipline drop-down open
   const sectionLeague = useSectionLeague(selected?.id) // place + score in each section's league (same as the League board)
   // heart rate sessions recorded in the app (live reader / Android recorder) -- shown with the wearable workouts
   const [appHrSessions, setAppHrSessions] = useState([])
@@ -9545,7 +9546,27 @@ export default function AthleteProfiles() {
                           <option value="KRBA">KRBA</option>
                         </select>
                       ) : (selected.discipline || '—') },
-                      ...(selected.is_kr ? [{ label: 'Discipline', editable: false, render: () => selected.discipline_codes || '—' }] : []),
+                      ...(selected.is_kr ? [{ label: 'Discipline', editable: true, render: () => {
+                        const CODES = [['PC', 'Points'], ['LC', 'Light contact'], ['KL', 'Kick light'], ['FC', 'Full contact'], ['LK', 'Low kick'], ['K1', 'K1']]
+                        const have = String(selected.discipline_codes || '').split('/').map(x => x.trim()).filter(Boolean)
+                        if (!isAdmin) return have.join(' / ') || '—'
+                        const open = disciplinePickOpen === selected.id
+                        const toggle = async c => {
+                          const next = have.includes(c) ? have.filter(x => x !== c) : CODES.map(([k]) => k).filter(k => have.includes(k) || k === c)
+                          const val = next.length ? next.join('/') + '/' : null
+                          const { error } = await supabase.from('students').update({ discipline_codes: val }).eq('id', selected.id)
+                          if (error) { alert('Could not save: ' + error.message); return }
+                          setSelected(p => ({ ...p, discipline_codes: val })); setStudents(prev => prev.map(x => x.id === selected.id ? { ...x, discipline_codes: val } : x))
+                        }
+                        return (
+                          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                            <button type="button" className="btn btn-sm" onClick={() => setDisciplinePickOpen(o => o === selected.id ? null : selected.id)}>{have.join(' / ') || 'Choose'} {open ? '▲' : '▼'}</button>
+                            {open && <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end', maxWidth: 240 }}>
+                              {CODES.map(([k, l]) => <button key={k} type="button" className={have.includes(k) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} title={l} onClick={() => toggle(k)}>{k} <span style={{ fontSize: 9, opacity: 0.7 }}>{l}</span></button>)}
+                            </span>}
+                          </span>
+                        )
+                      } }] : []),
                       { label: selected.discipline === 'KRBA' ? 'Level' : selected.is_kr ? 'Experience' : 'Grade', editable: true, render: () => {
                         if (selected.discipline === 'KRBA') {
                           return isAdmin ? (
@@ -9646,9 +9667,23 @@ export default function AthleteProfiles() {
                         )
                       } },
                       { label: 'Comp weight', editable: true, render: () => isAdmin ? (
-                        <input key={`compweight-${selected.id}`} list="wd-official-quick" defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
-                          onBlur={e => { if (e.target.value !== (apData?.weight_division || '')) saveCompWeightHere(e.target.value || null) }}
-                          style={{ width: 90, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                        (() => {
+                          const g = divisionsForAge(selected.members?.date_of_birth)
+                          const boxer = selected.discipline === 'KRBA', kicker = !!selected.is_kr || selected.discipline !== 'KRBA'
+                          const sex = selected.gender === 'M' || selected.gender === 'F' ? selected.gender : null
+                          const opts = [...new Set([...(kicker ? weightsFor(apData?.age_division_kickboxing || g.kickboxing?.label, sex) : []), ...(boxer ? weightsFor(apData?.age_division_boxing || g.boxing?.label, sex) : [])])]
+                          const cur = apData?.weight_division || ''
+                          return (
+                            <select key={`compweight-${selected.id}`} value={cur}
+                              onChange={e => { let v = e.target.value; if (v === '__other') { v = prompt('Comp weight (e.g. -60kg or +91kg)', cur) || ''; if (!v) return } if (v !== cur) saveCompWeightHere(v || null) }}
+                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— choose —</option>
+                              {cur && !opts.includes(cur) && <option value={cur}>{cur}</option>}
+                              {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                              <option value="__other">Other…</option>
+                            </select>
+                          )
+                        })()
                       ) : (apData?.weight_division || '—') },
                       { label: 'VO2 Max', editable: true, render: () => {
                         const sorted = [...f2fData].sort((a, b) => new Date(b.session_date) - new Date(a.session_date))
