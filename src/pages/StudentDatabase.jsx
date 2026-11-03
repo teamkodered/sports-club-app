@@ -94,6 +94,18 @@ export default function StudentDatabase() {
   const [filtered, setFiltered]       = useState([])
   const [loading, setLoading]         = useState(true)
   const [search, setSearch]           = useState('')
+  const [flashId, setFlashId] = useState(null)
+  const backTo = searchParams.get('back') || ''
+  useEffect(() => {
+    const id = searchParams.get('flash')
+    if (!id || !students.length) return
+    const st = students.find(x => x.id === id)
+    if (st) setSearch('')
+    setFlashId(id)
+    const t1 = setTimeout(() => document.querySelector(`[data-sid="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250)
+    const t2 = setTimeout(() => setFlashId(null), 3500)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [searchParams.get('flash'), students.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab]                 = useBackableTab('PKA')
   const [houseFilter, setHouseFilter] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
@@ -366,6 +378,12 @@ export default function StudentDatabase() {
   return (
     <div>
       {stopMsgFor && <MessagePrompt kind="stopped" recipients={[stopMsgFor]} onClose={() => setStopMsgFor(null)} />}
+      {backTo && (
+        <button className="btn btn-sm" style={{ marginBottom: 10 }}
+          onClick={() => backTo.startsWith('athlete:') ? navigate(`/athletes?id=${backTo.slice(8)}`) : navigate(-1)}>
+          ← {backTo.startsWith('athlete:') ? 'Back to athlete profile' : 'Back to register'}
+        </button>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Students</h1>
@@ -497,7 +515,7 @@ export default function StudentDatabase() {
               const groups = [s.is_kr&&'KR', s.is_pts&&'PTs', s.is_leader&&'Leader', s.is_coach&&'Coach'].filter(Boolean)
 
               return (
-                <tr key={s.id} style={isPending ? { background: '#fef9e744', borderLeft: '3px solid #EF9F27' } : {}}>
+                <tr key={s.id} data-sid={s.id} className={flashId === s.id ? 'kc-flash-row' : undefined} style={isPending ? { background: '#fef9e744', borderLeft: '3px solid #EF9F27' } : {}}>
                   {cols.map(c => {
                     switch(c.key) {
                       case 'student_ref': return (

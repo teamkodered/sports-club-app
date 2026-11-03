@@ -439,6 +439,10 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
           <button className="btn btn-sm" onClick={openMembershipForm} style={embedded ? { flexBasis: '100%', justifyContent: 'center' } : { marginLeft: 8, flexShrink: 0 }}>
             📄 View Membership
           </button>
+          {/* to them in the Students list (flashes their row), with a way back */}
+          <button className="btn btn-sm" onClick={() => navigate(`/students?flash=${localStudent.id}&back=register`)} style={embedded ? { flexBasis: '100%', justifyContent: 'center' } : { marginLeft: 8, flexShrink: 0 }}>
+            🎽 Students list
+          </button>
           {!embedded && (
             <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-secondary)', marginLeft: 8, padding: 8, lineHeight: 1 }}>✕</button>
           )}

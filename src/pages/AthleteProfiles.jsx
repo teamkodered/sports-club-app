@@ -9453,7 +9453,7 @@ export default function AthleteProfiles() {
                   <button className="btn btn-sm" onClick={() => setShowInviteMenu(true)}>📨 Invite</button>
                 )}
                 {isAdmin && (
-                  <button className="btn btn-sm" onClick={() => setTab('membership')} style={{ marginLeft: 'auto' }}>Membership</button>
+                  {profileInfoExpanded && <button className="btn btn-sm" onClick={() => navigate(`/students?flash=${selected.id}&back=athlete:${selected.id}`)} style={{ marginLeft: 'auto' }}>Membership</button>}
                 )}
               </div>
             </div>
