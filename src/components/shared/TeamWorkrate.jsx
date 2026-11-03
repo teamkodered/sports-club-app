@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { loadSportSel, sameSport, DEFAULT_SPORTS } from '../../lib/wearSports.js'
 import { supabase } from '../../lib/supabase.js'
 
 // Coach Wearables "Over time": workrate per session across the weeks -- average heart
@@ -16,11 +17,12 @@ export default function TeamWorkrate({ students = [], onOpen }) {
   const [openSid, setOpenSid] = useState(null) // athlete quick view (slide down)
   const [showSports, setShowSports] = useState(false) // activity buttons folded under one button
   // Activity filter -- the same buttons + remembered choice as View by day (e.g. Boxing / Kickboxing / Martial arts)
-  const [sportSel, setSportSel] = useState(() => { try { return JSON.parse(localStorage.getItem('kc_wear_sports') || '[]') } catch { return [] } })
+  const [sportSel, setSportSel] = useState(loadSportSel)
+  const hasSport = sp => sportSel.some(x => sameSport(x, sp))
   const saveSel = next => { setSportSel(next); try { localStorage.setItem('kc_wear_sports', JSON.stringify(next)) } catch { /* ignore */ } }
-  const toggleSport = sp => saveSel(sportSel.includes(sp) ? sportSel.filter(x => x !== sp) : [...sportSel, sp])
-  const sports = useMemo(() => [...new Set([...(rows || []).map(r => r.sport), ...sportSel])].sort((a, b) => (a === APP) - (b === APP) || a.localeCompare(b)), [rows, sportSel])
-  const shown = useMemo(() => rows && (sportSel.length ? rows.filter(r => sportSel.includes(r.sport)) : rows), [rows, sportSel])
+  const toggleSport = sp => saveSel(hasSport(sp) ? sportSel.filter(x => !sameSport(x, sp)) : [...sportSel, sp])
+  const sports = useMemo(() => [...new Set([...(rows || []).map(r => r.sport), ...sportSel.filter(x => !DEFAULT_SPORTS.includes(x))])].sort((a, b) => (a === APP) - (b === APP) || a.localeCompare(b)), [rows, sportSel])
+  const shown = useMemo(() => rows && (sportSel.length ? rows.filter(r => hasSport(r.sport)) : rows), [rows, sportSel])
   const byId = useMemo(() => Object.fromEntries(students.map(s => [s.id, s])), [students])
 
   useEffect(() => {
@@ -82,7 +84,7 @@ export default function TeamWorkrate({ students = [], onOpen }) {
       {sports.length > 0 && showSports && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
           <button type="button" className={sportSel.length === 0 ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => saveSel([])}>All</button>
-          {sports.map(sp => <button key={sp} type="button" className={sportSel.includes(sp) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleSport(sp)}>{sp === APP ? '❤️ ' + sp : sp}</button>)}
+          {sports.map(sp => <button key={sp} type="button" className={hasSport(sp) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleSport(sp)}>{sp === APP ? '❤️ ' + sp : sp}</button>)}
         </div>
       )}
       <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 6px' }}>{sportSel.length ? `Only: ${sportSel.join(', ')}. ` : 'All activities. '}Average heart rate per session as % of each athlete's max (age-based). White = team average. Tap a name for their quick view; tap their Avg / Best numbers to add them to the chart (up to 4).</p>

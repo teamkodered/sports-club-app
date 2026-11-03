@@ -9692,6 +9692,16 @@ export default function AthleteProfiles() {
                           </div>
                         )
                       } },
+                      { label: 'Age division', editable: false, render: () => {
+                        // e.g. Younger Cadets (10-12) -- set on Edit profile, otherwise from their date of birth
+                        const g = divisionsForAge(selected.members?.date_of_birth)
+                        const codes = String(selected.discipline_codes || '').split('/').map(x => x.trim().toUpperCase()).filter(Boolean)
+                        const boxer = selected.discipline === 'KRBA', kicker = !!selected.is_kr || selected.discipline !== 'KRBA'
+                        const list = []
+                        if (kicker) { const t = apData?.age_division_kickboxing || g.kickboxing?.label; if (t) list.push(t); if (codes.some(c => ['FC', 'LK', 'K1'].includes(c)) && g.ring?.label && !/ring/i.test(t || '')) list.push(g.ring.label) }
+                        if (boxer) { const b = apData?.age_division_boxing || g.boxing?.label; if (b) list.push(b) }
+                        return list.length ? list.join(' · ') : '—'
+                      } },
                       { label: 'Comp weight', editable: true, render: () => isAdmin ? (
                         (() => {
                           const g = divisionsForAge(selected.members?.date_of_birth)

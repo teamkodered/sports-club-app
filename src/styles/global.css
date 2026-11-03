@@ -1804,3 +1804,5 @@ html.is-app body { padding-top: env(safe-area-inset-top, 0px); }
 /* Students list: the student you came for flashes briefly */
 @keyframes kcFlashRow { 0%, 100% { background: transparent; } 20%, 60% { background: rgba(245,197,66,0.35); } 40%, 80% { background: rgba(245,197,66,0.12); } }
 tr.kc-flash-row > td { animation: kcFlashRow 1.6s ease 2; }
+
+.reg-agediv { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 1px; color: var(--text-tertiary); font-weight: 700; }

@@ -75,6 +75,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { matchClass, workoutRange, fmtTime, isClubSport } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { divisionsForAge } from '../lib/divisions.js'
 import { divMatch } from '../lib/divisions.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { assignmentActiveOn, todayISO, insertAssignment, endAssignment, addDaysISO } from '../lib/classAssignments.jsx'
@@ -932,6 +933,15 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     setSortKey(key); setSortDir('asc')
   }
 
+  // age division shown next to the age, e.g. 16 JNR (boxing groups for KRBA, kickboxing for everyone else)
+  const DIV_ABBR = { CH: 'CH', YC: 'YC', OC: 'OC', J: 'JNR', S: 'SNR', V: 'VET', YJ: 'YJ', OJ: 'OJ', RS: 'SNR', MIN: 'MIN', SCH: 'SCH', JUN: 'JNR', YTH: 'YTH', SDV: 'SNR', ELT: 'ELT' }
+  const DIV_NAME = { CH: 'Children', YC: 'Younger cadet', OC: 'Older cadet', J: 'Junior', S: 'Senior', V: 'Veteran', MIN: 'Minor', SCH: 'Schools', JUN: 'Junior', YTH: 'Youth', SDV: 'Senior', ELT: 'Elite' }
+  function ageDiv(st, dob) {
+    if (!dob) return null
+    const g = divisionsForAge(dob)
+    const d = st?.discipline === 'KRBA' ? g.boxing : g.kickboxing
+    return d ? { abbr: DIV_ABBR[d.key] || d.key, name: DIV_NAME[d.key] || d.label } : null
+  }
   function calcAge(dob) {
     if (!dob) return '—'
     return Math.floor((Date.now() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000))
@@ -2327,7 +2337,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         </div>
                         {mainCols ? (mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols reg-m-cols-main">
-                            <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
+                            <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b>{ageDiv(st, m?.date_of_birth) && <small className="reg-agediv" title={ageDiv(st, m?.date_of_birth).name}> {ageDiv(st, m?.date_of_birth).abbr}</small>}</span>
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: spFlag === 'is_pts' ? '#378ADD' : pctColour(pct) }}>{pctText}</b></span>
                             <span style={{ display: 'inline-flex', alignItems: 'center' }}><MediaCam restriction={st.media_restriction} /></span>
                           </div>
@@ -2369,7 +2379,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           </div>
                         )) : mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols">
-                            <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
+                            <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b>{ageDiv(st, m?.date_of_birth) && <small className="reg-agediv" title={ageDiv(st, m?.date_of_birth).name}> {ageDiv(st, m?.date_of_birth).abbr}</small>}</span>
                             <span><b>{weight != null ? `${weight}kg` : '—'}</b></span>
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: spFlag === 'is_pts' ? '#378ADD' : pctColour(pct) }}>{pctText}</b></span>
                           </div>
@@ -2772,7 +2782,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       <td style={{ fontSize: 13, color: 'var(--text-secondary)', position: 'relative' }}>
                         <span style={{ cursor: 'pointer' }}
                           onClick={e => { e.stopPropagation(); setDobPopupStudentId(prev => prev === s.id ? null : s.id) }}>
-                          {age}
+                          {age}{ageDiv(s, m?.date_of_birth) && <small className="reg-agediv" title={ageDiv(s, m?.date_of_birth).name}> {ageDiv(s, m?.date_of_birth).abbr}</small>}
                         </span>
                         {dobPopupStudentId === s.id && (
                           <div onClick={e => e.stopPropagation()}

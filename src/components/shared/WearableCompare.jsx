@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { loadSportSel, sameSport, DEFAULT_SPORTS } from '../../lib/wearSports.js'
 import { supabase } from '../../lib/supabase.js'
 
 // Coach view -- Wearables "By day" / "By session": compare every athlete's wearable
@@ -71,12 +72,13 @@ export default function WearableCompare({ mode, students = [], classes = [], onO
   }, [mode, date, classId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sport filter (View by day): remembered on this device
-  const [sportSel, setSportSel] = useState(() => { try { return JSON.parse(localStorage.getItem('kc_wear_sports') || '[]') } catch { return [] } })
-  const toggleSport = sp => setSportSel(prev => { const next = prev.includes(sp) ? prev.filter(x => x !== sp) : [...prev, sp]; try { localStorage.setItem('kc_wear_sports', JSON.stringify(next)) } catch { /* ignore */ } return next })
+  const [sportSel, setSportSel] = useState(loadSportSel)
+  const hasSport = sp => sportSel.some(x => sameSport(x, sp))
+  const toggleSport = sp => setSportSel(prev => { const next = prev.some(x => sameSport(x, sp)) ? prev.filter(x => !sameSport(x, sp)) : [...prev, sp]; try { localStorage.setItem('kc_wear_sports', JSON.stringify(next)) } catch { /* ignore */ } return next })
   const sportOf = w => (w.sport_name || 'Other').trim()
-  const sportsToday = useMemo(() => [...new Set([...(rows || []).flatMap(r => r.workouts.map(sportOf)), ...sportSel])].sort(), [rows, sportSel]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sportsToday = useMemo(() => [...new Set([...(rows || []).flatMap(r => r.workouts.map(sportOf)), ...sportSel.filter(x => !DEFAULT_SPORTS.includes(x))])].sort(), [rows, sportSel]) // eslint-disable-line react-hooks/exhaustive-deps
   const agg = useMemo(() => (rows || []).map(r => {
-    const w = (mode === 'day' && sportSel.length) ? r.workouts.filter(x => sportSel.includes(sportOf(x))) : r.workouts
+    const w = (mode === 'day' && sportSel.length) ? r.workouts.filter(x => hasSport(sportOf(x))) : r.workouts
     const h = (mode === 'day' && sportSel.length) ? [] : r.hr
     const secs = w.reduce((n, x) => n + (x.duration_seconds || 0), 0) + h.reduce((n, x) => n + (x.minutes || 0) * 60, 0)
     const avgs = [...w.map(x => x.avg_heart_rate), ...h.map(x => x.avg)].filter(Boolean)
@@ -115,7 +117,7 @@ export default function WearableCompare({ mode, students = [], classes = [], onO
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
           <button type="button" className={sportSel.length === 0 ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => { setSportSel([]); try { localStorage.setItem('kc_wear_sports', '[]') } catch { /* ignore */ } }}>All</button>
           {sportsToday.map(sp => (
-            <button key={sp} type="button" className={sportSel.includes(sp) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleSport(sp)}>{sp}</button>
+            <button key={sp} type="button" className={hasSport(sp) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleSport(sp)}>{sp}</button>
           ))}
         </div>
       )}
