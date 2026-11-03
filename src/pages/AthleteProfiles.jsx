@@ -3005,9 +3005,15 @@ function compWeightGroups(st, ap, kbOverride, bxOverride) {
   const wantRing = codes.some(c => ['FC', 'LK', 'K1'].includes(c)) || chosenIsRing
   const wantTatami = !codes.length || codes.some(c => ['PF', 'PC', 'LC', 'KL'].includes(c)) || (kbChosen && !chosenIsRing)
   const out = []
-  if (kicker && wantTatami) { const d = (kbChosen && !chosenIsRing ? kbChosen : g.kickboxing?.label); const o = weightsFor(d, sex); if (o.length) out.push({ label: `Kickboxing tatami${d ? ' · ' + d : ''}`, opts: o }) }
-  if (kicker && wantRing) { const d = (chosenIsRing ? kbChosen : g.ring?.label); const o = weightsFor(d, sex); if (o.length) out.push({ label: `Kickboxing ring${d ? ' · ' + d : ''}`, opts: o }) }
-  if (boxer) { const d = bxOverride ?? ap?.age_division_boxing ?? g.boxing?.label; const o = weightsFor(d, sex); if (o.length) out.push({ label: `Boxing${d ? ' · ' + d : ''}`, opts: o }) }
+  // try the age division set on their profile, then the one from their date of birth; if neither gives a
+  // list (no date of birth, or a division name that isn't recognised) show every age group's weights
+  const add = (kind, tries, all) => {
+    for (const d of tries) { if (!d) continue; const o = weightsFor(d, sex); if (o.length) { out.push({ label: `${kind} · ${d}`, opts: o }); return } }
+    for (const d of all) { const o = weightsFor(d.label, sex); if (o.length) out.push({ label: `${kind} · ${d.label}`, opts: o }) }
+  }
+  if (kicker && wantTatami) add('Kickboxing tatami', [kbChosen && !chosenIsRing ? kbChosen : null, g.kickboxing?.label], KB_OFFICIAL.filter(d => !d.ring))
+  if (kicker && wantRing) add('Kickboxing ring', [chosenIsRing ? kbChosen : null, g.ring?.label], KB_OFFICIAL.filter(d => d.ring))
+  if (boxer) add('Boxing', [bxOverride ?? ap?.age_division_boxing, g.boxing?.label], BOX_OFFICIAL)
   return out
 }
 
