@@ -6,6 +6,7 @@ import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import FocusAndFormat from '../components/dashboard/FocusAndFormat.jsx'
 import WebsiteProfiles from '../components/dashboard/WebsiteProfiles.jsx'
 import PointsToConfirm from '../components/dashboard/PointsToConfirm.jsx'
+import MyGradingStudents from '../components/dashboard/MyGradingStudents.jsx'
 import { supabase } from '../lib/supabase.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -465,6 +466,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* 🎽 coaches: grading requests from their own students */}
+      <MyGradingStudents />
 
       {/* 🏆 PBs / monthly improvements waiting for a coach to confirm (below Recent points, slides open) */}
       <PointsToConfirm />

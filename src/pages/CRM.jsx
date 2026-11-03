@@ -362,7 +362,7 @@ export default function CRM() {
     }
     return allRows
   }
-  const { isAdmin, isHeadCoach, viewAs, viewAsStudentIds } = useAuth()
+  const { isAdmin, isHeadCoach, viewAs, viewAsStudentIds, profile } = useAuth()
   // Admin "View as": your admin access is unchanged underneath, so narrow the CRM's lists to what
   // the viewed person can really see (their students / their venue) -- matches the database for them
   const previewVenues = useRef(null)
@@ -911,6 +911,16 @@ export default function CRM() {
       return { ...r, attendanceCount: count ?? 0 }
     }))
 
+    // which class(es) each student trains in, and who teaches them
+    const sids = [...new Set(enriched.map(r => r.student_id).filter(Boolean))]
+    let byStudent = {}
+    if (sids.length) {
+      const { data: asg } = await supabase.from('student_class_assignments').select('*, classes(name, day_of_week, start_time, instructor)').in('student_id', sids)
+      const today = new Date().toISOString().split('T')[0]
+      ;(asg || []).filter(a => a.classes && (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today) && !/register/i.test(a.classes.name || ''))
+        .forEach(a => { (byStudent[a.student_id] ||= []).push(a.classes) })
+    }
+    enriched.forEach(r => { r.trainClasses = byStudent[r.student_id] || [] })
     setGradingRequests(enriched)
     setGradingSelected(Object.fromEntries(enriched.map(r => [r.id, true])))
     setGradingLoaded(true)
@@ -1033,10 +1043,12 @@ export default function CRM() {
 
   async function approveGrading(id) {
     setApprovingGradingId(id)
-    const { error } = await supabase.from('grading_expressions').update({ coach_approved: true }).eq('id', id)
+    const by = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Admin'
+    let { error } = await supabase.from('grading_expressions').update({ coach_approved: true, coach_approved_by: by, coach_approved_at: new Date().toISOString() }).eq('id', id)
+    if (error && /coach_approved_(by|at)/.test(error.message || '')) ({ error } = await supabase.from('grading_expressions').update({ coach_approved: true }).eq('id', id))
     setApprovingGradingId(null)
     if (error) { alert('Error approving: ' + error.message); return }
-    setGradingRequests(prev => prev.map(r => r.id === id ? { ...r, coach_approved: true } : r))
+    setGradingRequests(prev => prev.map(r => r.id === id ? { ...r, coach_approved: true, coach_approved_by: by } : r))
   }
 
   async function deleteGradingRequest(id) {
@@ -5034,6 +5046,11 @@ export default function CRM() {
                         ) : (
                           <button type="button" className="btn btn-sm" style={{ margin: '4px 0 6px', fontSize: 11 }} onClick={() => { const n = gradingTypedName(r)?.replace(/ \(age.*$/, '') || ''; setGradingLinking({ id: r.id, q: '', results: [] }); if (n) searchGradingLink(n.split(' ')[0]) }}>🔗 Link to student</button>
                         ))}
+                        {r.trainClasses?.length > 0 && (
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0' }}>
+                            🏫 {r.trainClasses.map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.instructor ? ` · Coach: ${c.instructor}` : ''}`).join('  |  ')}
+                          </p>
+                        )}
                         {gradingEdit?.id === r.id ? (() => {
                           // grades for their age group (plus whatever they typed, if it isn't in the list)
                           const opts = [...new Set([...(order.length ? order : []), r.current_belt, r.grading_for].filter(Boolean))]
@@ -5080,7 +5097,7 @@ export default function CRM() {
                       </div>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                         {r.coach_approved ? (
-                          <span style={{ fontSize: 12, fontWeight: 600, color: '#1D9E75' }}>✓ Approved</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#1D9E75' }}>✓ Approved{r.coach_approved_by ? ` · ${r.coach_approved_by}` : ''}</span>
                         ) : (
                           <button className="btn btn-sm btn-primary" disabled={approvingGradingId === r.id}
                             onClick={() => approveGrading(r.id)}>
