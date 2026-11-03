@@ -12,7 +12,10 @@ begin
     update students set archived_at = now() where member_id = new.id and archived_at is null;
     update student_class_assignments a set end_date = current_date
       from students s where s.member_id = new.id and a.student_id = s.id and (a.end_date is null or a.end_date > current_date);
-    if new.auth_id is not null then update auth.users set banned_until = 'infinity' where id = new.auth_id; end if;
+    -- only if this login isn't also used by another, still-active record (e.g. a coach who also trains)
+    if new.auth_id is not null and not exists (select 1 from members m2 where m2.auth_id = new.auth_id and m2.id <> new.id and m2.status <> 'stopped') then
+      update auth.users set banned_until = 'infinity' where id = new.auth_id;
+    end if;
   elsif coalesce(old.status, '') = 'stopped' and new.status <> 'stopped' then
     update students set archived_at = null where member_id = new.id;
     if new.auth_id is not null then update auth.users set banned_until = null where id = new.auth_id; end if;
