@@ -54,7 +54,7 @@ const Q = {
 export default function SectionQuote({ section, colour }) {
   const d = Q[section]
   const [i, setI] = useState(() => Math.floor(Math.random() * (d?.quotes.length || 1)))
-  useEffect(() => { if (!d) return; const t = setInterval(() => setI(x => (x + 1) % d.quotes.length), 9000); return () => clearInterval(t) }, [d])
+  // a new quote each time the section is opened (no timer -- changing text every few seconds made the page jump)
   if (!d) return null
   const [text, who] = d.quotes[i % d.quotes.length]
   return (
