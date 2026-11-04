@@ -6031,11 +6031,12 @@ export default function AthleteApp() {
 
                 // PDP card values
                 const completedCount = myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length
-                const totalSent = PDP_SECTIONS.filter(s => s.key !== 'winning_ways').reduce((sum, s) =>
+                const totalSent = PDP_SECTIONS.filter(s => /_work_on$/.test(s.key)).reduce((sum, s) =>   // only the 'Work on' items count (not maintain / notes / winning ways)
                   sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
                 const pdpHasPct = totalSent > 0
-                const pdpValue = pdpHasPct ? `${completedCount}/${totalSent}` : completedCount
-                const pdpPct = pdpHasPct ? `${Math.round((completedCount / totalSent) * 100)}%` : pdpValue
+                const doneShown = pdpHasPct ? Math.min(completedCount, totalSent) : completedCount
+                const pdpValue = pdpHasPct ? `${doneShown}/${totalSent}` : completedCount
+                const pdpPct = pdpHasPct ? `${Math.round((doneShown / totalSent) * 100)}%` : pdpValue
 
                 return (
                   <>
