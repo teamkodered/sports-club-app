@@ -22,14 +22,16 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
   const pillarOfKey = key => AREA_PILLAR[String(key).split('_')[0]] || null
   const [linkRows, setLinkRows] = useState({})   // student id -> pdp_links
   const linkOf = (id, key, t) => (linkRows[id] || {})[`${key}::${t}`] || null
-  async function linkNote(id, key, t, pillar, q) {
+  const holdT = useRef(null)
+  const [subOpen, setSubOpen] = useState(null)   // question whose options are shown (press & hold)
+  async function linkNote(id, key, t, pillar, q, item = null) {
     const { data } = await supabase.from('athlete_profiles').select('pdp_links').eq('student_id', id).maybeSingle()
     const links = { ...(data?.pdp_links || {}) }
-    if (q) links[`${key}::${t}`] = { pillar, q, item: null }; else delete links[`${key}::${t}`]
+    if (q) links[`${key}::${t}`] = { pillar, q, item }; else delete links[`${key}::${t}`]
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: id, pdp_links: links }, { onConflict: 'student_id' })
     if (error) { alert('Could not link: ' + error.message); return }
     setLinkRows(r => ({ ...r, [id]: links }))
-    setNoteMenu(null)
+    setNoteMenu(null); setSubOpen(null)
   }
   async function createQuestion(id, key, t, pillar) {
     const name = (prompt('New question for this section (added for every athlete):', t) || '').trim()
@@ -194,7 +196,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                             {items.map((t, i) => (
                               <li key={i} onClick={() => setNoteMenu(m => m && m.id === s.id && m.key === c.key && m.text === t ? null : { id: s.id, key: c.key, text: t })} title="Tap: copy, or link to a question" style={{ cursor: 'pointer', marginBottom: 2, background: clipHas(t) ? '#EF9F2733' : undefined, borderRadius: 4 }}><button type="button" onClick={e => { e.stopPropagation(); toggleCoachOnly(s.id, c.key, t) }} title={isCoachOnly(s.id, c.key, t) ? 'Coach only -- tap to let the athlete see it' : 'The athlete can see this -- tap to make it coach only'}
                                 style={{ background: 'none', border: 'none', padding: '0 4px 0 0', cursor: 'pointer', fontSize: 12, opacity: isCoachOnly(s.id, c.key, t) ? 0.6 : 1 }}>{isCoachOnly(s.id, c.key, t) ? '🔒' : '👁'}</button>{t}
-                                {(() => { const l = linkOf(s.id, c.key, t); if (!l) return null; const all = [...(questionCatalog?.(l.pillar) || []), ...qCustom(qcfg, l.pillar).map(x => ({ q: `custom:${x.key}`, label: x.label }))]; const hit = all.find(x => x.q === l.q); return <span className="pdp-qtag">{hit ? qName(qcfg, l.pillar, hit.label) : 'linked'}</span> })()}
+                                {(() => { const l = linkOf(s.id, c.key, t); if (!l) return null; const all = [...(questionCatalog?.(l.pillar) || []), ...qCustom(qcfg, l.pillar).map(x => ({ q: `custom:${x.key}`, label: x.label }))]; const hit = all.find(x => x.q === l.q); const qn = hit ? qName(qcfg, l.pillar, hit.label) : ''; const same = qn && qn.trim().toLowerCase() === String(t).trim().toLowerCase(); return <span className="pdp-qtag">{same ? '🔗 linked' : (qn || 'linked')}{l.item ? ` · ${l.item}` : ''}</span> })()}
                                 {noteMenu && noteMenu.id === s.id && noteMenu.key === c.key && noteMenu.text === t && (() => {
                                   const pillar = pillarOfKey(c.key), cur = linkOf(s.id, c.key, t)
                                   const disc = s.discipline === 'KRBA' ? 'Boxing' : 'Kickboxing'
@@ -204,7 +206,15 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                                     <div className="pdp-notemenu" onClick={e => e.stopPropagation()}>
                                       <button type="button" onClick={() => { toggleClip(t, s.id, c.key); setNoteMenu(null) }}>📋 {clipHas(t) ? 'Uncopy' : 'Copy note'}</button>
                                       {pillar ? <>
-                                        {list.map(x => <button key={x.q} type="button" className={cur?.q === x.q ? 'on' : ''} onClick={() => linkNote(s.id, c.key, t, pillar, x.q)}>{qName(qcfg, pillar, x.label)}{x.group && x.group !== 'Added' && pillar === 'physical' ? <small> · {x.group}</small> : null}{cur?.q === x.q ? ' ✓' : ''}</button>)}
+                                        {list.map(x => <button key={x.q} type="button" className={cur?.q === x.q ? 'on' : ''}
+                                          onPointerDown={() => { holdT.current = setTimeout(() => { holdT.current = 'held'; if ((x.items || []).length) setSubOpen(o => o === x.q ? null : x.q) }, 450) }}
+                                          onPointerUp={() => { if (holdT.current !== 'held') clearTimeout(holdT.current) }} onPointerLeave={() => { if (holdT.current !== 'held') clearTimeout(holdT.current) }}
+                                          onContextMenu={e => e.preventDefault()}
+                                          onClick={() => { if (holdT.current === 'held') { holdT.current = null; return } linkNote(s.id, c.key, t, pillar, x.q) }}>{qName(qcfg, pillar, x.label)}{x.group && x.group !== 'Added' && pillar === 'physical' ? <small> · {x.group}</small> : null}{cur?.q === x.q ? ' ✓' : ''}{(x.items || []).length ? <small> · hold for options</small> : null}</button>)}
+                                        {subOpen && (() => { const x = list.find(y => y.q === subOpen); if (!x) return null; return (
+                                          <div className="pdp-notesub"><div className="hint">{qName(qcfg, pillar, x.label)} -- pick one:</div>
+                                            {(x.items || []).map(it => { const name = typeof it === 'string' ? it : (it?.name || it?.label || ''); return <button key={name} type="button" className={cur?.q === x.q && cur?.item === name ? 'on' : ''} onClick={() => linkNote(s.id, c.key, t, pillar, x.q, name)}>{name}{cur?.q === x.q && cur?.item === name ? ' ✓' : ''}</button> })}
+                                          </div>) })()}
                                         <button type="button" className="create" onClick={() => createQuestion(s.id, c.key, t, pillar)}>➕ Create question…</button>
                                         {cur && <button type="button" onClick={() => linkNote(s.id, c.key, t, pillar, null)}>✕ Unlink</button>}
                                       </> : <div className="hint">Winning ways notes aren't linked to questions.</div>}

@@ -6562,7 +6562,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                 }}>
                                 <QuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} />{pdpInfo('technique', `${style}::${cat}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                                 <span style={{ flex: 1, textAlign: 'center' }}>
-                                  <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{cat}</span>
+                                  <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{qName(qcfg, 'technique', cat)}</span>
                                   {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
                                 </span>
                               </button>
@@ -6614,7 +6614,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
                       {AddedQuestions({ sec: 'tactical' })}
                     <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
-                      {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
+                      {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !qHidden(qcfg, 'tactical', cat === '__videoAnalysis__' ? 'Video analysis' : cat)).sort(qSort(qcfg, 'tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                         if (cat === '__videoAnalysis__') {
                           const active = expandedTacticalCategory === cat
                           const complete = !!todaysMentalityLog.videoAnalysis?.type
@@ -6645,7 +6645,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             }}>
                             <QuestionProgressBarsVertical sectionKey="tactical" questionLabel={cat_} />{pdpInfo('tactical', cat_).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ flex: 1, textAlign: 'center' }}>
-                              <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{cat_}</span>
+                              <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{qName(qcfg, 'tactical', cat_)}</span>
                               {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
                             </span>
                           </button>
