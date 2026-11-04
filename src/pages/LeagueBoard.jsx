@@ -213,6 +213,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
   const meId = student?.id
   const sectionPos = useSectionLeague(listMode ? student?.id : null)
   const [openCard, setOpenCard] = useState(null)
+  const [listPage, setListPage] = useState(0)   // athlete League page: which group of boards is showing
   const myMasked = student?.members ? maskName(student.members.first_name, student.members.last_name) : null
   const ranked = (list, valueOf) => {
     let rank = 0, prev = null
@@ -380,9 +381,22 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
             {badges.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{badges.map(([e, t]) => <span key={t} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, border: '1px solid #F5C54266', color: '#F5C542', background: '#F5C54214' }}>{e} {t}</span>)}</div>}
           </div>
         )}
-        {grouped.map(([g, list]) => (
+        {grouped.length > 0 && (() => {
+          // one page at a time: press (or swipe) to step Sections -> Exercise PBs -> Heart rate -> ...
+          const gi = Math.min(listPage, grouped.length - 1), step = d => { setListPage((gi + d + grouped.length) % grouped.length); setOpenCard(null) }
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}
+              onTouchStart={e => { e.currentTarget.dataset.x = e.touches[0].clientX }}
+              onTouchEnd={e => { const dx = e.changedTouches[0].clientX - Number(e.currentTarget.dataset.x || 0); if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1) }}>
+              <button type="button" onClick={() => step(1)} style={{ ...TITLE, fontSize: 20, padding: '6px 14px', borderRadius: 8, cursor: 'pointer', background: '#F5C5421A', border: '1px solid #F5C542', color: '#F5C542' }}>
+                {grouped[gi][0]} <span style={{ opacity: 0.6, fontSize: 14 }}>⇄</span>
+              </button>
+              <span style={{ display: 'flex', gap: 4 }}>{grouped.map(([g], i) => <i key={g} style={{ width: i === gi ? 14 : 6, height: 6, borderRadius: 3, background: i === gi ? '#F5C542' : '#2A3138' }} />)}</span>
+            </div>
+          )
+        })()}
+        {grouped.filter((_, i) => i === Math.min(listPage, grouped.length - 1)).map(([g, list]) => (
           <div key={g} style={{ marginBottom: 16 }}>
-            <div style={{ ...NUM, fontSize: 10, letterSpacing: 2, color: '#9A9A9A', margin: '0 2px 8px' }}>{g.toUpperCase()}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {list.map(sl => { const k = slideKey(sl), open = openCard === k; return (
                 <div key={k} className={`lb-card${open ? ' open' : ''}`} onClick={() => setOpenCard(o => o === k ? null : k)}
