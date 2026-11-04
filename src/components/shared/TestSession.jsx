@@ -300,7 +300,11 @@ export function TestBatchModal({ onClose }) {
     (!q || `${a.members?.first_name} ${a.members?.last_name}`.toLowerCase().includes(q)))
   const filled = Object.entries(vals).filter(([, v]) => v !== '' && v != null)
   const [bleepOpen, setBleepOpen] = useState(false)
-  const [batchTool, setBatchTool] = useState(null)   // { a: athlete, kind } -- measuring tool for one athlete
+  const [batchTool, setBatchTool] = useState(null)   // { a: athlete, kind, url } -- measuring tool for one athlete
+  // 📹 several videos at once: upload them all, then tap each and say whose it is (opens the measuring tool with it)
+  const [batchVids, setBatchVids] = useState([])      // [{ id, name, url, who }]
+  const [pickFor, setPickFor] = useState(null)        // video id waiting for an athlete
+  const batchVidRef = useRef(null)
   // which measuring tool fits the chosen test (same tools as the single-athlete test session)
   const toolKind = /^Vertical Jump/.test(testName) ? 'jump' : /^Long Jump/.test(testName) ? 'longjump'
     : / time \(ms\)$/.test(testName) ? 'punch' : /^Punches per/.test(testName) ? 'count'
@@ -372,13 +376,13 @@ export function TestBatchModal({ onClose }) {
             <div className="ts-hint" style={{ marginBottom: 8 }}>{toolIcon} Tap {toolIcon} next to an athlete to {toolKind === 'photo' ? 'measure from a photo' : toolKind === 'hrr-after' ? 'run their 1 min HR recovery (standing)' : 'measure from a video'} -- the result fills in their box.</div>
           )}
           {batchTool && createPortal((() => {
-            const { a, kind } = batchTool, who = `${a.members?.first_name || ''} ${a.members?.last_name || ''}`.trim(), close = () => setBatchTool(null)
+            const { a, kind, url } = batchTool, who = `${a.members?.first_name || ''} ${a.members?.last_name || ''}`.trim(), close = () => setBatchTool(null)
             if (kind === 'photo') return <PhotoMeasureTool zIndex={700} tests={[testName]} onClose={close} onSave={(name, v) => setFor(a.id, v)} />
             if (kind === 'count') return <PunchCountTool zIndex={700} onClose={close} onSave={({ perRound, perMinute }) => setFor(a.id, testName === 'Punches per minute' ? perMinute : perRound)} />
             if (kind === 'reps') return <PunchCountTool mode="reps" title={`📹 Count reps · ${who} · ${testName}`} zIndex={700} onClose={close} onSave={({ perRound }) => setFor(a.id, perRound)} />
-            if (kind === 'timer') return <VideoMeasureTool mode="timer" zIndex={700} onClose={close} saveLabel={v => `Use ${v}s for ${who}`} onResult={v => setFor(a.id, v)} />
+            if (kind === 'timer') return <VideoMeasureTool mode="timer" initialUrl={url || null} zIndex={700} onClose={close} saveLabel={v => `Use ${v}s for ${who}`} onResult={v => setFor(a.id, v)} />
             if (kind === 'hrr-after') return <HrrTestTool zIndex={700} variant="recovery" afterTest={testName.replace(/^HRR % \(after /, '').replace(/\)$/, '')} mode="coach" studentId={a.id} studentName={who} onClose={close} onResult={r => setFor(a.id, r.pct)} />
-            return <VideoMeasureTool mode={kind} zIndex={700} onClose={close}
+            return <VideoMeasureTool mode={kind} initialUrl={url || null} zIndex={700} onClose={close}
               saveLabel={(v, m) => kind === 'punch' ? `Use ${v} ms for ${who}` : `Use ${v} cm for ${who}`}
               onResult={(v, m) => { if (kind !== 'punch' || !m?.punchType || testName.startsWith(m.punchType)) setFor(a.id, v); else alert(`That measured a ${m.punchType} -- this list is ${testName}.`) }} />
           })(), document.body)}
@@ -389,6 +393,29 @@ export function TestBatchModal({ onClose }) {
             <BleepTestPlayer zIndex={700} course={testName === 'Bleep test (10m)' ? 10 : 20} onClose={() => setBleepOpen(false)}
               candidates={list.map(a => ({ id: a.id, name: `${a.members?.first_name || ''} ${a.members?.last_name || ''}`.trim() }))}
               onDone={res => setVals(p => ({ ...p, ...res }))} />, document.body)}
+          {toolKind && toolIcon === '📹' && (
+            <div className="ts-batch-vids">
+              <input ref={batchVidRef} type="file" accept="video/*" multiple hidden onChange={e => {
+                const files = Array.from(e.target.files || []); e.target.value = ''
+                setBatchVids(v => [...v, ...files.map((f, i) => ({ id: `${Date.now()}_${i}`, name: f.name, url: URL.createObjectURL(f), who: null }))])
+              }} />
+              <button type="button" className="ts-measure-btn" onClick={() => batchVidRef.current?.click()}>📹 Upload several videos</button>
+              {batchVids.length > 0 && <div className="ts-batch-vidlist">
+                {batchVids.map((v, n) => {
+                  const who = v.who ? athletes.find(x => x.id === v.who) : null
+                  return (
+                    <button key={v.id} type="button" className={`ts-vidchip${who ? ' done' : ''}${pickFor === v.id ? ' on' : ''}`}
+                      onClick={() => who ? setBatchTool({ a: who, kind: toolKind, url: v.url }) : setPickFor(p => p === v.id ? null : v.id)}>
+                      🎞 Video {n + 1}{who ? ` · ${who.members?.first_name}` : ' · whose?'}
+                    </button>
+                  )
+                })}
+              </div>}
+              {pickFor && <div className="ts-batch-pick">Tap the athlete in this video:
+                <div className="ts-batch-picklist">{list.map(a => <button key={a.id} type="button" onClick={() => { setBatchVids(v => v.map(x => x.id === pickFor ? { ...x, who: a.id } : x)); const url = batchVids.find(x => x.id === pickFor)?.url; setPickFor(null); setBatchTool({ a, kind: toolKind, url }) }}>{a.members?.first_name} {a.members?.last_name}</button>)}</div>
+              </div>}
+            </div>
+          )}
           <div className="ts-batch">
             {list.map(a => (
               <label key={a.id} className="ts-batch-row">
@@ -402,7 +429,7 @@ export function TestBatchModal({ onClose }) {
                       onChange={e => { const v = e.target.value; setHrrExtra(p => { const cur = { ...(p[a.id] || {}), [k]: v }; const st = parseFloat(cur.start), en = parseFloat(cur.end); if (!isNaN(st) && !isNaN(en)) setVals(q => ({ ...q, [a.id]: String(st - en) })); return { ...p, [a.id]: cur } }) }} />
                   ))}
                 </>}
-                {toolKind && <button type="button" className="btn btn-sm" title="Measure for this athlete" onClick={e => { e.preventDefault(); setBatchTool({ a, kind: toolKind }) }}>{toolIcon}</button>}
+                {toolKind && <button type="button" className="btn btn-sm ts-batch-tool" title="Measure for this athlete" onClick={e => { e.preventDefault(); setBatchTool({ a, kind: toolKind }) }}>{toolIcon}</button>}
                 <input type="number" inputMode="decimal" step="any" value={vals[a.id] ?? ''} onChange={e => setVals(p => ({ ...p, [a.id]: e.target.value }))} aria-label={`${a.members?.first_name} ${a.members?.last_name}`} />
               </label>
             ))}

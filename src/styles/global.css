@@ -1817,3 +1817,15 @@ tr.kc-flash-row > td { animation: kcFlashRow 1.6s ease 2; }
 .pdp-notemenu .hint { padding: 9px 12px; font-size: 12px; color: var(--text-tertiary); }
 
 .pdp-notesub { background: #14181C; border-top: 1px solid #2A3138; border-bottom: 1px solid #2A3138; padding-left: 12px; }
+
+/* group test entry: tool buttons line up; several videos at once */
+.ts-batch-row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-batch-tool { flex-shrink: 0; width: 46px; justify-content: center; }
+.ts-batch-vids { margin-bottom: 8px; }
+.ts-batch-vidlist { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ts-vidchip { height: 32px; padding: 0 10px; border-radius: 8px; border: 1px dashed #EF9F27; background: rgba(239,159,39,0.08); color: var(--text); font-size: 12px; cursor: pointer; font-family: inherit; }
+.ts-vidchip.done { border-style: solid; border-color: #1D9E75; background: rgba(29,158,117,0.12); }
+.ts-vidchip.on { box-shadow: 0 0 0 2px #EF9F27; }
+.ts-batch-pick { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+.ts-batch-picklist { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; max-height: 160px; overflow-y: auto; }
+.ts-batch-picklist button { height: 30px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 12px; cursor: pointer; font-family: inherit; }
