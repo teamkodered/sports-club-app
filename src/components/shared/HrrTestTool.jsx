@@ -114,27 +114,27 @@ export default function HrrTestTool({ mode = 'coach', studentId, studentName, ma
       <div style={{ width: '100%', maxWidth: 420, background: '#14181C', border: '1px solid #E24B4A', borderRadius: 16, padding: 18, color: '#F2F2F2', boxShadow: '0 0 20px rgba(226,75,74,0.3)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div><div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 22, textTransform: 'uppercase', color: '#E24B4A' }}>❤️ HR Recovery test</div>
-            <div style={{ fontSize: 12, color: '#9A9A9A' }}>{studentName} · {recoveryOnly ? `After ${afterTest || 'the test'}: press Start the moment it ends, then 1 min standing still` : 'Watt bike: 1 min all-out, 1 min seated'}</div></div>
+            <div style={{ fontSize: 12, color: '#9A9A9A' }}>{studentName} · {recoveryOnly ? `1 min recovery${afterTest ? ' after ' + afterTest : ''}` : 'Watt bike · 1 min all-out, 1 min seated'}</div></div>
           <button type="button" className="btn btn-sm" onClick={onClose}>Close</button>
         </div>
 
         {/* live heart rate */}
         <div style={{ textAlign: 'center', margin: '6px 0 12px' }}>
-          <div style={{ ...big, fontSize: 54, color: bpm ? '#E24B4A' : '#555', lineHeight: 1 }}>{bpm || '--'}</div>
+          <div style={{ ...big, fontSize: bpm ? 54 : 34, color: bpm ? '#E24B4A' : '#555', lineHeight: 1 }}>{bpm || '–'}</div>
           <div style={{ fontSize: 11, color: '#9A9A9A' }}>bpm {mode === 'coach' ? (stale ? '· no live heart rate from them yet' : '· live') : (live.connected ? '· live' : '')}</div>
         </div>
-        {mode === 'self' && !live.connected && phase === 'ready' && (
-          <button type="button" className="btn" style={{ width: '100%', marginBottom: 10 }} onClick={() => live.connect()}>Connect strap</button>
+        {phase === 'ready' && ((mode === 'self' && !live.connected) || (!bpm && recoveryOnly)) && (
+          // no live heart rate: connect the strap, or type it in -- side by side
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            {mode === 'self' && !live.connected && <button type="button" className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => live.connect()}>🔗 Connect strap</button>}
+            {!bpm && recoveryOnly && <input className="ts-input" style={{ flex: 1, minWidth: 0 }} type="number" inputMode="numeric" value={manualStart} onChange={e => setManualStart(e.target.value)} placeholder="or type bpm now" aria-label="Heart rate now" />}
+          </div>
         )}
         {mode === 'coach' && stale && phase === 'ready' && (
           <p style={{ fontSize: 12, color: '#F5C542', margin: '0 0 10px' }}>Their strap needs to be connected and recording in their app (checked in to the class, or ⏺ Start on Wearables).</p>
         )}
 
-        {phase === 'ready' && !bpm && recoveryOnly && (
-          <label style={{ display: 'block', fontSize: 12, color: '#9A9A9A', marginBottom: 8 }}>No strap? Type your heart rate <b>now</b> (from your watch / device), then press Start:
-            <input className="ts-input" type="number" inputMode="numeric" value={manualStart} onChange={e => setManualStart(e.target.value)} placeholder="Heart rate at the end of the test" /></label>
-        )}
-        {phase === 'ready' && <button type="button" className="ts-measure-btn" style={{ width: '100%' }} disabled={!bpm && !(recoveryOnly && manualStart)} onClick={start}>{recoveryOnly ? '▶ Start -- 1 min recovery (stand still)' : '▶ Start -- 60 s all-out'}</button>}
+        {phase === 'ready' && <button type="button" className="ts-measure-btn ts-hrr-btn" style={{ width: '100%' }} disabled={!bpm && !(recoveryOnly && manualStart)} onClick={start}>{recoveryOnly ? '▶ Start 1 min recovery' : '▶ Start 60 s all-out'}</button>}
         {(phase === 'effort' || phase === 'recover') && (
           <div style={{ textAlign: 'center', padding: '10px 0', borderRadius: 12, background: phase === 'effort' ? 'rgba(226,75,74,0.15)' : 'rgba(29,158,117,0.15)', border: `1px solid ${phase === 'effort' ? '#E24B4A' : '#1D9E75'}` }}>
             <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 26, textTransform: 'uppercase', color: phase === 'effort' ? '#E24B4A' : '#1D9E75' }}>
