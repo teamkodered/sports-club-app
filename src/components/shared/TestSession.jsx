@@ -92,6 +92,18 @@ export async function awardTestPoints(studentId, testNames) {
   return total
 }
 
+// HRR test methods -- pick one to see its boxes (the % only compares like with like)
+const HRR_METHODS = [
+  { key: 'watt', label: 'Watt bike (1 min)', pct: 'HRR % (Watt bike 1 min)', extra: ['HRR Watt bike watts (1 min)', 'HRR Watt bike distance (1 min)'], effort: true },
+  { key: 'bleep', label: 'After Bleep test', pct: 'HRR % (after Bleep test)' },
+  { key: 'fixed', label: 'After Fixed load circuit', pct: 'HRR % (after Fixed load circuit)' },
+  { key: 'bw', label: 'After Body weight max reps', pct: 'HRR % (after Body weight max reps)' },
+  { key: 'run', label: 'After Timed run', pct: 'HRR % (after Timed run)' },
+  { key: 'wattafter', label: 'After Watt bike', pct: 'HRR % (after Watt bike)' },
+  { key: 'at', label: 'Anaerobic threshold', only: ['Anaerobic Threshold'] },
+]
+const hrrNames = m => m.only || ['Heart Rate Recovery (1 min)', 'HRR start heart rate (bpm)', 'HRR end heart rate (bpm)', m.pct, ...(m.extra || [])]
+
 export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode, initialCat = null, thisWeek = null }) {
   // thisWeek: { sessions, junior } -- show 'Tests this week' at the bottom (tap one to jump to it)
   // hrrMode: 'self' in the athlete app (connects to their own strap), otherwise 'coach' (reads their live feed)
@@ -108,6 +120,8 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
       .catch(err => alert('Result kept, but the video could not be added to View iT: ' + err.message))
   }
   const [date, setDate] = useState(todayISO())
+  const [hrrMethod, setHrrMethod] = useState(null)   // HRR test: chosen method key (collapsed list until picked)
+  const [hrrPick, setHrrPick] = useState(false)
   const [catKey, setCatKey] = useState(initialCat && TEST_CATEGORIES.some(c => c.key === initialCat) ? initialCat : TEST_CATEGORIES[0].key)
   const [history, setHistory] = useState([])
   const [vals, setVals] = useState({})      // name -> value (single-set tests)
@@ -174,7 +188,18 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
               <button type="button" className="ts-measure-btn" onClick={() => setTool('bleep10')}>▶ Run 10 m bleep test</button>
             </>}
             {cat.key === 'stretches' && <button type="button" className="ts-measure-btn" onClick={() => setTool('photo')}>📷 Measure from photo</button>}
-            {cat.key === 'heart' && <button type="button" className="ts-measure-btn" onClick={() => setTool('hrr')}>❤️ Run HR recovery test (Watt bike)</button>}
+            {cat.key === 'heart' && (() => {
+              const m = HRR_METHODS.find(x => x.key === hrrMethod)
+              return (
+                <div style={{ width: '100%' }}>
+                  <button type="button" className="ts-measure-btn" style={{ width: '100%' }} onClick={() => setHrrPick(v => !v)}>❤️ Method: {m ? m.label : 'choose…'} {hrrPick ? '▲' : '▼'}</button>
+                  {hrrPick && <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '6px 0' }}>
+                    {HRR_METHODS.map(x => <button key={x.key} type="button" className={hrrMethod === x.key ? 'btn btn-sm btn-primary' : 'btn btn-sm'} style={{ justifyContent: 'flex-start' }} onClick={() => { setHrrMethod(x.key); setHrrPick(false) }}>{x.label}</button>)}
+                  </div>}
+                  {m && !m.only && <button type="button" className="ts-measure-btn" style={{ width: '100%', marginTop: 6 }} onClick={() => setTool('hrr')}>⏱ Start heart rate recovery timer{m.effort ? ' (60 s all-out + 60 s seated)' : ' (60 s seated)'}</button>}
+                </div>
+              )
+            })()}
             {cat.key === 'fixedload' && <button type="button" className="ts-measure-btn" onClick={() => setTool(`timer:${flColour || cat.tests[0]?.name}`)}>📹 Time circuit from video ({(flColour || cat.tests[0]?.name || '').replace(/^Fixed load circuit - /, '')})</button>}
             {cat.key === 'jumps' && <>
               <button type="button" className="ts-measure-btn" onClick={() => setTool('jump')}>📹 Open jump measuring</button>
@@ -196,8 +221,8 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           <HrrTestTool zIndex={700} variant="recovery" afterTest={tool.slice(10)} mode={hrrMode || 'coach'} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
             onResult={r => setVals(p => ({ ...p, [`HRR % (after ${tool.slice(10)})`]: String(r.pct) }))} />, document.body)
         : tool === 'hrr' ? createPortal(
-          <HrrTestTool zIndex={700} mode={hrrMode || 'coach'} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
-            onResult={r => setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.pct != null ? { 'HRR % (Watt bike 1 min)': String(r.pct) } : {}), ...(r.peak != null ? { 'HRR start heart rate (bpm)': String(r.peak) } : {}), ...(r.end != null ? { 'HRR end heart rate (bpm)': String(r.end) } : {}), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }))} />, document.body)
+          <HrrTestTool zIndex={700} mode={hrrMode || 'coach'} variant={(HRR_METHODS.find(x => x.key === hrrMethod) || {}).effort ? 'wattbike' : 'recovery'} afterTest={(HRR_METHODS.find(x => x.key === hrrMethod) || {}).effort ? null : (HRR_METHODS.find(x => x.key === hrrMethod)?.label || '').replace(/^After /, '')} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
+            onResult={r => setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.pct != null || (r.peak && r.hrr != null) ? { [(HRR_METHODS.find(x => x.key === hrrMethod) || HRR_METHODS[0]).pct]: String(r.pct ?? Math.round(r.hrr / r.peak * 100)) } : {}), ...(r.peak != null ? { 'HRR start heart rate (bpm)': String(r.peak) } : {}), ...(r.end != null ? { 'HRR end heart rate (bpm)': String(r.end) } : {}), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }))} />, document.body)
         : tool === 'bleep20' || tool === 'bleep10' ? createPortal(
           <BleepTestPlayer zIndex={700} course={tool === 'bleep10' ? 10 : 20} runners={[{ id: 'me', name: studentName || 'Athlete' }]} onClose={() => setTool(null)}
             onDone={res => { if (res.me) { setVals(p => ({ ...p, [tool === 'bleep10' ? 'Bleep test (10m)' : 'Bleep test']: res.me })); setTimeout(() => setTool('hrr-after:Bleep test'), 50) } }} />, document.body)
@@ -239,7 +264,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           </div>
         )}
         <div className="ts-tests">
-          {cat.tests.filter(t => cat.key !== 'fixedload' || t.name === (flColour || cat.tests[0]?.name) || (vals[t.name] !== '' && vals[t.name] != null)).map(t => {
+          {cat.tests.filter(t => cat.key !== 'fixedload' || t.name === (flColour || cat.tests[0]?.name) || (vals[t.name] !== '' && vals[t.name] != null)).filter(t => cat.key !== 'heart' || (hrrMethod && hrrNames(HRR_METHODS.find(x => x.key === hrrMethod)).includes(t.name))).map(t => {
             const b = best[t.name], l = last[t.name]
             const hint = <div className="ts-hint">{b != null ? <>Best <b>{fmtVal(b, t.unit)}</b>{l ? <> · Last {fmtVal(l.value, t.unit)} ({new Date(l.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})</> : null}</> : 'No result yet'}{lowerIsBetter(t.name) ? ' · lower is better' : ''}</div>
             if (cat.multiSet) {
