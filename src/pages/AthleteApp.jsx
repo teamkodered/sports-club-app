@@ -6107,7 +6107,7 @@ export default function AthleteApp() {
                       {showPhysicalSection && <SectionQuote section="physical" colour="#E6B800" />}
                       <SectionProgressBars sectionKey="physical" ropes="br" />
                     </button>
-                    {testSessionOpen && student?.id && <TestSessionModal initialCat={testSessionCat} hrrMode={'self'} allowUpload={!uploadsBlocked} onPoints={pts => { setStudent(prev => prev ? { ...prev, individual_points: (prev.individual_points || 0) + pts } : prev); celebrateHousePoint(pts) }} studentId={student?.id} studentName={`${student?.members?.first_name || ''} ${student?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).order('session_date', { ascending: false }); setSessions(data || []) }} />}
+                    {testSessionOpen && student?.id && <TestSessionModal initialCat={testSessionCat} thisWeek={{ sessions, junior: (() => { const d = student?.members?.date_of_birth; return d ? (Date.now() - new Date(d)) / 31557600000 < 16 : false })() }} hrrMode={'self'} allowUpload={!uploadsBlocked} onPoints={pts => { setStudent(prev => prev ? { ...prev, individual_points: (prev.individual_points || 0) + pts } : prev); celebrateHousePoint(pts) }} studentId={student?.id} studentName={`${student?.members?.first_name || ''} ${student?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).order('session_date', { ascending: false }); setSessions(data || []) }} />}
 
                     <div className={(pillarView['physical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
@@ -6434,8 +6434,6 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>{todaysTest && Object.values(todaysTest).some(v => v !== '' && v != null) ? 'Logged today' : 'Log results'}</span>
                       </span>
                     </button>
-                    <TestsThisWeek sessions={sessions} junior={(() => { const d = student?.members?.date_of_birth; return d ? (Date.now() - new Date(d)) / 31557600000 < 16 : false })()}
-                      onOpen={cat => { setTestSessionCat(cat); setTestSessionOpen(true) }} />
                     {student?.id && <OtherSessions studentId={student.id} history={sessions || []} todaysOther={[].concat((sessions.find(x => x.session_date === new Date().toISOString().split('T')[0]) || {}).other_session || [])} onSaveOther={list => savePhysicalField('other_session', list, () => {})} />}
                     </div>
                     )}

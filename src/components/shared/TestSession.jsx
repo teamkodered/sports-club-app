@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { TestsThisWeek } from './TestsThisWeek.jsx'
 import { createPortal } from 'react-dom'
 import VideoMeasureTool from './VideoMeasureTool.jsx'
 import PunchCountTool from './PunchCountTool.jsx'
@@ -91,7 +92,8 @@ export async function awardTestPoints(studentId, testNames) {
   return total
 }
 
-export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode, initialCat = null }) {
+export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode, initialCat = null, thisWeek = null }) {
+  // thisWeek: { sessions, junior } -- show 'Tests this week' at the bottom (tap one to jump to it)
   // hrrMode: 'self' in the athlete app (connects to their own strap), otherwise 'coach' (reads their live feed)
   // 📹 measuring from video: jump height / punch speed / punch count fill the boxes below;
   // the video is also kept with the athlete's test uploads (and in View iT when onViewIt is given)
@@ -270,6 +272,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           })}
         </div>
         <button type="button" className="btn btn-primary ts-save" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save results'}</button>
+        {thisWeek && <div style={{ marginTop: 14 }}><TestsThisWeek sessions={thisWeek.sessions || []} junior={!!thisWeek.junior} onOpen={k => { if (k && TEST_CATEGORIES.some(c => c.key === k)) setCatKey(k) }} /></div>}
         <PbPopup pbs={pbs} who={studentName} onDone={() => { setPbs(null); onClose() }} />
       </div>
     </div>
