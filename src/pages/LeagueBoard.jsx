@@ -443,13 +443,22 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
               style={{ background: 'none', border: '1px solid #2A3138', color: '#9A9A9A', borderRadius: 6, height: 32, padding: '0 10px', cursor: 'pointer', fontSize: 12 }}>⛶ Full screen</button>}
           </div>
         )}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-          {!embedded && chip(periodMode === 'auto', 'AUTO', () => setPeriodMode('auto'))}
-          {chip(period === 'league' && periodMode !== 'auto' && periodMode !== 'live', 'LEAGUE PERIOD', () => setPeriodMode('league'))}
-          {chip(period === 'month' && periodMode !== 'auto' && periodMode !== 'live', 'THIS MONTH', () => setPeriodMode('month'))}
-          {chip(periodMode === 'live', `❤️ LIVE${liveCount ? ` · ${liveCount}` : ''}`, () => setPeriodMode('live'))}
-          {periodMode === 'auto' && <span style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A', alignSelf: 'center' }}>NOW: {period === 'league' ? 'LEAGUE' : 'THIS MONTH'}</span>}
-        </div>
+        {(() => {
+          // one button: press to step through (Auto ->) League period -> This month -> ❤️ Live
+          const modes = [...(embedded ? [] : [['auto', 'AUTO']]), ['league', 'LEAGUE PERIOD'], ['month', 'THIS MONTH'], ['live', `❤️ LIVE${liveCount ? ` · ${liveCount}` : ''}`]]
+          const i = Math.max(0, modes.findIndex(m => m[0] === periodMode)), cur = modes[i]
+          const colour = periodMode === 'live' ? '#E24B4A' : '#F5C542'
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <button type="button" onClick={() => setPeriodMode(modes[(i + 1) % modes.length][0])}
+                style={{ ...NUM, fontSize: 12, letterSpacing: 1.5, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', background: `${colour}1F`, border: `1px solid ${colour}`, color: colour, boxShadow: `0 0 8px ${colour}55` }}>
+                {cur[1]} <span style={{ opacity: 0.6 }}>⇄</span>
+              </button>
+              <span style={{ display: 'flex', gap: 4 }}>{modes.map(m => <i key={m[0]} style={{ width: m[0] === cur[0] ? 14 : 6, height: 6, borderRadius: 3, background: m[0] === cur[0] ? colour : '#2A3138', transition: 'width 0.2s' }} />)}</span>
+              {periodMode === 'auto' && <span style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A' }}>NOW: {period === 'league' ? 'LEAGUE' : 'THIS MONTH'}</span>}
+            </div>
+          )
+        })()}
         {!listMode && !tv && periodMode !== 'live' && slides.length > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 }}>
             <button type="button" onClick={() => go(-1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>‹</button>
