@@ -159,7 +159,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
 
         <div className="ts-label">TEST</div>
         <div className="ts-cats">
-          {TEST_CATEGORIES.map(c => {
+          {[...TEST_CATEGORIES].sort((a, b) => a.label.localeCompare(b.label)).map(c => {   // A-Z
             const n = filledCount(c)
             return <button key={c.key} type="button" className={catKey === c.key ? 'on' : ''} onClick={() => setCatKey(c.key)}>{c.icon} {c.label}{n ? <b> {n}</b> : null}</button>
           })}
@@ -358,7 +358,7 @@ export function TestBatchModal({ onClose }) {
               <input id="tb-date" type="date" value={date} max={todayISO()} onChange={e => setDate(e.target.value)} className="ts-input" /></div>
             <div style={{ flex: 2 }}><label className="ts-label" htmlFor="tb-test">TEST</label>
               <select id="tb-test" value={testName} onChange={e => { setTestName(e.target.value); setVals({}) }} className="ts-input">
-                {TEST_CATEGORIES.map(c => <optgroup key={c.key} label={`${c.icon} ${c.label}`}>{c.tests.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}</optgroup>)}
+                {[...TEST_CATEGORIES].sort((a, b) => a.label.localeCompare(b.label)).map(c => <optgroup key={c.key} label={`${c.icon} ${c.label}`}>{c.tests.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}</optgroup>)}
               </select></div>
           </div>
           <div style={{ display: 'flex', gap: 6, margin: '8px 0' }}>
