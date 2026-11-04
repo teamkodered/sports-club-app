@@ -259,6 +259,28 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
                 </div>
               )
             }
+            if (cat.key === 'wattbike') {
+              // one card per effort: output (W) first, distance second
+              const dur = t.name.replace(/ \((output|distance)\)$/, '')
+              if (!/\(output\)$/.test(t.name)) return null
+              const pair = [cat.tests.find(x => x.name === `${dur} (output)`), cat.tests.find(x => x.name === `${dur} (distance)`)].filter(Boolean)
+              return (
+                <div key={dur} className="ts-test">
+                  <div className="ts-test-name">{dur}</div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {pair.map(x => (
+                      <div key={x.name} style={{ flex: 1, minWidth: 120 }}>
+                        <div className="ts-one">
+                          <input type="number" inputMode="decimal" step="any" aria-label={x.name} placeholder={/output/.test(x.name) ? 'Output' : 'Distance'} value={vals[x.name] ?? ''} onChange={e => setVals(p => ({ ...p, [x.name]: e.target.value }))} />
+                          <span>{x.unit}</span>
+                        </div>
+                        <div className="ts-hint">{best[x.name] != null ? <>Best <b>{fmtVal(best[x.name], x.unit)}</b></> : (/output/.test(x.name) ? 'Output' : 'Distance')}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
             return (
               <div key={t.name} className="ts-test">
                 <label className="ts-test-name" htmlFor={`ts-${t.name}`}>{t.name}</label>

@@ -49,10 +49,16 @@ export const TEST_CATEGORIES = [
     { name: 'Squat', unit: 'kg' },
   ]},
   { key: 'wattbike', label: 'Watt Bike', icon: '🚴', tests: [
+    // each effort has two boxes: output (W) then distance (km) -- shown side by side
     { name: 'Watt bike 10 second (output)', unit: 'W' },
+    { name: 'Watt bike 10 second (distance)', unit: 'km' },
+    { name: 'Watt bike 30 sec (output)', unit: 'W' },
     { name: 'Watt bike 30 sec (distance)', unit: 'km' },
+    { name: 'Watt bike 1 min (output)', unit: 'W' },
     { name: 'Watt bike 1 min (distance)', unit: 'km' },
+    { name: 'Watt bike 2 min (output)', unit: 'W' },
     { name: 'Watt bike 2 min (distance)', unit: 'km' },
+    { name: 'Watt bike 3 min (output)', unit: 'W' },
     { name: 'Watt bike 3 min (distance)', unit: 'km' },
   ]},
   { key: 'fixedload', label: 'Fixed Load Circuit', icon: '🔴', tests: [
