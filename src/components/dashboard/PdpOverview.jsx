@@ -287,6 +287,21 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                 style={{ all: 'unset', cursor: 'pointer', minWidth: 30, textAlign: 'center', padding: '5px 6px', borderRadius: 6, fontSize: 14, fontWeight: 800, fontFamily: 'Orbitron, sans-serif',
                   color: n ? '#fff' : '#E24B4A', background: n ? bg : 'transparent', border: n ? 'none' : '1px dashed #E24B4A88' }}>{n || '·'}</button>
             )
+            const notesPanel = () => {
+                  const sec = [...general, ...sections].find(x => x.key === openCell.key) || { key: openCell.key, label: openCell.key }
+                  const g = groups.find(x => x.keys.includes(openCell.key)), i = g ? g.keys.indexOf(openCell.key) : -1
+                  const label = g ? `${g.label} · ${SUB[i]?.[1] || ''}` : sec.label
+                  const items = (pdp[openCell.key] || []).map(itemText).filter(Boolean)
+                  return (
+                    <div style={{ marginTop: 4, padding: '8px 10px', borderRadius: 8, background: 'var(--bg-secondary)', borderLeft: `3px solid ${g ? (colours[SUB[i]?.[0]] || '#666') : '#1D9E75'}`, animation: 'kcSlideDown 0.2s ease' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                        <b style={{ fontSize: 13 }}>{label}</b>
+                        <button type="button" onClick={() => setOpenCell(null)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
+                      </div>
+                      <div style={{ fontSize: 13 }}>{cellBody(s, { key: openCell.key, label }, items)}</div>
+                    </div>
+                  )
+            }
             return (
               <div key={s.id} className="card" style={{ padding: 12, marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
@@ -299,28 +314,18 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>General</div>
                     <div style={{ display: 'flex', gap: 4 }}>{general.map(c => block(c.key, (pdp[c.key] || []).length, '#1D9E75', c.label))}</div>
                   </div>
+                  {openCell?.id === s.id && general.some(c => c.key === openCell.key) && <div style={{ flexBasis: '100%' }}>{notesPanel()}</div>}
                   {groups.map(g => (
-                    <div key={g.label}>
+                    <Fragment key={g.label}>
+                    <div>
                       <div style={{ fontSize: 10, color: g.colour || 'var(--text-tertiary)', marginBottom: 4 }}>{g.label}</div>
                       <div style={{ display: 'flex', gap: 4 }}>{g.keys.map((k, i) => block(k, (pdp[k] || []).length, colours[SUB[i][0]] || '#666', `${g.label} · ${SUB[i][1]}`))}</div>
                     </div>
+                    {/* the pressed number's notes slide down right under its row */}
+                    {openCell?.id === s.id && g.keys.includes(openCell.key) && <div style={{ flexBasis: '100%' }}>{notesPanel()}</div>}
+                    </Fragment>
                   ))}
                 </div>
-                {openCell?.id === s.id && (() => {
-                  const sec = [...general, ...sections].find(x => x.key === openCell.key) || { key: openCell.key, label: openCell.key }
-                  const g = groups.find(x => x.keys.includes(openCell.key)), i = g ? g.keys.indexOf(openCell.key) : -1
-                  const label = g ? `${g.label} · ${SUB[i]?.[1] || ''}` : sec.label
-                  const items = (pdp[openCell.key] || []).map(itemText).filter(Boolean)
-                  return (
-                    <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--bg-secondary)', borderLeft: `3px solid ${g ? (colours[SUB[i]?.[0]] || '#666') : '#1D9E75'}`, animation: 'kcSlideDown 0.2s ease' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                        <b style={{ fontSize: 13 }}>{label}</b>
-                        <button type="button" onClick={() => setOpenCell(null)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
-                      </div>
-                      <div style={{ fontSize: 13 }}>{cellBody(s, { key: openCell.key, label }, items)}</div>
-                    </div>
-                  )
-                })()}
               </div>
             )
           })}
