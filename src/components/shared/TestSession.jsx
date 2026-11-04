@@ -309,6 +309,27 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
                 </div>
               )
             }
+            if (cat.key === 'heart' && /^HRR (start|end) heart rate/.test(t.name)) {
+              // Start and End heart rate side by side in one card
+              if (/^HRR end/.test(t.name)) return null
+              const pair = ['HRR start heart rate (bpm)', 'HRR end heart rate (bpm)']
+              return (
+                <div key="hrr-start-end" className="ts-test">
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {pair.map(nm => (
+                      <div key={nm} style={{ flex: 1, minWidth: 0 }}>
+                        <label className="ts-test-name" htmlFor={`ts-${nm}`}>{TEST_SHOWN_AS[nm] || nm}</label>
+                        <div className="ts-one">
+                          <input id={`ts-${nm}`} type="number" inputMode="numeric" step="any" value={vals[nm] ?? ''} onChange={e => setVals(p => ({ ...p, [nm]: e.target.value }))} />
+                          <span>bpm</span>
+                        </div>
+                        {parseFloat(vals[nm]) > 0 && <div className="ts-hint" style={{ color: '#E24B4A' }}>{Math.round(parseFloat(vals[nm]) / hrMax * 100)}% of max ({hrMax})</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
             if (cat.key === 'wattbike') {
               // one card per effort: output (W) first, distance second
               const dur = t.name.replace(/ \((output|distance)\)$/, '')
