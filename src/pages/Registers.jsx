@@ -658,7 +658,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       .from('students')
       .select('*, members(id, first_name, last_name, phone, email, date_of_birth, status, joined_date, houses(name))')
 
-    if (regType === 'allath')      query = query.or('is_kr.eq.true,discipline.eq.KRBA')
+    // All athletes = the same people the Athlete Dashboard counts (KR, KRBA, PTs and anyone given the app)
+    if (regType === 'allath')      query = query.or('is_kr.eq.true,discipline.eq.KRBA,is_pts.eq.true,app_access.eq.true')
     else if (regType === 'krba')   query = query.eq('discipline', 'KRBA')
     else if (regType === 'kr')     query = query.eq('discipline', 'PKA').eq('is_kr', true)
     else if (regType === 'pts')    query = query.eq('discipline', 'PKA').eq('is_pts', true)

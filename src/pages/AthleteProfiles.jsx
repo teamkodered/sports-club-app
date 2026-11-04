@@ -6924,7 +6924,7 @@ export default function AthleteProfiles() {
                 style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>Team</div>
               {(() => {
                 const clubFiltered = students.filter(s =>
-                  (s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access) && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
+                  (s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access) && !s.archived_at && !['stopped', 'not_started'].includes(s.members?.status) && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
                 )
                 const count = clubFiltered.length || 1
                 const totalWins = clubFiltered.reduce((a, s) => a + (Number(s.wins) || 0), 0)
