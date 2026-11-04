@@ -59,7 +59,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
   const jumpTo = (id, key) => { const g = groups.find(x => x.keys.includes(key)); setView(g ? g.label : 'General'); setFocus({ id, key }) }
 
   // which section columns this view shows
-  const general = [{ key: 'winning_ways', label: 'Winning ways' }, { key: 'what_to_do', label: 'What to do' }]
+  const general = [{ key: 'winning_ways', label: 'Winning ways' }]   // General 'What to do' hidden (notes kept)
   const cols = view === 'General' ? general
     : view === 'overview' ? null
     : (groups.find(g => g.label === view)?.keys || []).map((k, i) => ({ key: k, label: SUB[i]?.[1] || k }))

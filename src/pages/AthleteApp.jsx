@@ -1216,9 +1216,9 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
 const PDP_SECTIONS = [
   { key: 'winning_ways',        label: '🏆 Winning ways',         colour: '#1D9E75' },
-  { key: 'what_to_do',          label: '📋 What to do (general)', colour: '#E24B4A' },
-  { key: 'maintain',            label: '✅ Maintain',              colour: '#1D9E75' },
-  { key: 'to_work_on',          label: '🎯 To work on',            colour: '#EF9F27' },
+  // { key: 'what_to_do',          label: '📋 What to do (general)', colour: '#E24B4A' },   -- General hidden (Nov 2026); notes kept in the database
+  // { key: 'maintain',            label: '✅ Maintain',              colour: '#1D9E75' },   -- General hidden (Nov 2026); notes kept in the database
+  // { key: 'to_work_on',          label: '🎯 To work on',            colour: '#EF9F27' },   -- General hidden (Nov 2026); notes kept in the database
   { key: 'psychology_notes',      label: '🧠 Mentality — notes',      colour: '#666666' },
   { key: 'psychology_maintain',    label: '🧠 Mentality — maintain', colour: '#1D9E75' },
   { key: 'psychology_work_on',     label: '🧠 Mentality — work on',  colour: '#EF9F27' },
@@ -6031,7 +6031,7 @@ export default function AthleteApp() {
 
                 // PDP card values
                 const completedCount = myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length
-                const totalSent = PDP_SECTIONS.filter(s => /_work_on$/.test(s.key)).reduce((sum, s) =>   // only the 'Work on' items count (not maintain / notes / winning ways)
+                const totalSent = PDP_SECTIONS.filter(s => /_work_on$/.test(s.key) && s.key !== 'to_work_on').reduce((sum, s) =>   // only the 'Work on' items count (not maintain / notes / winning ways)
                   sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
                 const pdpHasPct = totalSent > 0
                 const doneShown = pdpHasPct ? Math.min(completedCount, totalSent) : completedCount
