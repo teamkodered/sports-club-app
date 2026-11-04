@@ -4393,17 +4393,18 @@ export default function CRM() {
                       onDrop={e => { e.preventDefault(); if (draggedPayment) linkPayment(draggedPayment, s.id); setDragOverStudentId(null) }}
                       onClick={() => { if (selectedPaymentIdx != null) linkPayment(payments[selectedPaymentIdx], s.id) }}
                       style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                        // name + ref on their own line, buttons wrap underneath (they overlapped on narrow columns)
+                        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 6,
                         padding: '8px 10px', borderRadius: 'var(--radius)', cursor: selectedPaymentIdx != null ? 'pointer' : 'default',
                         background: dragOverStudentId === s.id ? '#1D9E7520' : hasNotesThisMonth ? '#EF9F2720' : 'var(--bg-secondary)',
                         border: dragOverStudentId === s.id ? '2px solid #1D9E75' : hasNotesThisMonth ? '1px solid #EF9F27' : '1px solid transparent',
                       }}>
-                      <span style={{ minWidth: 0 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
-                        {s.members?.status === 'pending' && <span style={{ fontSize: 10, fontWeight: 700, color: '#B45309', background: '#EF9F2722', borderRadius: 8, padding: '1px 6px', marginLeft: 6 }}>pending</span>}
-                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{s.student_ref}</span>
+                      <span style={{ minWidth: 0, flex: '1 1 160px', display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 8, rowGap: 2 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{studentFullName(s)}</span>
+                        {s.members?.status === 'pending' && <span style={{ fontSize: 10, fontWeight: 700, color: '#B45309', background: '#EF9F2722', borderRadius: 8, padding: '1px 6px' }}>pending</span>}
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{s.student_ref}</span>
                       </span>
-                      <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flexShrink: 1, justifyContent: 'flex-end' }}>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Share payment reminder (text, WhatsApp, email...)"
                           onClick={e => { e.stopPropagation(); sharePaymentReminder(s.members?.first_name, msgBody) }}>📤</button>
                         {email && (
