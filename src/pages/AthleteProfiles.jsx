@@ -4122,11 +4122,29 @@ export default function AthleteProfiles() {
               border: `1px solid ${doneToday ? '#22B14C' : (linkName ? PDP_GOLD : '#2A3138')}`, boxShadow: doneToday ? '0 0 8px rgba(34,177,76,0.45)' : (linkName ? `0 0 8px ${PDP_GOLD}44` : 'none') }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, letterSpacing: 1.5, color: l.colColour }}>{l.colLabel.toUpperCase()}</span>
-                {l.coachOnly && <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 7, letterSpacing: 1, color: '#9A9A9A' }}>COACH ONLY</span>}
+                {l.coachOnly && <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 7, letterSpacing: 1, color: '#9A9A9A' }}>SET BY COACH</span>}
                 {linkName && <button type="button" onClick={() => openLinkedQuestion(pillar, l.link)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: PDP_GOLD, fontSize: 11, cursor: 'pointer', padding: 0 }}>★ {linkName} ›</button>}
               </div>
               <div role="button" tabIndex={0} title="Edit / move" onClick={() => setHomePdpEditor({ sectionKey: l.sectionKey, text: l.text })}
-                style={{ fontSize: 14, lineHeight: 1.35, color: '#F2F2F2', marginBottom: 8, cursor: 'pointer' }}>{l.text} <span style={{ fontSize: 11, opacity: 0.6 }}>✎</span></div>
+                style={{ fontSize: 14, lineHeight: 1.35, color: '#F2F2F2', marginBottom: 8, cursor: 'pointer' }}>
+                {(() => {
+                  // 👁 the athlete can see this · 🔒 coach only -- tap to switch
+                  const hidden = ((apData?.pdp_notes?.__coach_only || {})[l.sectionKey] || []).includes(l.text)
+                  return (
+                    <button type="button" title={hidden ? 'Coach only -- tap to let the athlete see it' : 'The athlete can see this -- tap to make it coach only'}
+                      onClick={async e => {
+                        e.stopPropagation()
+                        const notes = { ...(apData?.pdp_notes || {}) }, co = { ...(notes.__coach_only || {}) }, list = co[l.sectionKey] || []
+                        co[l.sectionKey] = hidden ? list.filter(x => x !== l.text) : [...list, l.text]
+                        notes.__coach_only = co
+                        const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: notes }, { onConflict: 'student_id' })
+                        if (error) { alert('Could not change: ' + error.message); return }
+                        setApData(a => ({ ...(a || {}), pdp_notes: notes }))
+                      }}
+                      style={{ background: 'none', border: 'none', padding: '0 6px 0 0', cursor: 'pointer', fontSize: 14, opacity: hidden ? 0.6 : 1 }}>{hidden ? '🔒' : '👁'}</button>
+                  )
+                })()}
+                {l.text} <span style={{ fontSize: 11, opacity: 0.6 }}>✎</span></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => togglePdpDone(l.sectionKey, l.text)}
                   style={{ height: 32, padding: '0 14px', border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: doneToday ? '#22B14C' : '#2A3138', color: doneToday ? '#0A0A0A' : '#F2F2F2', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>
