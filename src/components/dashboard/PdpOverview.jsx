@@ -22,6 +22,24 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
   const pillarOfKey = key => AREA_PILLAR[String(key).split('_')[0]] || null
   const [linkRows, setLinkRows] = useState({})   // student id -> pdp_links
   const linkOf = (id, key, t) => (linkRows[id] || {})[`${key}::${t}`] || null
+  const [moveOpen, setMoveOpen] = useState(false)
+  // edit (same section, new text) or move (other section) a note -- its question link and 👁/🔒 go with it
+  async function moveNote(id, fromKey, text, toKey, newText) {
+    const { data } = await supabase.from('athlete_profiles').select('pdp_notes, pdp_links').eq('student_id', id).maybeSingle()
+    const notes = { ...(data?.pdp_notes || {}) }, links = { ...(data?.pdp_links || {}) }
+    const from = [...(notes[fromKey] || [])], i = from.indexOf(text)
+    if (i < 0) { alert('That note has changed -- refresh and try again.'); return }
+    if (fromKey === toKey) from[i] = newText; else { from.splice(i, 1); notes[toKey] = [...(notes[toKey] || []), newText] }
+    notes[fromKey] = from
+    const oldK = `${fromKey}::${text}`, newK = `${toKey}::${newText}`
+    if (links[oldK]) { links[newK] = links[oldK]; if (oldK !== newK) delete links[oldK] }
+    const co = { ...(notes.__coach_only || {}) }
+    if ((co[fromKey] || []).includes(text)) { co[fromKey] = co[fromKey].filter(x => x !== text); co[toKey] = [...(co[toKey] || []), newText]; notes.__coach_only = co }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: id, pdp_notes: notes, pdp_links: links }, { onConflict: 'student_id' })
+    if (error) { alert('Could not save: ' + error.message); return }
+    setRows(r => ({ ...r, [id]: notes })); setLinkRows(r => ({ ...r, [id]: links }))
+    setNoteMenu(null); setMoveOpen(false)
+  }
   const holdT = useRef(null)
   const [subOpen, setSubOpen] = useState(null)   // question whose options are shown (press & hold)
   async function linkNote(id, key, t, pillar, q, item = null) {
@@ -205,7 +223,14 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                                     ...qCustom(qcfg, pillar).map(x => ({ q: `custom:${x.key}`, label: x.label, group: 'Added' }))] : []
                                   return (
                                     <div className="pdp-notemenu" onClick={e => e.stopPropagation()}>
-                                      <button type="button" onClick={() => { toggleClip(t, s.id, c.key); setNoteMenu(null) }}>📋 {clipHas(t) ? 'Uncopy' : 'Copy note'}</button>
+                                      <div style={{ display: 'flex' }}>
+                                        <button type="button" style={{ flex: 1 }} onClick={() => { toggleClip(t, s.id, c.key); setNoteMenu(null) }}>📋 {clipHas(t) ? 'Uncopy' : 'Copy'}</button>
+                                        <button type="button" style={{ flex: 1, borderLeft: '1px solid #2A3138' }} onClick={() => { const v = (prompt('Edit note', t) || '').trim(); if (v && v !== t) moveNote(s.id, c.key, t, c.key, v) }}>✎ Edit</button>
+                                        <button type="button" style={{ flex: 1, borderLeft: '1px solid #2A3138' }} onClick={() => setMoveOpen(o => !o)}>↪ Move {moveOpen ? '▲' : '▼'}</button>
+                                      </div>
+                                      {moveOpen && <div className="pdp-notesub"><div className="hint">Move to:</div>
+                                        {sections.filter(x => x.key !== c.key && !['what_to_do', 'maintain', 'to_work_on'].includes(x.key)).map(x => { const g = groups.find(gr => gr.keys.includes(x.key)); return <button key={x.key} type="button" onClick={() => moveNote(s.id, c.key, t, x.key, t)}>{g ? `${g.label} · ` : ''}{x.label}</button> })}
+                                      </div>}
                                       {pillar ? <>
                                         {list.map(x => <button key={x.q} type="button" className={cur?.q === x.q ? 'on' : ''}
                                           onPointerDown={() => { holdT.current = setTimeout(() => { holdT.current = 'held'; if ((x.items || []).length) setSubOpen(o => o === x.q ? null : x.q) }, 450) }}
