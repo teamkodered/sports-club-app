@@ -6422,8 +6422,6 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         </span>
                       </button>
                     </div>
-                    <TestsThisWeek sessions={sessions} junior={(() => { const d = student?.members?.date_of_birth; return d ? (Date.now() - new Date(d)) / 31557600000 < 16 : false })()}
-                      onOpen={cat => { setTestSessionCat(cat); setTestSessionOpen(true) }} />
                     <button type="button" className="neon-snc-bar ts-open-card" onClick={() => { setTestSessionCat(null); setTestSessionOpen(true) }} style={{
                       display: 'flex', alignItems: 'stretch', width: '100%', padding: 0, cursor: 'pointer', color: 'inherit',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', fontFamily: 'var(--font-sans)',
@@ -6436,6 +6434,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>{todaysTest && Object.values(todaysTest).some(v => v !== '' && v != null) ? 'Logged today' : 'Log results'}</span>
                       </span>
                     </button>
+                    <TestsThisWeek sessions={sessions} junior={(() => { const d = student?.members?.date_of_birth; return d ? (Date.now() - new Date(d)) / 31557600000 < 16 : false })()}
+                      onOpen={cat => { setTestSessionCat(cat); setTestSessionOpen(true) }} />
                     {student?.id && <OtherSessions studentId={student.id} history={sessions || []} todaysOther={[].concat((sessions.find(x => x.session_date === new Date().toISOString().split('T')[0]) || {}).other_session || [])} onSaveOther={list => savePhysicalField('other_session', list, () => {})} />}
                     </div>
                     )}
