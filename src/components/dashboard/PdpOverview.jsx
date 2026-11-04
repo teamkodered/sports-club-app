@@ -251,7 +251,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
       {/* views */}
       {(() => {
         // one big button: press (or swipe) to step through All sections -> General -> each section group
-        const opts = [['overview', 'All sections', '#06B6D4'], ['General', 'General', '#1D9E75'], ...groups.map(g => [g.label, g.label, g.colour || '#378ADD'])]
+        const opts = [['overview', 'All sections', '#06B6D4'], ['General', 'Winning ways', '#1D9E75'], ...groups.map(g => [g.label, g.label, g.colour || '#378ADD'])]
         const i = Math.max(0, opts.findIndex(o => o[0] === view)), cur = opts[i]
         const step = d => setView(opts[(i + d + opts.length) % opts.length][0])
         return (
@@ -368,7 +368,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                 {quick === s.id && <PdpQuick s={s} pdp={pdp} />}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, rowGap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>General</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>Winning ways</div>
                     <div style={{ display: 'flex', gap: 4 }}>{general.map(c => block(c.key, (pdp[c.key] || []).length, '#1D9E75', c.label))}</div>
                   </div>
                   {openCell?.id === s.id && general.some(c => c.key === openCell.key) && <div style={{ flexBasis: '100%' }}>{notesPanel()}</div>}
