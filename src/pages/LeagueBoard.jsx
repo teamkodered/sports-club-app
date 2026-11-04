@@ -70,6 +70,7 @@ async function loadPeriod(from, to) {
   const { data: pdpP, error: pErr } = await supabase.rpc('public_pdp_league', { p_from: from, p_to: to })
   const { data: gripP, error: gErr } = await supabase.rpc('public_grip_board')
   return {
+    from, to,   // the period's dates (running board counts runs in this period)
     houses: Object.keys(HOUSE_COLOUR).map(n => ({ name: n, points: houses[n] || 0 })).concat(Object.keys(houses).filter(n => !HOUSE_COLOUR[n]).map(n => ({ name: n, points: houses[n] })))
       .sort((a, b) => b.points - a.points),
     // house points board: KR + KRBA athletes only (all students if the tasks function isn't set up yet)
@@ -185,6 +186,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
     for (const cat of CATEGORIES) {
       if (cat.key === 'grip' && Array.isArray(pd.grip)) { if (pd.grip.length) out.push({ kind: 'grip' }); continue }
+      if (cat.key === 'running') { if (runCounts(pd).length) out.push({ kind: 'runs' }); continue }
       if (!cat.aggregate && buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
     }
     if ((pd.notes ? pd.notes.length : notesRows.length)) out.push({ kind: 'notes' })
@@ -215,6 +217,19 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
   const swipe = useRef(null)
 
   const s = slides[idx]
+  // running board: number of runs logged in the period, per athlete (masked names, like the other exercise boards)
+  function runCounts(p) {
+    const from = p?.from || '0000', to = p?.to || '9999', per = {}
+    for (const r of exRows || []) {
+      const d = String(r.session_date || '').slice(0, 10)
+      if (d && (d < from || d > to)) continue
+      const n = Array.isArray(r.running) ? r.running.length : (r.running && typeof r.running === 'object' && Object.keys(r.running).length ? 1 : 0)
+      if (!n) continue
+      const name = maskName(r.first_name, r.last_name)
+      per[name] = (per[name] || 0) + n
+    }
+    return Object.entries(per).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+  }
   const meId = student?.id
   const sectionPos = useSectionLeague(listMode ? student?.id : null)
   const [openCard, setOpenCard] = useState(null)
@@ -309,6 +324,16 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     if (s.kind === 'live') {
       return <Slide title="Live heart rate" colour="#E24B4A" emoji="❤️" sub="recording now" fixedPeriod><LiveHrTable dark /></Slide>
     }
+    if (s.kind === 'runs') {
+      const list = ranked(runCounts(pd), r => r.value)
+      const top = list.slice(0, cfg.topBoard), me = myMasked ? list.find(r => r.name === myMasked) : null
+      return (
+        <Slide title="Running · most runs" colour="#1D9E75" emoji="🏃" sub={`${periodLabel} · runs logged`}>
+          {top.map(r => <Row key={r.name} rank={r.rank} name={r.name} value={r.value} unit={r.value === 1 ? 'RUN' : 'RUNS'} colour="#1D9E75" me={!!myMasked && r.name === myMasked} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.name} value={me.value} unit="RUNS" colour="#1D9E75" me /></>}
+        </Slide>
+      )
+    }
     if (s.kind === 'grip') {
       const list = ranked([...pd.grip].sort((a, b) => b.pct - a.pct), r => Number(r.pct))
       const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
@@ -380,10 +405,11 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       if (Array.isArray(pd.grip)) { const rg = rankIn([...pd.grip].sort((a, b) => b.pct - a.pct), r => Number(r.pct)); if (rg && rg <= 10) badges.push([['🥇', '🥈', '🥉'][rg - 1] || '🏅', `${ord(rg)} · Grip (% BW)`]) }
       const hr = pd.hr || []
       const r3 = rankIn([...hr].sort((a, b) => (b.best_avg_pct || 0) - (a.best_avg_pct || 0)), r => r.best_avg_pct); if (r3 && r3 <= 10) badges.push(['❤️', `${ord(r3)} · Heart rate average`])
-      for (const cat of CATEGORIES) { if (cat.aggregate || !myMasked || (cat.key === 'grip' && Array.isArray(pd.grip))) continue; const lb = buildLeaderboard(cat, exRows, cfg.topBoard); const i = lb.findIndex(r => r.name === myMasked); if (i >= 0) badges.push([['🥇', '🥈', '🥉'][i] || '🏅', `${ord(i + 1)} · ${cat.label.replace(/^\S+\s/, '')}`]) }
+      { const rr = ranked(runCounts(pd), r => r.value).find(r => r.name === myMasked); if (rr && rr.rank <= 10) badges.push([['🥇', '🥈', '🥉'][rr.rank - 1] || '🏅', `${ord(rr.rank)} · Most runs`]) }
+      for (const cat of CATEGORIES) { if (cat.aggregate || !myMasked || cat.key === 'running' || (cat.key === 'grip' && Array.isArray(pd.grip))) continue; const lb = buildLeaderboard(cat, exRows, cfg.topBoard); const i = lb.findIndex(r => r.name === myMasked); if (i >= 0) badges.push([['🥇', '🥈', '🥉'][i] || '🏅', `${ord(i + 1)} · ${cat.label.replace(/^\S+\s/, '')}`]) }
     }
     const SECT = [['mentality', 'Mental', '#22B14C'], ['tactical', 'Tactical', '#FF2A2A'], ['technical', 'Technical', '#2F6BFF'], ['physical', 'Physical', '#E6B800'], ['foundation', 'Foundation', '#C93BFF']]
-    const groupOf = sl => (sl.kind === 'tasks' || sl.kind === 'pdp') ? 'Sections' : (sl.kind === 'exercise' || sl.kind === 'grip') ? 'Exercise PBs' : (sl.kind === 'workrate' || sl.kind === 'hr') ? 'Workrate & heart rate' : 'Notes & more'
+    const groupOf = sl => (sl.kind === 'tasks' || sl.kind === 'pdp') ? 'Sections' : (sl.kind === 'exercise' || sl.kind === 'grip' || sl.kind === 'runs') ? 'Exercise PBs' : (sl.kind === 'workrate' || sl.kind === 'hr') ? 'Workrate & heart rate' : 'Notes & more'
     const order = ['Sections', 'Exercise PBs', 'Workrate & heart rate', 'Notes & more']
     const grouped = order.map(g => [g, slides.filter(sl => groupOf(sl) === g)]).filter(([, l]) => l.length)
     return (
