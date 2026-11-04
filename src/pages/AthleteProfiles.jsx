@@ -4033,9 +4033,9 @@ export default function AthleteProfiles() {
   const [focusAlwaysOn, setFocusAlwaysOn] = useState(FOCUS_ALWAYS_ON_DEFAULT)
   useEffect(() => { supabase.from('settings').select('value').eq('key', 'focus_always_on').maybeSingle().then(({ data }) => { if (data?.value && typeof data.value === 'object') setFocusAlwaysOn({ ...FOCUS_ALWAYS_ON_DEFAULT, ...data.value }) }, () => {}) }, [])
   const sameQ = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
-  const isAlwaysOn = (sec, label) => (focusAlwaysOn[sec] || []).some(x => sameQ(x, label))
+  const isAlwaysOn = (sec, label) => sec === 'wellbeing' || (focusAlwaysOn[sec] || []).some(x => sameQ(x, label))   // every Foundation question always counts
   const isGreyedQ = (sec, label) => !!myFocus[sec] && !sameQ(myFocus[sec], label) && !isAlwaysOn(sec, label)
-  const fq = (sec, label) => isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
+  const fq = (sec, label) => sec === 'wellbeing' ? '' : isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
   async function setAthleteFocus(sec, label) {
     if (!selected) return
     const cur = apData?.pdp_notes || {}

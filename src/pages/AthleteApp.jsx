@@ -3817,9 +3817,9 @@ export default function AthleteApp() {
   const [focusAlwaysOn, setFocusAlwaysOn] = useState(FOCUS_ALWAYS_ON_DEFAULT)
   useEffect(() => { supabase.from('settings').select('value').eq('key', 'focus_always_on').maybeSingle().then(({ data }) => { if (data?.value && typeof data.value === 'object') setFocusAlwaysOn({ ...FOCUS_ALWAYS_ON_DEFAULT, ...data.value }) }, () => {}) }, [])
   const sameQ = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
-  const isAlwaysOn = (sec, label) => (focusAlwaysOn[sec] || []).some(x => sameQ(x, label))
+  const isAlwaysOn = (sec, label) => sec === 'wellbeing' || (focusAlwaysOn[sec] || []).some(x => sameQ(x, label))   // every Foundation question always counts
   const isGreyedQ = (sec, label) => !!myFocus[sec] && !sameQ(myFocus[sec], label) && !isAlwaysOn(sec, label)
-  const fq = (sec, label) => isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
+  const fq = (sec, label) => sec === 'wellbeing' ? '' : isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
   async function setMyFocus(sec, label) {
     if (!student) return
     const cur = apData?.pdp_notes || {}
@@ -4370,7 +4370,7 @@ export default function AthleteApp() {
         {/* 🎯 Set as this month's focus -- under the charge lines, shown when the question is open (no focus yet) */}
         {(() => {
           const sec = focusSec || sectionKey
-          if (!['mentality', 'tactical', 'technique', 'physical', 'wellbeing'].includes(sec) || myFocus[sec]) return null   // always-on questions can be the focus too
+          if (!['mentality', 'tactical', 'technique', 'physical'].includes(sec) || myFocus[sec]) return null   // no focus in Foundation (all always on)   // always-on questions can be the focus too
           const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' })
           return (
             <span role="button" tabIndex={0} className="kc-setfocus" style={{ '--c': accent }}
