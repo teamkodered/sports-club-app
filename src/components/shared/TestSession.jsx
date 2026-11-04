@@ -102,6 +102,8 @@ const HRR_METHODS = [
   { key: 'wattafter', label: 'After Watt bike', pct: 'HRR % (after Watt bike)' },
   { key: 'at', label: 'Anaerobic threshold', only: ['Anaerobic Threshold'] },
 ]
+// names shown on screen (the saved name stays the same, so history keeps matching)
+const TEST_SHOWN_AS = { 'HRR start heart rate (bpm)': 'Start - heart rate (bpm)', 'HRR end heart rate (bpm)': 'End - heart rate (bpm)' }
 const hrrNames = m => m.only || ['HRR start heart rate (bpm)', 'HRR end heart rate (bpm)', 'Heart Rate Recovery (1 min)', m.pct, ...(m.extra || [])]   // start / end first -> HRR + % worked out
 
 export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode, initialCat = null, thisWeek = null }) {
@@ -331,7 +333,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
             }
             return (
               <div key={t.name} className="ts-test">
-                <label className="ts-test-name" htmlFor={`ts-${t.name}`}>{t.name}</label>
+                <label className="ts-test-name" htmlFor={`ts-${t.name}`}>{TEST_SHOWN_AS[t.name] || t.name}</label>
                 <div className="ts-one">
                   <input id={`ts-${t.name}`} type="number" inputMode="decimal" step="any" value={vals[t.name] ?? ''} onChange={e => setVals(p => ({ ...p, [t.name]: e.target.value }))} />
                   <span>{t.unit}</span>
