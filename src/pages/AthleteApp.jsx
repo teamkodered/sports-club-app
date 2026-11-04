@@ -10,6 +10,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
 import { divisionsForAge } from '../lib/divisions.js'
 import { AbsenceRequestAthlete } from '../components/shared/AbsenceRequests.jsx'
 import ProfileRoundup from '../components/shared/ProfileRoundup.jsx'
@@ -95,7 +96,7 @@ const KB_MTP_FIELDS = [
 // are the only ones where a LOWER number is the better one.
 const KB_LOWER_IS_BETTER = ['weight_kg', 'resting_hr', 'run_200m_1', 'run_200m_2', 'run_200m_3', 'run_200m_4', 'run_1600m', 'run_4800m', 'fixed_load_circuit_time']
 
-const WELLBEING_QUESTIONS = [
+export const WELLBEING_QUESTIONS = [
   { key: 'sleep',        label: 'Sleep',        icon: '😴' },
   { key: 'nutrition',    label: 'Nutrition',    icon: '🍎' },
   { key: 'hydration',    label: 'Hydration',    icon: '💧' },
@@ -439,7 +440,7 @@ function isToDoSectionKey(key) {
 
 // Tactical development presets -- multi-select per category, note
 // added once selected (same pattern as Techniques).
-const TACTICAL_CATEGORIES = {
+export const TACTICAL_CATEGORIES = {
   'Fight Analysis': [
     'Watch one full fight and identify the winning tactics.',
     'Watch the same fight twice—once focusing on each fighter.',
@@ -533,7 +534,7 @@ const TACTICAL_CATEGORIES = {
 // Technique presets -- multi-select per category, note added once
 // selected. Two styles (Boxing/Kickboxing), each split into several
 // named categories.
-const TECHNIQUE_STYLES = [
+export const TECHNIQUE_STYLES = [
   { style: 'Boxing', categories: {
     'Stance & Movement': ['Orthodox stance', 'Southpaw stance', 'Fighting stance', 'High guard', 'Peek-a-boo guard', 'Philly Shell (shoulder roll)', 'Long guard', 'Foot positioning', 'Forward step', 'Backward step', 'Side step', 'Pivot', 'L-step', 'Shuffle', 'Circle left/right', 'Ring cutting', 'Angle changes', 'Weight transfer', 'Bounce movement', 'Set and fire'],
     'Offensive Punches': ['Jab', 'Double jab', 'Triple jab', 'Power jab', 'Flick jab', 'Body jab', 'Cross', 'Straight right/left', 'Lead hook', 'Rear hook', 'Check hook', 'Body hook', 'Lead uppercut', 'Rear uppercut', 'Shovel hook', 'Overhand right', 'Overhand left', 'Corkscrew punch', 'Long hook', 'Short hook'],
@@ -598,7 +599,7 @@ const WATT_BIKE_GROUPS = [
 // `category` field for reliable matching; entries.category is checked
 // first, falling back to pattern-matching on the exercise name for any
 // data logged before this change, so nothing already recorded is lost.
-const BODYWEIGHT_GROUPS = [
+export const BODYWEIGHT_GROUPS = [
   { key: 'circuit', label: 'Fixed load circuit', icon: '🔴', exercises: ['Red', 'Yellow', 'Green', 'Blue', 'Black'], metric: 'time', durations: null },
   { key: 'compounds', label: 'Compounds', icon: '💪', exercises: ['Dips', 'Push-ups', 'Pull-ups', 'Squats'], metric: 'reps', durations: ['10 seconds', '30 seconds', '1 minute'] },
   { key: 'compound_lifts', label: 'Compound Lifts (Weights)', icon: '🏋️', exercises: ['Bench Press', 'Deadlift', 'Shoulder Press', 'Squat'], metric: 'weight_reps', durations: null },
@@ -642,7 +643,7 @@ const STRETCH_FLOWS = [
 
 // Test list lives in src/lib/testResults.js (shared by the athlete app and coach view)
 
-const MENTALITY_QUESTIONS = [
+export const MENTALITY_QUESTIONS = [
   { key: 'meditation',      label: 'Meditation',       icon: '🧘' },
   { key: 'visualisation',   label: 'Visualisation',    icon: '🎯' },
   { key: 'chess',           label: 'Play chess',       icon: '♟️' },
@@ -3425,6 +3426,7 @@ export default function AthleteApp() {
     'Stretch flows': 'stretch_flows', 'SnC': 'snc', 'Other session': 'other_session',
   }
   function questionLogged(sectionKey, questionLabel, s) {
+    if (s?.custom_q && s.custom_q[`${sectionKey}::${questionLabel}`]) return true   // added questions
     if (sectionKey === 'wellbeing') {
       const q = WELLBEING_QUESTIONS.find(q => q.label === questionLabel)
       return q ? isWellbeingQComplete(q.key, s.wellbeing) : false
@@ -3829,6 +3831,36 @@ export default function AthleteApp() {
     setApData(prev => ({ ...(prev || {}), pdp_notes: updated }))
     awardHousePoints('f2f_question', `Monthly focus set: ${label}`)
   }
+
+  // Added questions (Settings -> Questions / ➕ Create question from a PDP note): tap to log 'done today' -- act like preset ones
+  function AddedQuestions({ sec }) {
+    const list = qCustom(qcfg, sec)
+    if (!list.length) return null
+    const today = new Date().toISOString().split('T')[0]
+    const todaySess = sessions.find(x => x.session_date === today) || {}
+    const cls = { physical: 'physical', technique: 'technical', tactical: 'tactical', mentality: 'mentality', wellbeing: 'foundation' }[sec]
+    return (
+      <div className="neon-qgrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
+        {list.map(q => {
+          const label = q.label, k = `${sec}::${label}`, done = !!(todaySess.custom_q || {})[k]
+          const linked = pdpInfo(sec, `custom:${q.key}`).links.length > 0
+          return (
+            <button key={q.key} type="button" className={`neon-q neon-q-${cls}${done ? ' is-done' : ''}${fq(sec, label)}`}
+              onClick={async () => {
+                const next = { ...(todaySess.custom_q || {}) }
+                if (done) delete next[k]; else next[k] = true
+                await savePhysicalField('custom_q', next)
+                if (!done && !isGreyedQ(sec, label)) awardHousePoints('f2f_question', label)
+              }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{label}{done ? ' ✓' : ''}</span>
+              <QuestionProgressBarsVertical sectionKey={sec} questionLabel={label} />
+              {linked && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
   function FocusPicker({ sec, options, colour }) {
     const opts = options.filter(o => !isAlwaysOn(sec, o))
     if (!opts.length) return null
@@ -3841,6 +3873,8 @@ export default function AthleteApp() {
       </div>
     )
   }
+  const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
+  const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
   const PDP_COL_ORDER = [['work_on', 'Work on', '#EF9F27'], ['what_to_do', 'To do', '#E24B4A'], ['maintain', 'Maintain', '#1D9E75'], ['notes', 'Notes', '#9A9A9A']]
   function pillarPdpLines(pillar) {
     const area = PDP_AREA_FOR_PILLAR[pillar]
@@ -6092,6 +6126,7 @@ export default function AthleteApp() {
                       {PillarTabs({ pillar: 'physical', label: 'Physical', colour: '#E6B800' })}
                       {PillarPdpList({ pillar: 'physical', pillarLabel: 'Physical' })}
                       {FocusPicker({ sec: 'physical', colour: '#E6B800', options: BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts').map(g => g.label) })}
+                      {AddedQuestions({ sec: 'physical' })}
                     <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
                         <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Running')} />
@@ -6260,7 +6295,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     {showBodyweightCards && (
                     <div ref={bodyweightPanelRef}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
-                      {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts').map(grp => {
+                      {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts' && !qHidden(qcfg, 'physical', g.label)).sort(qSort(qcfg, 'physical', g => g.label)).map(grp => {
                         const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                         const active = expandedHomeBodyweight === grp.key
                         return (
@@ -6270,7 +6305,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>{pdpInfo('physical', `bw:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{qName(qcfg, 'physical', grp.label)}</span>{pdpInfo('physical', `bw:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ fontSize: 22 }}>{grp.icon}</span>
                             {active && !myFocus.physical && (
                               <span role="button" tabIndex={0} className="kc-setfocus" style={{ '--c': '#E6B800', display: 'block' }}
@@ -6494,6 +6529,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {PillarTabs({ pillar: 'technique', label: 'Technical', colour: '#2F6BFF' })}
                       {PillarPdpList({ pillar: 'technique', pillarLabel: 'Technical' })}
                       {FocusPicker({ sec: 'technique', colour: '#2F6BFF', options: [...new Set(TECHNIQUE_STYLES.filter(({ style }) => student?.discipline === 'KRBA' ? style === 'Boxing' : student?.is_kr ? style === 'Kickboxing' : true).flatMap(({ categories }) => Object.keys(categories)))] })}
+                      {AddedQuestions({ sec: 'technique' })}
                     {TECHNIQUE_STYLES.filter(({ style }) => {
                       // KRBA athletes only need Boxing questions, KR
                       // Kickboxing athletes only need Kickboxing ones --
@@ -6511,7 +6547,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           <QuestionProgressBadge sectionKey="technique" questionLabel={style} />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
-                          {Object.keys(categories).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
+                          {Object.keys(categories).filter(cat => !qHidden(qcfg, 'technique', cat)).sort(qSort(qcfg, 'technique', c => c)).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                             const catKey = `${style}::${cat}`
                             const active = expandedTechniqueCategory === catKey
                             const count = todaysTechniques.filter(t => t.style === style && t.category === cat).length
@@ -6576,6 +6612,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {PillarTabs({ pillar: 'tactical', label: 'Tactical', colour: '#FF2A2A' })}
                       {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
                       {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
+                      {AddedQuestions({ sec: 'tactical' })}
                     <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                       {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                         if (cat === '__videoAnalysis__') {
@@ -6665,8 +6702,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {PillarTabs({ pillar: 'mentality', label: 'Mentality', colour: '#22B14C' })}
                       {PillarPdpList({ pillar: 'mentality', pillarLabel: 'Mentality' })}
                       {FocusPicker({ sec: 'mentality', colour: '#22B14C', options: MENTALITY_QUESTIONS.map(q => q.label) })}
+                      {AddedQuestions({ sec: 'mentality' })}
                     <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
-                      {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
+                      {MENTALITY_QUESTIONS.filter(q => !qHidden(qcfg, 'mentality', q.label)).sort(qSort(qcfg, 'mentality', q => q.label)).filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                         const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                         const active = expandedHomeMentality === q.key
                         return (
@@ -6677,7 +6715,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                           }}>
                             <QuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{pdpInfo('mentality', q.key).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && (wearableSuggestionsFor(q.key).length > 0 || (q.key === 'sleep' && todaysWellbeing.sleep?.unconfirmed)) && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
-                            <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                            <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{qName(qcfg, MENTALITY_KEYSET.has(q.key) ? 'mentality' : 'wellbeing', q.label)}</span>
                             <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                           </button>
                         )
@@ -6998,8 +7036,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
                     }}>
                     {FocusPicker({ sec: 'wellbeing', colour: '#C93BFF', options: WELLBEING_QUESTIONS.map(q => q.label) })}
+                    {AddedQuestions({ sec: 'wellbeing' })}
                     <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
-                      {WELLBEING_QUESTIONS.filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
+                      {WELLBEING_QUESTIONS.filter(q => !qHidden(qcfg, 'wellbeing', q.label)).sort(qSort(qcfg, 'wellbeing', q => q.label)).filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                         const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                         const active = expandedHomeWb === q.key
                         return (
@@ -7010,7 +7049,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                           }}>
                             <QuestionProgressBarsVertical sectionKey="wellbeing" questionLabel={q.label} />{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && (wearableSuggestionsFor(q.key).length > 0 || (q.key === 'sleep' && todaysWellbeing.sleep?.unconfirmed)) && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
-                            <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                            <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{qName(qcfg, MENTALITY_KEYSET.has(q.key) ? 'mentality' : 'wellbeing', q.label)}</span>
                             <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                           </button>
                         )

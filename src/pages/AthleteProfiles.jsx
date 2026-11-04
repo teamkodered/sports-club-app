@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
 import { AbsenceRequestCoach } from '../components/shared/AbsenceRequests.jsx'
 import LeagueBoard from './LeagueBoard.jsx'
 import ProfileRoundup from '../components/shared/ProfileRoundup.jsx'
@@ -3981,6 +3982,8 @@ export default function AthleteProfiles() {
   // Maintain / Notes). Athletes (and coaches) can mark a line done for today;
   // the count builds up. Only coaches mark a line complete.
   const [pillarView, setPillarView] = useState({}) // pillar -> 'questions' | 'pdp'
+  const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
+  const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
   const PDP_COL_ORDER = [['work_on', 'Work on', '#EF9F27'], ['what_to_do', 'To do', '#E24B4A'], ['maintain', 'Maintain', '#1D9E75'], ['notes', 'Notes', '#9A9A9A']]
   function pillarPdpLines(pillar) {
     const area = PDP_AREA_FOR_PILLAR[pillar]
@@ -4043,6 +4046,25 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updated }, { onConflict: 'student_id' })
     if (error) { alert('Could not save the focus: ' + error.message); return }
     setApData(prev => ({ ...(prev || {}), pdp_notes: updated }))
+  }
+
+  function AddedQuestions({ sec }) {
+    const list = qCustom(qcfg, sec)
+    if (!list.length) return null
+    const cls = { physical: 'physical', technique: 'technical', tactical: 'tactical', mentality: 'mentality', wellbeing: 'foundation' }[sec]
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
+        {list.map(q => {
+          const days = (f2fData || []).filter(x => (x.custom_q || {})[`${sec}::${q.label}`]).length
+          return (
+            <div key={q.key} className={`neon-q neon-q-${cls}${fq(sec, q.label)}`} style={{ cursor: 'default' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, textAlign: 'center' }}>{q.label}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>{days ? `logged ${days} day${days === 1 ? '' : 's'}` : 'not logged yet'}</span>
+            </div>
+          )
+        })}
+      </div>
+    )
   }
   function FocusPicker({ sec, options, colour }) {
     const opts = options.filter(o => !isAlwaysOn(sec, o))
@@ -10262,6 +10284,7 @@ export default function AthleteProfiles() {
                     {PillarTabs({ pillar: 'physical', label: 'Physical', colour: '#E6B800' })}
                     {PillarPdpList({ pillar: 'physical', pillarLabel: 'Physical' })}
                     {FocusPicker({ sec: 'physical', colour: '#E6B800', options: BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts').map(g => g.label) })}
+                    {AddedQuestions({ sec: 'physical' })}
                   <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
                       <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Running')} />
@@ -10393,7 +10416,7 @@ export default function AthleteProfiles() {
                   {showBodyweightCards && (
                   <div ref={bodyweightPanelRef}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
-                    {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts').map(grp => {
+                    {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts' && !qHidden(qcfg, 'physical', g.label)).sort(qSort(qcfg, 'physical', g => g.label)).map(grp => {
                       const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                       const active = expandedHomeBodyweight === grp.key
                       return (
@@ -10403,7 +10426,7 @@ export default function AthleteProfiles() {
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#1D9E75' : 'var(--border)'}`,
                           background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>{pdpInfo('physical', `bw:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
+                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{qName(qcfg, 'physical', grp.label)}</span>{pdpInfo('physical', `bw:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                           <span style={{ fontSize: 22 }}>{grp.icon}</span>
                         </button>
                       )
@@ -10637,6 +10660,7 @@ export default function AthleteProfiles() {
                     {PillarTabs({ pillar: 'technique', label: 'Technical', colour: '#2F6BFF' })}
                     {PillarPdpList({ pillar: 'technique', pillarLabel: 'Technical' })}
                     {FocusPicker({ sec: 'technique', colour: '#2F6BFF', options: [...new Set(TECHNIQUE_STYLES.filter(({ style }) => selected?.discipline === 'KRBA' ? style === 'Boxing' : selected?.is_kr ? style === 'Kickboxing' : true).flatMap(({ categories }) => Object.keys(categories)))] })}
+                    {AddedQuestions({ sec: 'technique' })}
                   {TECHNIQUE_STYLES.filter(({ style }) => {
                     // KRBA athletes only need Boxing questions, KR
                     // Kickboxing athletes only need Kickboxing ones --
@@ -10654,7 +10678,7 @@ export default function AthleteProfiles() {
                         <CoachQuestionProgressBadge sectionKey="technique" questionLabel={style} />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
-                        {Object.keys(categories).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
+                        {Object.keys(categories).filter(cat => !qHidden(qcfg, 'technique', cat)).sort(qSort(qcfg, 'technique', c => c)).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                           const catKey = `${style}::${cat}`
                           const active = expandedTechniqueCategory === catKey
                           const count = todaysTechniques.filter(t => t.style === style && t.category === cat).length
@@ -10719,6 +10743,7 @@ export default function AthleteProfiles() {
                     {PillarTabs({ pillar: 'tactical', label: 'Tactical', colour: '#FF2A2A' })}
                     {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
                     {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
+                    {AddedQuestions({ sec: 'tactical' })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
@@ -10808,8 +10833,9 @@ export default function AthleteProfiles() {
                     {PillarTabs({ pillar: 'mentality', label: 'Mentality', colour: '#22B14C' })}
                     {PillarPdpList({ pillar: 'mentality', pillarLabel: 'Mentality' })}
                     {FocusPicker({ sec: 'mentality', colour: '#22B14C', options: MENTALITY_QUESTIONS.map(q => q.label) })}
+                    {AddedQuestions({ sec: 'mentality' })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
-                    {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
+                    {MENTALITY_QUESTIONS.filter(q => !qHidden(qcfg, 'mentality', q.label)).sort(qSort(qcfg, 'mentality', q => q.label)).filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                       const active = expandedHomeMentality === q.key
                       return (
@@ -10820,7 +10846,7 @@ export default function AthleteProfiles() {
                           background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                         }}>
                           <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{pdpInfo('mentality', q.key).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
-                          <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{qName(qcfg, MENTALITY_KEYSET.has(q.key) ? 'mentality' : 'wellbeing', q.label)}</span>
                           <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                         </button>
                       )
@@ -11118,8 +11144,9 @@ export default function AthleteProfiles() {
                     maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
                   }}>
                   {FocusPicker({ sec: 'wellbeing', colour: '#C93BFF', options: WELLBEING_QUESTIONS.map(q => q.label) })}
+                  {AddedQuestions({ sec: 'wellbeing' })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
-                    {WELLBEING_QUESTIONS.filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
+                    {WELLBEING_QUESTIONS.filter(q => !qHidden(qcfg, 'wellbeing', q.label)).sort(qSort(qcfg, 'wellbeing', q => q.label)).filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                       const active = expandedHomeWb === q.key
                       return (
@@ -11130,7 +11157,7 @@ export default function AthleteProfiles() {
                           background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                         }}>
                           <CoachQuestionProgressBarsVertical sectionKey="wellbeing" questionLabel={q.label} />{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
-                          <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{qName(qcfg, MENTALITY_KEYSET.has(q.key) ? 'mentality' : 'wellbeing', q.label)}</span>
                           <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                         </button>
                       )

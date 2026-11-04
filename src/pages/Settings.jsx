@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import FocusAlwaysOnSettings from '../components/settings/FocusAlwaysOnSettings.jsx'
+import QuestionsManager from '../components/settings/QuestionsManager.jsx'
 import { Link } from 'react-router-dom'
 import TeamAccess from '../components/shared/TeamAccess.jsx'
 import GoogleCalendarsSettings from '../components/shared/GoogleCalendarsSettings.jsx'
@@ -465,6 +466,7 @@ export default function Settings() {
       </div>
 
       <FocusAlwaysOnSettings />
+      <QuestionsManager />
 
       {SECTION('Team — roles & access')}
       <TeamAccess />
