@@ -3473,7 +3473,7 @@ export default function AthleteProfiles() {
   useEffect(() => {
     if (!showPhysicalSection) return
     function handleClick(e) {
-      if (physicalSectionRef.current && !physicalSectionRef.current.contains(e.target)) {
+      if (physicalSectionRef.current && !physicalSectionRef.current.contains(e.target) && !e.target.closest?.('[role="dialog"], [aria-modal="true"]')) {
         setShowPhysicalSection(false)
         setActivePhysicalCategory(null)
         setExpandedHomeRun(null)
@@ -3489,7 +3489,7 @@ export default function AthleteProfiles() {
   useEffect(() => {
     if (!showTechniqueSection) return
     function handleClick(e) {
-      if (techniqueSectionRef.current && !techniqueSectionRef.current.contains(e.target)) {
+      if (techniqueSectionRef.current && !techniqueSectionRef.current.contains(e.target) && !e.target.closest?.('[role="dialog"], [aria-modal="true"]')) {
         setShowTechniqueSection(false)
         setExpandedTechniqueCategory(null)
       }
@@ -3501,7 +3501,7 @@ export default function AthleteProfiles() {
   useEffect(() => {
     if (!showTacticalSection) return
     function handleClick(e) {
-      if (tacticalSectionRef.current && !tacticalSectionRef.current.contains(e.target)) {
+      if (tacticalSectionRef.current && !tacticalSectionRef.current.contains(e.target) && !e.target.closest?.('[role="dialog"], [aria-modal="true"]')) {
         setShowTacticalSection(false)
         setExpandedTacticalCategory(null)
       }
@@ -3539,7 +3539,7 @@ export default function AthleteProfiles() {
   useEffect(() => {
     if (!showMentalitySection) return
     function handleClick(e) {
-      if (mentalitySectionRef.current && !mentalitySectionRef.current.contains(e.target)) {
+      if (mentalitySectionRef.current && !mentalitySectionRef.current.contains(e.target) && !e.target.closest?.('[role="dialog"], [aria-modal="true"]')) {
         setShowMentalitySection(false)
         setExpandedHomeMentality(null)
       }
@@ -3551,7 +3551,7 @@ export default function AthleteProfiles() {
   useEffect(() => {
     if (!showWellbeingSection) return
     function handleClick(e) {
-      if (wellbeingSectionRef.current && !wellbeingSectionRef.current.contains(e.target)) {
+      if (wellbeingSectionRef.current && !wellbeingSectionRef.current.contains(e.target) && !e.target.closest?.('[role="dialog"], [aria-modal="true"]')) {
         setShowWellbeingSection(false)
         setExpandedHomeWb(null)
       }
