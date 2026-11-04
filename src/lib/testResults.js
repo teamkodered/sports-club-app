@@ -16,10 +16,8 @@ export const TEST_CATEGORIES = [
     // 10 m shuttles (same speeds) for small halls -- its own test, never mixed with 20 m
     { name: 'Bleep test (10m)', unit: 'level' },
   ]},
-  { key: 'vo2max', label: 'VO2 Max', icon: '🫁', tests: [
-    { name: 'VO2 Max', unit: 'ml/kg/min' },
-  ]},
-  { key: 'heart', label: 'Heart rate', icon: '❤️', tests: [
+  // VO2 Max replaced by the HRR test (Nov 2026) -- old VO2 results stay in the history
+  { key: 'heart', label: 'HRR test', icon: '❤️', tests: [
     // drop in heart rate in the first minute after hard effort (bigger = fitter)
     { name: 'Heart Rate Recovery (1 min)', unit: 'bpm' },
     // heart rate at which effort turns anaerobic (from a step / ramp test or wearable)
