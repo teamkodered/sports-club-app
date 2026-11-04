@@ -122,6 +122,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
   const [date, setDate] = useState(todayISO())
   const [hrrMethod, setHrrMethod] = useState(null)   // HRR test: chosen method key (collapsed list until picked)
   const [hrrPick, setHrrPick] = useState(false)
+  const [hrrTimer, setHrrTimer] = useState('full')   // 'full' = 60 s all-out + 60 s seated, 'rest' = 60 s seated only
   const [hrMax, setHrMax] = useState(190)   // 220 - age (for start / end as % of max)
   useEffect(() => {
     if (!studentId) return
@@ -212,7 +213,13 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
                   {hrrPick && <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '6px 0' }}>
                     {HRR_METHODS.map(x => <button key={x.key} type="button" className={hrrMethod === x.key ? 'btn btn-sm btn-primary' : 'btn btn-sm'} style={{ justifyContent: 'flex-start' }} onClick={() => { setHrrMethod(x.key); setHrrPick(false) }}>{x.label}</button>)}
                   </div>}
-                  {m && !m.only && <button type="button" className="ts-measure-btn ts-hrr-btn" style={{ width: '100%', marginTop: 6 }} onClick={() => setTool('hrr')}>⏱ Start recovery timer <small>{m.effort ? '60 s all-out + 60 s seated' : '60 s seated'}</small></button>}
+                  {m && !m.only && (
+                    // left: time the work and the rest -- right: just the 60 s seated rest
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                      {m.effort && <button type="button" className="ts-measure-btn ts-hrr-btn" style={{ flex: 1 }} onClick={() => { setHrrTimer('full'); setTool('hrr') }}>⏱ 60 s all-out <small>then 60 s seated</small></button>}
+                      <button type="button" className="ts-measure-btn ts-hrr-btn" style={{ flex: 1 }} onClick={() => { setHrrTimer('rest'); setTool('hrr') }}>⏱ 60 s seated <small>rest only</small></button>
+                    </div>
+                  )}
                 </div>
               )
             })()}
@@ -237,7 +244,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           <HrrTestTool zIndex={700} variant="recovery" afterTest={tool.slice(10)} mode={hrrMode || 'coach'} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
             onResult={r => setVals(p => ({ ...p, [`HRR % (after ${tool.slice(10)})`]: String(r.pct) }))} />, document.body)
         : tool === 'hrr' ? createPortal(
-          <HrrTestTool zIndex={700} mode={hrrMode || 'coach'} variant={(HRR_METHODS.find(x => x.key === hrrMethod) || {}).effort ? 'wattbike' : 'recovery'} afterTest={(HRR_METHODS.find(x => x.key === hrrMethod) || {}).effort ? null : (HRR_METHODS.find(x => x.key === hrrMethod)?.label || '').replace(/^After /, '')} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
+          <HrrTestTool zIndex={700} mode={hrrMode || 'coach'} variant={(HRR_METHODS.find(x => x.key === hrrMethod) || {}).effort && hrrTimer === 'full' ? 'wattbike' : 'recovery'} afterTest={(HRR_METHODS.find(x => x.key === hrrMethod) || {}).effort ? null : (HRR_METHODS.find(x => x.key === hrrMethod)?.label || '').replace(/^After /, '')} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
             onResult={r => setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.pct != null || (r.peak && r.hrr != null) ? { [(HRR_METHODS.find(x => x.key === hrrMethod) || HRR_METHODS[0]).pct]: String(r.pct ?? Math.round(r.hrr / r.peak * 100)) } : {}), ...(r.peak != null ? { 'HRR start heart rate (bpm)': String(r.peak) } : {}), ...(r.end != null ? { 'HRR end heart rate (bpm)': String(r.end) } : {}), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }))} />, document.body)
         : tool === 'bleep20' || tool === 'bleep10' ? createPortal(
           <BleepTestPlayer zIndex={700} course={tool === 'bleep10' ? 10 : 20} runners={[{ id: 'me', name: studentName || 'Athlete' }]} onClose={() => setTool(null)}
