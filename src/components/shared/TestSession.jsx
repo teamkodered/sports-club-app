@@ -197,7 +197,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           })}
         </div>
 
-        {['jumps', 'punch', 'bleep', 'stretches', 'fixedload'].includes(cat.key) && (
+        {['jumps', 'punch', 'bleep', 'stretches', 'fixedload', 'heart'].includes(cat.key) && (
           <div className="ts-measure">
             {cat.key === 'bleep' && <>
               <button type="button" className="ts-measure-btn" onClick={() => setTool('bleep20')}>▶ Run 20 m bleep test</button>
