@@ -8388,7 +8388,7 @@ export default function AthleteProfiles() {
                   </button>
                   {pdpOverviewOpen && (
                     <div style={{ marginTop: 12 }}>
-                      <PdpOverview athletes={students.filter(inDashTeam)} sections={PDP_SECTIONS} groups={PDP_CATEGORY_GROUPS} colours={PDP_COLUMN_COLOURS} onOpenAthlete={s => selectStudent(s)} />
+                      <PdpOverview athletes={students.filter(inDashTeam)} sections={PDP_SECTIONS} groups={PDP_CATEGORY_GROUPS} colours={PDP_COLUMN_COLOURS} onOpenAthlete={s => selectStudent(s)} questionCatalog={pdpQuestionCatalog} />
                     </div>
                   )}
                 </div>

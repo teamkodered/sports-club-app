@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import { useQuestionConfig, loadQuestionConfig, saveQuestionConfig, slugQ, qCustom, qName, qHidden } from '../../lib/questionConfig.js'
 
 // PDP overview (coach PDP page): every athlete's PDP notes in one table -- a row per athlete, a column per
 // section -- so it's easy to see who has and who hasn't got notes in each area. Notes can be copied from
@@ -13,7 +14,35 @@ const itemText = it => typeof it === 'string' ? it : (it && (it.text || it.label
 const nameOf = s => `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim() || 'Unnamed'
 const SUB = [['notes', 'Notes'], ['maintain', 'Maintain'], ['work_on', 'Work on'], ['what_to_do', 'To do']]
 
-export default function PdpOverview({ athletes, sections, groups, colours, onOpenAthlete }) {
+export default function PdpOverview({ athletes, sections, groups, colours, onOpenAthlete, questionCatalog }) {
+  // tap a note: 📋 Copy, link it to one of the section's questions (it becomes a PDP action on that question), or ➕ Create a question
+  const qcfg = useQuestionConfig()
+  const [noteMenu, setNoteMenu] = useState(null)   // { id, key, text }
+  const AREA_PILLAR = { psychology: 'mentality', tech: 'technique', tact: 'tactical', physical: 'physical', skill: 'technique' }
+  const pillarOfKey = key => AREA_PILLAR[String(key).split('_')[0]] || null
+  const [linkRows, setLinkRows] = useState({})   // student id -> pdp_links
+  const linkOf = (id, key, t) => (linkRows[id] || {})[`${key}::${t}`] || null
+  async function linkNote(id, key, t, pillar, q) {
+    const { data } = await supabase.from('athlete_profiles').select('pdp_links').eq('student_id', id).maybeSingle()
+    const links = { ...(data?.pdp_links || {}) }
+    if (q) links[`${key}::${t}`] = { pillar, q, item: null }; else delete links[`${key}::${t}`]
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: id, pdp_links: links }, { onConflict: 'student_id' })
+    if (error) { alert('Could not link: ' + error.message); return }
+    setLinkRows(r => ({ ...r, [id]: links }))
+    setNoteMenu(null)
+  }
+  async function createQuestion(id, key, t, pillar) {
+    const name = (prompt('New question for this section (added for every athlete):', t) || '').trim()
+    if (!name) return
+    const sec = pillar   // mentality / tactical / technique / physical
+    const cfg = await loadQuestionConfig(true)
+    const list = [...(cfg.custom?.[sec] || [])]
+    let qk = slugQ(name); while (list.some(x => x.key === qk)) qk += '_2'
+    list.push({ key: qk, label: name })
+    const err = await saveQuestionConfig({ ...cfg, custom: { ...(cfg.custom || {}), [sec]: list } })
+    if (err) { alert('Could not create the question: ' + err.message); return }
+    await linkNote(id, key, t, pillar, `custom:${qk}`)
+  }
   const [rows, setRows] = useState(null)             // student_id -> pdp_notes
   const [show, setShow] = useState(() => { try { return localStorage.getItem(SHOW_KEY) || 'all' } catch (e) { return 'all' } })
   const [focus, setFocus] = useState(null)           // { id, key } cell jumped to from a count
@@ -36,12 +65,12 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
   async function load() {
     const ids = athletes.map(a => a.id)
     if (!ids.length) { setRows({}); return }
-    const out = {}
+    const out = {}, outLinks = {}
     for (let i = 0; i < ids.length; i += 200) {
-      const { data } = await supabase.from('athlete_profiles').select('student_id, pdp_notes').in('student_id', ids.slice(i, i + 200))
-      for (const r of data || []) out[r.student_id] = r.pdp_notes || {}
+      const { data } = await supabase.from('athlete_profiles').select('student_id, pdp_notes, pdp_links').in('student_id', ids.slice(i, i + 200))
+      for (const r of data || []) { out[r.student_id] = r.pdp_notes || {}; outLinks[r.student_id] = r.pdp_links || {} }
     }
-    setRows(out)
+    setRows(out); setLinkRows(outLinks)
   }
   useEffect(() => { load() }, [athletes.map(a => a.id).join(',')])
   const pickShow = v => { setShow(v); try { localStorage.setItem(SHOW_KEY, v) } catch (e) { /* ignore */ } }
@@ -163,8 +192,26 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                         {items.length ? (
                           <ul style={{ margin: 0, paddingLeft: 16 }}>
                             {items.map((t, i) => (
-                              <li key={i} onClick={() => toggleClip(t, s.id, c.key)} title="Tap to copy" style={{ cursor: 'pointer', marginBottom: 2, background: clipHas(t) ? '#EF9F2733' : undefined, borderRadius: 4 }}><button type="button" onClick={e => { e.stopPropagation(); toggleCoachOnly(s.id, c.key, t) }} title={isCoachOnly(s.id, c.key, t) ? 'Coach only -- tap to let the athlete see it' : 'The athlete can see this -- tap to make it coach only'}
-                                style={{ background: 'none', border: 'none', padding: '0 4px 0 0', cursor: 'pointer', fontSize: 12, opacity: isCoachOnly(s.id, c.key, t) ? 0.6 : 1 }}>{isCoachOnly(s.id, c.key, t) ? '🔒' : '👁'}</button>{t}</li>
+                              <li key={i} onClick={() => setNoteMenu(m => m && m.id === s.id && m.key === c.key && m.text === t ? null : { id: s.id, key: c.key, text: t })} title="Tap: copy, or link to a question" style={{ cursor: 'pointer', marginBottom: 2, background: clipHas(t) ? '#EF9F2733' : undefined, borderRadius: 4 }}><button type="button" onClick={e => { e.stopPropagation(); toggleCoachOnly(s.id, c.key, t) }} title={isCoachOnly(s.id, c.key, t) ? 'Coach only -- tap to let the athlete see it' : 'The athlete can see this -- tap to make it coach only'}
+                                style={{ background: 'none', border: 'none', padding: '0 4px 0 0', cursor: 'pointer', fontSize: 12, opacity: isCoachOnly(s.id, c.key, t) ? 0.6 : 1 }}>{isCoachOnly(s.id, c.key, t) ? '🔒' : '👁'}</button>{t}
+                                {(() => { const l = linkOf(s.id, c.key, t); if (!l) return null; const all = [...(questionCatalog?.(l.pillar) || []), ...qCustom(qcfg, l.pillar).map(x => ({ q: `custom:${x.key}`, label: x.label }))]; const hit = all.find(x => x.q === l.q); return <span className="pdp-qtag">{hit ? qName(qcfg, l.pillar, hit.label) : 'linked'}</span> })()}
+                                {noteMenu && noteMenu.id === s.id && noteMenu.key === c.key && noteMenu.text === t && (() => {
+                                  const pillar = pillarOfKey(c.key), cur = linkOf(s.id, c.key, t)
+                                  const disc = s.discipline === 'KRBA' ? 'Boxing' : 'Kickboxing'
+                                  const list = pillar ? [...(questionCatalog?.(pillar) || []).filter(x => pillar !== 'technique' || String(x.q).startsWith(disc + '::')).filter(x => !qHidden(qcfg, pillar, x.label)),
+                                    ...qCustom(qcfg, pillar).map(x => ({ q: `custom:${x.key}`, label: x.label, group: 'Added' }))] : []
+                                  return (
+                                    <div className="pdp-notemenu" onClick={e => e.stopPropagation()}>
+                                      <button type="button" onClick={() => { toggleClip(t, s.id, c.key); setNoteMenu(null) }}>📋 {clipHas(t) ? 'Uncopy' : 'Copy note'}</button>
+                                      {pillar ? <>
+                                        {list.map(x => <button key={x.q} type="button" className={cur?.q === x.q ? 'on' : ''} onClick={() => linkNote(s.id, c.key, t, pillar, x.q)}>{qName(qcfg, pillar, x.label)}{x.group && x.group !== 'Added' && pillar === 'physical' ? <small> · {x.group}</small> : null}{cur?.q === x.q ? ' ✓' : ''}</button>)}
+                                        <button type="button" className="create" onClick={() => createQuestion(s.id, c.key, t, pillar)}>➕ Create question…</button>
+                                        {cur && <button type="button" onClick={() => linkNote(s.id, c.key, t, pillar, null)}>✕ Unlink</button>}
+                                      </> : <div className="hint">Winning ways notes aren't linked to questions.</div>}
+                                    </div>
+                                  )
+                                })()}
+                              </li>
                             ))}
                           </ul>
                         ) : <span style={{ color: '#E24B4A', fontSize: 11 }}>— none —</span>}
