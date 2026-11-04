@@ -9330,12 +9330,6 @@ export default function AthleteProfiles() {
               </div>
             )}
 
-            {/* Scroll to browse athlete profiles -- same as swiping */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14 }}>
-              <button className="btn btn-sm" disabled>← Prev</button>
-              <button className="btn btn-sm" disabled={filtered.length === 0}
-                onClick={() => filtered.length > 0 && selectStudent(filtered[0])} title="Browse athlete profiles">Next →</button>
-            </div>
 
             </>
             )}
