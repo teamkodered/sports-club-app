@@ -2539,7 +2539,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
   function renderNotesAndToDoCard() {
     const pdpNotesRaw = apData?.pdp_notes || {}
     const groups = [
-      { label: 'General', keys: { notes: null, maintain: 'maintain', work_on: 'to_work_on', to_do: 'what_to_do' } },
+      // General hidden (Nov 2026)
       ...PDP_CATEGORY_GROUPS.map(g => ({
         label: g.label,
         keys: { notes: g.keys[0], maintain: g.keys[1], work_on: g.keys[2], to_do: g.keys[3] },
