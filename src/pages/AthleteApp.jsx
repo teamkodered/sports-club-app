@@ -421,7 +421,7 @@ function timeToTimelinePercent(timeStr) {
 // "To do" section for that same scope, rather than every section
 // always being shown as its own separate, always-visible card.
 const PDP_SCOPES = [
-  { key: 'general',    notes: null,               maintain: 'maintain',            work_on: 'to_work_on',            to_do: 'what_to_do' },
+  // general scope hidden with the General PDP lists (Nov 2026) -- its sections no longer exist here
   { key: 'psychology', notes: 'psychology_notes',  maintain: 'psychology_maintain', work_on: 'psychology_work_on',    to_do: 'psychology_what_to_do' },
   { key: 'tech',       notes: 'tech_notes',        maintain: 'tech_maintain',       work_on: 'tech_work_on',          to_do: 'tech_what_to_do' },
   { key: 'tact',       notes: 'tact_notes',        maintain: 'tact_maintain',       work_on: 'tact_work_on',          to_do: 'tact_what_to_do' },
