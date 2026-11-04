@@ -102,7 +102,7 @@ const HRR_METHODS = [
   { key: 'wattafter', label: 'After Watt bike', pct: 'HRR % (after Watt bike)' },
   { key: 'at', label: 'Anaerobic threshold', only: ['Anaerobic Threshold'] },
 ]
-const hrrNames = m => m.only || ['Heart Rate Recovery (1 min)', m.pct, ...(m.extra || []), 'HRR start heart rate (bpm)', 'HRR end heart rate (bpm)']
+const hrrNames = m => m.only || ['HRR start heart rate (bpm)', 'HRR end heart rate (bpm)', 'Heart Rate Recovery (1 min)', m.pct, ...(m.extra || [])]   // start / end first -> HRR + % worked out
 
 export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode, initialCat = null, thisWeek = null }) {
   // thisWeek: { sessions, junior } -- show 'Tests this week' at the bottom (tap one to jump to it)
@@ -208,11 +208,11 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
               const m = HRR_METHODS.find(x => x.key === hrrMethod)
               return (
                 <div style={{ width: '100%' }}>
-                  <button type="button" className="ts-measure-btn" style={{ width: '100%' }} onClick={() => setHrrPick(v => !v)}>❤️ Method: {m ? m.label : 'choose…'} {hrrPick ? '▲' : '▼'}</button>
+                  <button type="button" className="ts-measure-btn ts-hrr-btn" style={{ width: '100%' }} onClick={() => setHrrPick(v => !v)}>❤️ Method: {m ? m.label : 'choose…'} {hrrPick ? '▲' : '▼'}</button>
                   {hrrPick && <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '6px 0' }}>
                     {HRR_METHODS.map(x => <button key={x.key} type="button" className={hrrMethod === x.key ? 'btn btn-sm btn-primary' : 'btn btn-sm'} style={{ justifyContent: 'flex-start' }} onClick={() => { setHrrMethod(x.key); setHrrPick(false) }}>{x.label}</button>)}
                   </div>}
-                  {m && !m.only && <button type="button" className="ts-measure-btn" style={{ width: '100%', marginTop: 6 }} onClick={() => setTool('hrr')}>⏱ Start heart rate recovery timer{m.effort ? ' (60 s all-out + 60 s seated)' : ' (60 s seated)'}</button>}
+                  {m && !m.only && <button type="button" className="ts-measure-btn ts-hrr-btn" style={{ width: '100%', marginTop: 6 }} onClick={() => setTool('hrr')}>⏱ Start recovery timer <small>{m.effort ? '60 s all-out + 60 s seated' : '60 s seated'}</small></button>}
                 </div>
               )
             })()}

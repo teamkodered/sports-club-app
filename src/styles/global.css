@@ -1833,3 +1833,10 @@ tr.kc-flash-row > td { animation: kcFlashRow 1.6s ease 2; }
 /* test session: test pills A-Z in even columns */
 .ts-cats { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; overflow: visible !important; }
 .ts-cats button { width: 100%; justify-content: center; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* HRR test: compact method / timer buttons and tighter boxes */
+.ts-hrr-btn { font-size: 15px !important; min-height: 42px !important; padding: 6px 12px !important; line-height: 1.2; }
+.ts-hrr-btn small { display: block; font-size: 11px; opacity: 0.75; font-style: normal; text-transform: none; letter-spacing: 0; }
+.ts-sheet .ts-test { padding: 10px 12px; }
+.ts-sheet .ts-test-name { font-size: 14px; }
+.ts-sheet .ts-one input { height: 40px; max-width: 120px; }
