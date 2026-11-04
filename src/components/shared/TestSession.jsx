@@ -102,7 +102,7 @@ const HRR_METHODS = [
   { key: 'wattafter', label: 'After Watt bike', pct: 'HRR % (after Watt bike)' },
   { key: 'at', label: 'Anaerobic threshold', only: ['Anaerobic Threshold'] },
 ]
-const hrrNames = m => m.only || ['Heart Rate Recovery (1 min)', 'HRR start heart rate (bpm)', 'HRR end heart rate (bpm)', m.pct, ...(m.extra || [])]
+const hrrNames = m => m.only || ['Heart Rate Recovery (1 min)', m.pct, ...(m.extra || []), 'HRR start heart rate (bpm)', 'HRR end heart rate (bpm)']
 
 export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode, initialCat = null, thisWeek = null }) {
   // thisWeek: { sessions, junior } -- show 'Tests this week' at the bottom (tap one to jump to it)
@@ -122,9 +122,25 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
   const [date, setDate] = useState(todayISO())
   const [hrrMethod, setHrrMethod] = useState(null)   // HRR test: chosen method key (collapsed list until picked)
   const [hrrPick, setHrrPick] = useState(false)
+  const [hrMax, setHrMax] = useState(190)   // 220 - age (for start / end as % of max)
+  useEffect(() => {
+    if (!studentId) return
+    supabase.from('students').select('members(date_of_birth)').eq('id', studentId).maybeSingle().then(({ data }) => {
+      const dob = data?.members?.date_of_birth
+      if (dob) { const age = Math.floor((Date.now() - new Date(dob)) / 31557600000); if (age > 5 && age < 90) setHrMax(220 - age) }
+    }, () => {})
+  }, [studentId])
   const [catKey, setCatKey] = useState(initialCat && TEST_CATEGORIES.some(c => c.key === initialCat) ? initialCat : TEST_CATEGORIES[0].key)
   const [history, setHistory] = useState([])
   const [vals, setVals] = useState({})      // name -> value (single-set tests)
+  // start + end heart rate entered -> HRR (drop) and the method's HRR % worked out
+  const hrStartV = vals['HRR start heart rate (bpm)'], hrEndV = vals['HRR end heart rate (bpm)']
+  useEffect(() => {
+    const st = parseFloat(hrStartV), en = parseFloat(hrEndV)
+    if (!(st > 0) || !(en > 0) || en > st) return
+    const m = HRR_METHODS.find(x => x.key === hrrMethod)
+    setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(Math.round(st - en)), ...(m?.pct ? { [m.pct]: String(Math.round((st - en) / st * 100)) } : {}) }))
+  }, [hrStartV, hrEndV, hrrMethod]) // eslint-disable-line react-hooks/exhaustive-deps
   const [sets, setSets] = useState({})      // name -> [values] (body weight)
   const [saving, setSaving] = useState(false)
   const [pbs, setPbs] = useState(null)
@@ -264,7 +280,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           </div>
         )}
         <div className="ts-tests">
-          {cat.tests.filter(t => cat.key !== 'fixedload' || t.name === (flColour || cat.tests[0]?.name) || (vals[t.name] !== '' && vals[t.name] != null)).filter(t => cat.key !== 'heart' || (hrrMethod && hrrNames(HRR_METHODS.find(x => x.key === hrrMethod)).includes(t.name))).map(t => {
+          {cat.tests.filter(t => cat.key !== 'fixedload' || t.name === (flColour || cat.tests[0]?.name) || (vals[t.name] !== '' && vals[t.name] != null)).filter(t => cat.key !== 'heart' || (hrrMethod && hrrNames(HRR_METHODS.find(x => x.key === hrrMethod)).includes(t.name))).sort((a, b) => cat.key !== 'heart' ? 0 : hrrNames(HRR_METHODS.find(x => x.key === hrrMethod)).indexOf(a.name) - hrrNames(HRR_METHODS.find(x => x.key === hrrMethod)).indexOf(b.name)).map(t => {
             const b = best[t.name], l = last[t.name]
             const hint = <div className="ts-hint">{b != null ? <>Best <b>{fmtVal(b, t.unit)}</b>{l ? <> · Last {fmtVal(l.value, t.unit)} ({new Date(l.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})</> : null}</> : 'No result yet'}{lowerIsBetter(t.name) ? ' · lower is better' : ''}</div>
             if (cat.multiSet) {
@@ -313,6 +329,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
                   <input id={`ts-${t.name}`} type="number" inputMode="decimal" step="any" value={vals[t.name] ?? ''} onChange={e => setVals(p => ({ ...p, [t.name]: e.target.value }))} />
                   <span>{t.unit}</span>
                 </div>
+                {cat.key === 'heart' && /^HRR (start|end) heart rate/.test(t.name) && parseFloat(vals[t.name]) > 0 && <div className="ts-hint" style={{ color: '#E24B4A' }}>{Math.round(parseFloat(vals[t.name]) / hrMax * 100)}% of max heart rate ({hrMax})</div>}
                 {hint}
               </div>
             )
