@@ -6,6 +6,8 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import HrrTestTool from '../components/shared/HrrTestTool.jsx'
+import { saveTestResults } from '../lib/testResults.js'
 import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
 import { AbsenceRequestCoach } from '../components/shared/AbsenceRequests.jsx'
 import LeagueBoard from './LeagueBoard.jsx'
@@ -3616,6 +3618,7 @@ export default function AthleteProfiles() {
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
   const [selected, setSelected]     = useState(null)
+  const [hrrRunFor, setHrrRunFor] = useState(null)   // profile: HRR test running for this athlete
   const [disciplinePickOpen, setDisciplinePickOpen] = useState(null) // profile: discipline drop-down open
   const sectionLeague = useSectionLeague(selected?.id) // place + score in each section's league (same as the League board)
   // heart rate sessions recorded in the app (live reader / Android recorder) -- shown with the wearable workouts
@@ -9756,20 +9759,19 @@ export default function AthleteProfiles() {
                           )
                         })()
                       ) : (apData?.weight_division || '—') },
-                      { label: 'VO2 Max', editable: true, render: () => {
+                      { label: 'HRR test', editable: true, render: () => {
+                        // Heart rate recovery (Watt bike, 60 s all-out + 60 s seated) -- run with the timer, result saved to today's tests
                         const sorted = [...f2fData].sort((a, b) => new Date(b.session_date) - new Date(a.session_date))
-                        const latest = sorted.find(s => s.test?.['VO2 Max'] != null)
-                        const latestValue = latest?.test?.['VO2 Max']
-                        return isAdmin ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-                            <input key={`vo2max-${selected.id}`} type="number" step="0.1" defaultValue={latestValue ?? ''} placeholder="ml/kg/min"
-                              onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v != null && v !== latestValue) saveVo2MaxHere(v) }}
-                              style={{ width: 80, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                            {latest && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(latest.session_date).toLocaleDateString('en-GB')}</span>}
+                        const latest = sorted.find(s => s.test?.['Heart Rate Recovery (1 min)'] != null)
+                        const t = latest?.test || {}
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            {latest ? <span style={{ fontSize: 12 }}>{t['HRR start heart rate (bpm)'] && t['HRR end heart rate (bpm)'] ? <span style={{ color: 'var(--text-tertiary)' }}>{t['HRR start heart rate (bpm)']} → {t['HRR end heart rate (bpm)']} · </span> : null}<b>{t['Heart Rate Recovery (1 min)']} bpm</b> <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(latest.session_date).toLocaleDateString('en-GB')}</span></span> : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                            {isAdmin && <button type="button" className="btn btn-sm" onClick={() => setHrrRunFor(selected)}>❤️ Run test</button>}
                           </div>
-                        ) : (latestValue != null ? `${latestValue} ml/kg/min` : '—')
+                        )
                       } },
-                      ...[['HR recovery', 'Heart Rate Recovery (1 min)'], ['Anaerobic threshold', 'Anaerobic Threshold']].map(([label, test]) => ({ label, render: () => {
+                      ...[['Anaerobic threshold', 'Anaerobic Threshold']].map(([label, test]) => ({ label, render: () => {
                         const latest = [...f2fData].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.[test] != null)
                         return latest ? <span>{latest.test[test]} bpm <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(latest.session_date).toLocaleDateString('en-GB')}</span></span> : '—'
                       } })),
@@ -10197,6 +10199,16 @@ export default function AthleteProfiles() {
                     onSave={({ perRound, perMinute, mode }) => mode === 'reps' ? videoTool.onSaveReps?.(perRound) : saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
                   {videoTool && videoTool.mode !== 'count' && videoTool.mode !== 'reps' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
                   {UndoBar()}
+                  {hrrRunFor && (
+                    <HrrTestTool mode="coach" zIndex={700} studentId={hrrRunFor.id} studentName={`${hrrRunFor.members?.first_name || ''} ${hrrRunFor.members?.last_name || ''}`.trim()} onClose={() => setHrrRunFor(null)}
+                      onResult={async r => {
+                        const vals = { 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.peak != null ? { 'HRR start heart rate (bpm)': String(r.peak) } : {}), ...(r.end != null ? { 'HRR end heart rate (bpm)': String(r.end) } : {}), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }
+                        const { error } = await saveTestResults(hrrRunFor.id, new Date().toISOString().split('T')[0], vals)
+                        if (error) { alert('Could not save: ' + (error.message || error)); return }
+                        const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', hrrRunFor.id).order('session_date', { ascending: false })
+                        if (data && selected?.id === hrrRunFor.id) setF2fData(data)
+                      }} />
+                  )}
                   {homePdpEditor && selected && <PdpItemEditorModal key={homePdpEditor.sectionKey + homePdpEditor.text} editor={homePdpEditor} apData={apData} setApData={setApData} studentId={selected.id} onClose={() => setHomePdpEditor(null)} />}
                   <PdpAddModal key={pdpAddTarget ? `${pdpAddTarget.q}:${pdpAddTarget.item}` : "none"} target={pdpAddTarget} onClose={() => setPdpAddTarget(null)} onSave={addToPdp} />
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
