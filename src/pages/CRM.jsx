@@ -1015,15 +1015,34 @@ export default function CRM() {
     return Object.values(tally).sort((a, b) => a.size.localeCompare(b.size) || a.belt.localeCompare(b.belt))
   }
 
+  // the list's current filters as words, for titles / file names (e.g. "Coach GD · 21/11/2026")
+  function gradingListTitleBits() {
+    const d = gradingCol.date === 'next' ? nextGradingDate : (['all', 'none'].includes(gradingCol.date) ? '' : gradingCol.date)
+    return [gradingCol.coach && `Coach ${gradingCol.coach}`, gradingCol.cls, d && new Date(d + 'T12:00:00').toLocaleDateString('en-GB')].filter(Boolean)
+  }
   function exportGradingList(rows) {
+    if (!rows.length) return alert('No students selected.')
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.json_to_sheet(rows.map(r => ({
       Name: r.name, Age: r.age ?? '', 'Age group': r.band, Discipline: r.discipline,
       'Current belt': r.current_belt || '', 'Grading for': r.grading_for, 'Belt size': r.size,
+      Class: r.clsLabel || '', Coach: r.coachLabel || '',
+      'Grading date': r.grading_date ? new Date(r.grading_date + 'T12:00:00').toLocaleDateString('en-GB') : '',
       Approved: r.coach_approved ? 'Yes' : 'No',
     })))
     XLSX.utils.book_append_sheet(wb, ws, 'Grading list')
-    XLSX.writeFile(wb, `grading_list_${new Date().toISOString().split('T')[0]}.xlsx`)
+    const bits = gradingListTitleBits().join('_').replace(/[^a-z0-9]+/gi, '_')
+    XLSX.writeFile(wb, `grading_list${bits ? '_' + bits : ''}_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+  // printable / save-as-PDF list of the selected students (e.g. one coach's students)
+  function printGradingSelected(rows) {
+    if (!rows.length) return alert('No students selected.')
+    const esc = v => String(v ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+    const title = ['Grading list', ...gradingListTitleBits()].join(' — ')
+    printGradingWindow(title, `<h1>${esc(title)}</h1><p>${rows.length} student${rows.length === 1 ? '' : 's'}</p>
+      <table><tr><th>Name</th><th>Age</th><th>Current</th><th>Grading for</th><th>Class</th><th>Coach</th><th>Approved</th></tr>
+      ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.age ?? '')}</td><td>${esc(r.current_belt || '—')}</td><td><b>${esc(r.grading_for)}</b></td><td>${esc(r.clsLabel || '')}</td><td>${esc(r.coachLabel || '')}</td><td>${r.coach_approved ? '✓' : ''}</td></tr>`).join('')}
+      </table>`)
   }
 
   function exportOrderForm(rows) {
@@ -5279,7 +5298,11 @@ export default function CRM() {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-                  <button className="btn btn-sm btn-primary" onClick={() => exportGradingList(selectedRows)}>⬇ Export list (Excel)</button>
+                  <span style={{ fontSize: 12, alignSelf: 'center', color: 'var(--text-secondary)' }}><b>{selectedRows.length}</b> of {allRows.length} selected</span>
+                  <button className="btn btn-sm" onClick={() => setGradingSelected(p => ({ ...p, ...Object.fromEntries(allRows.map(r => [r.id, true])) }))}>Select all shown</button>
+                  <button className="btn btn-sm" onClick={() => setGradingSelected(p => ({ ...p, ...Object.fromEntries(allRows.map(r => [r.id, false])) }))}>Select none</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => exportGradingList(selectedRows)}>⬇ Download selected (Excel)</button>
+                  <button className="btn btn-sm" onClick={() => printGradingSelected(selectedRows)}>🖨️ Print / PDF selected</button>
                   <button className="btn btn-sm" onClick={() => setShowOrderForm(v => !v)}>📋 Generate belt order form</button>
                   <button className="btn btn-sm" onClick={() => printExaminersForm(selectedRows)}>🖨️ Print examiners form</button>
                   <button className="btn btn-sm" onClick={() => printCertificateList(selectedRows)}>🖨️ Print certificate list</button>
