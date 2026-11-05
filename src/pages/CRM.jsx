@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
+import { beltStyle } from '../lib/beltColours.js'
 import { saveSetting, saveErrorText } from '../lib/saveSetting.js'
 import PhoneText from '../components/shared/PhoneText.jsx'
 import { useNavigate } from 'react-router-dom'
@@ -860,11 +861,16 @@ export default function CRM() {
   const [gradingCol, setGradingCol] = useState({ date: 'next', current: '', gradingFor: '', cls: '', coach: '', approved: '' })
   const [nextGradingDate, setNextGradingDate] = useState('')       // settings.grading_next_date -- new requests are filed under it
   const [editGradingDate, setEditGradingDate] = useState(null)
+  const [gradingQ, setGradingQ] = useState('')               // type to search (name) -- both views
+  const [gradingOkF, setGradingOkF] = useState('all')        // 'all' | 'waiting' (not OK'd) | 'ok' (coach OK'd)
+  const gradingNameOf = r => (r.students?.members ? `${r.students.members.first_name} ${r.students.members.last_name}` : (r.student_name || r.name || '')).toLowerCase()
+  const gradingPass = r => (!gradingQ.trim() || gradingNameOf(r).includes(gradingQ.trim().toLowerCase()))
+    && (gradingOkF === 'all' || (gradingOkF === 'ok' ? !!r.coach_ok : !r.coach_ok))
   const [openGradingGroups, setOpenGradingGroups] = useState({})   // requests grouped by grading date, closed until pressed
   function gradingDateGroups() {
     const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB')
     const groups = {}
-    gradingRequests.forEach(r => { const k = r.grading_date || 'none'; (groups[k] ||= []).push(r) })
+    gradingRequests.filter(gradingPass).forEach(r => { const k = r.grading_date || 'none'; (groups[k] ||= []).push(r) })
     return Object.entries(groups).sort(([a], [b]) => a === 'none' ? 1 : b === 'none' ? -1 : b.localeCompare(a))
       .map(([k, rows]) => ({ key: k, rows, waiting: rows.filter(r => !r.coach_approved).length, label: k === 'none' ? 'No grading date' : `${fmt(k)} Grading` }))
   }
@@ -988,6 +994,7 @@ export default function CRM() {
           size: beltSizeFor(dob, beltSizeRule),
         }
       })
+      .filter(gradingPass)
       .filter(r => {
         const f = gradingCol, d = f.date === 'next' ? nextGradingDate : f.date
         if (d && d !== 'all' && (r.grading_date || '') !== (d === 'none' ? '' : d)) return false
@@ -5067,6 +5074,12 @@ export default function CRM() {
             <button className={gradingView === 'requests' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('requests')}>Requests</button>
             <button className={gradingView === 'list' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('list')}>Grading list</button>
             <button className="btn btn-sm" onClick={loadGradingRequests} disabled={gradingLoading}>{gradingLoading ? 'Refreshing…' : '🔄 Refresh'}</button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input value={gradingQ} onChange={e => setGradingQ(e.target.value)} placeholder="🔍 Type a name to search…" style={{ flex: '1 1 200px', maxWidth: 320 }} />
+            {[['all', 'All'], ['waiting', 'Not OK\'d by coach'], ['ok', 'Coach OK\'d']].map(([k, l]) => (
+              <button key={k} type="button" className={`btn btn-sm${gradingOkF === k ? ' btn-primary' : ''}`} onClick={() => setGradingOkF(k)}>{l}{k !== 'all' ? ` (${gradingRequests.filter(r => k === 'ok' ? r.coach_ok : !r.coach_ok).length})` : ''}</button>
+            ))}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(gradingRequests.map(r => ({
               Name: `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''}`.trim(),
               Discipline: r.students?.discipline || '',
@@ -5179,7 +5192,7 @@ export default function CRM() {
                           )
                         })() : (
                           <p style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span>{r.discipline} · {r.current_belt || '—'} → <strong>{r.grading_for}</strong></span>
+                            <span>{r.discipline} · {r.current_belt || '—'} → <strong style={beltStyle(r.grading_for)}>{r.grading_for}</strong></span>
                             {!r.coach_approved && (
                               <button type="button" className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px' }} title="Fix the grade if they picked the wrong one"
                                 onClick={() => setGradingEdit({ id: r.id, current_belt: r.current_belt || '', grading_for: r.grading_for || '' })}>✏️ Edit grade</button>
@@ -5439,7 +5452,7 @@ export default function CRM() {
                               <td style={{ padding: 8 }}>{r.age ?? '—'}</td>
                               <td style={{ padding: 8 }}>{r.size}</td>
                               <td style={{ padding: 8 }}>{r.current_belt || '—'}</td>
-                              <td style={{ padding: 8, fontWeight: 600 }}>{r.grading_for}</td>
+                              <td style={{ padding: 8 }}><span style={beltStyle(r.grading_for)}>{r.grading_for}</span></td>
                               <td style={{ padding: 8 }}>{r.clsLabel || '—'}</td>
                               <td style={{ padding: 8 }}>{r.coachLabel || '—'}</td>
                               <td style={{ padding: 8 }} title={r.coach_ok_by || ''}>{r.coach_ok ? <span style={{ color: '#1D9E75' }}>✓ {r.coach_ok_by?.split(' ')[0] || ''}</span> : r.coach_not_ready ? <span style={{ color: '#E24B4A' }} title={r.coach_note || ''}>✗ not ready</span> : r.sent_to_coach_at ? <span style={{ color: '#EF9F27' }}>waiting</span> : '—'}</td>

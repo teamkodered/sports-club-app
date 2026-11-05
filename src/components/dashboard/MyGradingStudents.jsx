@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
+import { beltStyle } from '../../lib/beltColours.js'
 
 // 🎽 Coaches: grading requests from the students in THEIR classes (shared automatically when submitted).
 // ✓ OK or ✗ Not ready (with a reason) -- the admin sees it in their list; their own approval + the
@@ -16,6 +17,7 @@ export default function MyGradingStudents() {
   const [pickMine, setPickMine] = useState(false)
   const [mineSaved, setMineSaved] = useState(null)          // admin's chosen class ids (members.access.my_classes)
   const [reload, setReload] = useState(0)
+  const [q, setQ] = useState(''), [okF, setOkF] = useState('all')   // search + All / Not OK'd / OK'd
   const [rows, setRows] = useState(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(null)
@@ -163,13 +165,22 @@ export default function MyGradingStudents() {
         {picker}
         <div className={`kc-slide${open ? ' open' : ''}`}><div>
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 4px' }}>Students from your classes taking the grading. ✓ OK if they're ready, ✗ Not ready with a reason if not -- the admin sees it before approving.</div>
-          {rows.map(r => {
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '4px 0 6px' }}>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Type a name…" style={{ flex: '1 1 150px', fontSize: 13 }} />
+            {[['all', 'All'], ['waiting', 'Not OK\'d'], ['ok', 'OK\'d']].map(([k, l]) => (
+              <button key={k} type="button" className={`btn btn-sm${okF === k ? ' btn-primary' : ''}`} onClick={() => setOkF(k)}>{l}{k !== 'all' ? ` (${rows.filter(r => k === 'ok' ? r.coach_ok : !r.coach_ok).length})` : ''}</button>
+            ))}
+          </div>
+          {rows.filter(r => {
+            const nm = `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''} ${r.student_name || ''}`.toLowerCase()
+            return (!q.trim() || nm.includes(q.trim().toLowerCase())) && (okF === 'all' || (okF === 'ok' ? r.coach_ok : !r.coach_ok))
+          }).map(r => {
             const m = r.students?.members
             return (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
                 <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{m ? `${m.first_name} ${m.last_name}` : (r.student_name || 'Student')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b>{r.grading_for}</b>{r.grading_date ? ` · grading ${fmt(r.grading_date)}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b style={beltStyle(r.grading_for)}>{r.grading_for}</b>{r.grading_date ? ` · grading ${fmt(r.grading_date)}` : ''}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>🏫 {r.classes.map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}`).join(' | ')}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: r.sessions >= 12 ? '#1D9E75' : r.sessions >= 6 ? '#EF9F27' : '#E24B4A' }}>🥋 {r.sessions} session{r.sessions === 1 ? '' : 's'} in the last 3 months</div>
                   {r.coach_not_ready && <div style={{ fontSize: 12, color: '#E24B4A', marginTop: 2 }}>✗ Not ready: {r.coach_note}</div>}
