@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import AwardsVote from '../components/shared/AwardsVote.jsx'
 import MonthlyReport from '../components/shared/MonthlyReport.jsx'
 import { readScale, scaleSupported } from '../lib/btScale.js'
 import { TestsThisWeek } from '../components/shared/TestsThisWeek.jsx'
@@ -5615,6 +5616,8 @@ export default function AthleteApp() {
               </div>
             </div>
           )}
+          {/* 🏆 Fighters fighter vote (KR / KRBA, while awards nominations are open) */}
+          {student?.id && <AwardsVote student={student} />}
           {/* 📊 last month in one card (first 7 days of the month) */}
           {student?.id && <MonthlyReport studentId={student.id} name={student?.members?.first_name} attendanceData={attendanceData} sessions={sessions}
             pdpDone={apData?.pdp_done || {}} classesById={Object.fromEntries((assignedClasses || []).filter(x => x.classes).map(x => [x.classes.id, x.classes]))} />}

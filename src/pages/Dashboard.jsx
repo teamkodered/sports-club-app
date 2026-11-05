@@ -6,6 +6,7 @@ import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import FocusAndFormat from '../components/dashboard/FocusAndFormat.jsx'
 import WebsiteProfiles from '../components/dashboard/WebsiteProfiles.jsx'
 import MyGradingStudents from '../components/dashboard/MyGradingStudents.jsx'
+import AwardsNominate from '../components/dashboard/AwardsNominate.jsx'
 import { supabase } from '../lib/supabase.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -471,6 +472,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* 🏆 coaches: award nominations (when open) */}
+      <AwardsNominate />
 
       {/* 🎽 coaches: grading requests from their own students */}
       <MyGradingStudents />

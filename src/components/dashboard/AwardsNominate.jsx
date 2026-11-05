@@ -1,0 +1,176 @@
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { supabase } from '../../lib/supabase.js'
+import { useAuth } from '../../hooks/useAuth.jsx'
+import { loadAwardsCurrent, nominationsOpen, catHint } from '../../lib/awards.js'
+
+// 🏆 Coaches: nominate ONE student per award category -- their own classes' awards, plus the
+// KR / KRBA squad and club awards (any coach). Results are admin-only.
+const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+
+export default function AwardsNominate() {
+  const { profile, registerAccess, isAdmin } = useAuth()
+  const [cur, setCur] = useState(null)
+  const [cats, setCats] = useState([])
+  const [mine, setMine] = useState({})            // category_id -> my nomination
+  const [open, setOpen] = useState(false)
+  const [openGrp, setOpenGrp] = useState({})
+  const [pick, setPick] = useState(null)          // { cat } -- picker open
+  const myClassIds = registerAccess?.classes || null
+
+  async function load() {
+    const c = await loadAwardsCurrent()
+    setCur(c)
+    if (!nominationsOpen(c)) return
+    const [{ data: cs }, { data: noms }] = await Promise.all([
+      supabase.from('awards_categories').select('*').eq('year', c.year).eq('vote', false).neq('grp_kind', 'house').order('sort'),
+      supabase.from('awards_nominations').select('*').eq('coach_member_id', profile?.id),
+    ])
+    // class awards: only my classes (admins: all); squad + club awards: everyone
+    setCats((cs || []).filter(x => x.grp_kind !== 'class' || isAdmin || !myClassIds || myClassIds.includes(x.class_id)))
+    setMine(Object.fromEntries((noms || []).map(n => [n.category_id, n])))
+  }
+  useEffect(() => { if (profile?.id) load() }, [profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const groups = useMemo(() => {
+    const g = {}
+    cats.forEach(c => { (g[c.grp] ||= { grp: c.grp, kind: c.grp_kind, cats: [] }).cats.push(c) })
+    const order = { class: 0, squad: 1, club: 2 }
+    return Object.values(g).sort((a, b) => (order[a.kind] ?? 9) - (order[b.kind] ?? 9) || a.grp.localeCompare(b.grp))
+  }, [cats])
+
+  if (!cur || !nominationsOpen(cur) || !groups.length) return null
+  const done = cats.filter(c => mine[c.id]).length
+
+  return (
+    <div className="card" style={{ marginBottom: 16, border: '1px solid #EF9F2766' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
+        <b style={{ fontSize: 15, flex: 1 }}>🏆 Awards {cur.year} nominations</b>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#EF9F27' }}>{done} of {cats.length} done{cur.close ? ` · close ${fmt(cur.close)}` : ''}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      <div className={`kc-slide${open ? ' open' : ''}`}><div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0' }}>Pick one student for each award -- your classes, plus the KR / KRBA and club awards. You can change it until nominations close.</div>
+        {groups.map(g => {
+          const gDone = g.cats.filter(c => mine[c.id]).length
+          return (
+            <div key={g.grp} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8 }}>
+              <button type="button" onClick={() => setOpenGrp(o => ({ ...o, [g.grp]: !o[g.grp] }))} style={{ width: '100%', display: 'flex', gap: 8, padding: '9px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
+                <b style={{ flex: 1, fontSize: 13 }}>{g.grp}</b>
+                <span style={{ fontSize: 11, color: gDone === g.cats.length ? '#1D9E75' : 'var(--text-tertiary)' }}>{gDone}/{g.cats.length}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{openGrp[g.grp] ? '▲' : '▼'}</span>
+              </button>
+              <div className={`kc-slide${openGrp[g.grp] ? ' open' : ''}`}><div style={{ padding: openGrp[g.grp] ? '0 10px 6px' : 0 }}>
+                {g.cats.map(c => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
+                      {mine[c.id] ? <div style={{ fontSize: 12, color: '#1D9E75' }}>✓ {mine[c.id].nominee_name}{mine[c.id].reason ? <span style={{ color: 'var(--text-tertiary)' }}> -- {mine[c.id].reason}</span> : null}</div>
+                        : <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{catHint(c.name).hint ? `Suggested: ${catHint(c.name).hint}` : 'Not nominated yet'}</div>}
+                    </div>
+                    <button type="button" className={`btn btn-sm${mine[c.id] ? '' : ' btn-primary'}`} onClick={() => setPick({ cat: c })}>{mine[c.id] ? 'Change' : 'Nominate'}</button>
+                  </div>
+                ))}
+              </div></div>
+            </div>
+          )
+        })}
+      </div></div>
+      {pick && createPortal(<Picker cat={pick.cat} current={mine[pick.cat.id]} year={cur.year} profile={profile}
+        onClose={() => setPick(null)} onSaved={n => { setMine(m => ({ ...m, [pick.cat.id]: n })); setPick(null) }}
+        onRemoved={() => { setMine(m => { const x = { ...m }; delete x[pick.cat.id]; return x }); setPick(null) }} />, document.body)}
+    </div>
+  )
+}
+
+function Picker({ cat, current, year, profile, onClose, onSaved, onRemoved }) {
+  const [people, setPeople] = useState(null)
+  const [q, setQ] = useState('')
+  const [sel, setSel] = useState(current ? { student_id: current.student_id, member_id: current.member_id, name: current.nominee_name } : null)
+  const [reason, setReason] = useState(current?.reason || '')
+  const [busy, setBusy] = useState(false)
+  const how = catHint(cat.name)
+
+  useEffect(() => {
+    (async () => {
+      const today = new Date().toISOString().split('T')[0], y0 = `${year}-01-01`
+      let list = []
+      if (cat.name === 'Coaches coach') {
+        const { data } = await supabase.from('members').select('id, first_name, last_name, role').in('role', ['admin', 'captain', 'coach', 'leader', 'head_coach'])
+        list = (data || []).map(m => ({ member_id: m.id, name: `${m.first_name} ${m.last_name}`.trim(), sub: m.role }))
+      } else {
+        let ids = null
+        if (cat.grp_kind === 'class' && cat.class_id) {
+          const { data: asg } = await supabase.from('student_class_assignments').select('*').eq('class_id', cat.class_id)
+          ids = [...new Set((asg || []).filter(a => (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today)).map(a => a.student_id))]
+        }
+        let qs = supabase.from('students').select('id, is_kr, discipline, house_points, photo_url, members(first_name, last_name, joined_date, status)')
+        if (ids) qs = qs.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
+        const { data: st } = await qs
+        let rows = (st || []).filter(s => (s.members?.status || 'active') === 'active')
+        if (cat.squad === 'KR') rows = rows.filter(s => s.is_kr)
+        if (cat.squad === 'KRBA') rows = rows.filter(s => s.discipline === 'KRBA')
+        // sessions this year
+        const sids = rows.map(s => s.id), sess = {}
+        for (let i = 0; i < sids.length; i += 150) {
+          const { data: att } = await supabase.from('attendance').select('student_id, session_date, attendance_type').in('student_id', sids.slice(i, i + 150)).gte('session_date', y0)
+          const seen = new Set()
+          ;(att || []).filter(a => ['attended', 'full_kit'].includes(a.attendance_type)).forEach(a => { const k = a.student_id + a.session_date; if (!seen.has(k)) { seen.add(k); sess[a.student_id] = (sess[a.student_id] || 0) + 1 } })
+        }
+        list = rows.map(s => ({ student_id: s.id, photo: s.photo_url, name: `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim(),
+          joined: s.members?.joined_date || '', sessions: sess[s.id] || 0, points: s.house_points || 0 }))
+      }
+      const sorters = { joined: (a, b) => String(b.joined).localeCompare(String(a.joined)), sessions: (a, b) => b.sessions - a.sessions, points: (a, b) => b.points - a.points, name: (a, b) => a.name.localeCompare(b.name) }
+      setPeople(list.sort(sorters[how.sort] || sorters.name))
+    })()
+  }, [cat.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function save() {
+    if (!sel) return alert('Choose a student first.')
+    setBusy(true)
+    const row = { category_id: cat.id, student_id: sel.student_id || null, member_id: sel.member_id || null, nominee_name: sel.name,
+      coach_member_id: profile.id, coach_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(), reason: reason.trim() || null }
+    const { data, error } = await supabase.from('awards_nominations').upsert(row, { onConflict: 'category_id,coach_member_id' }).select().single()
+    setBusy(false)
+    if (error) return alert('Could not save: ' + error.message)
+    onSaved(data)
+  }
+  async function remove() {
+    if (!current || !confirm('Remove your nomination?')) return
+    const { error } = await supabase.from('awards_nominations').delete().eq('id', current.id)
+    if (error) return alert('Could not remove: ' + error.message)
+    onRemoved()
+  }
+  const y = String(year)
+  const shown = (people || []).filter(p => !q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase()))
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, maxHeight: '88vh', overflowY: 'auto', padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <b style={{ fontSize: 15 }}>🏆 {cat.name}</b><button className="btn btn-sm" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{cat.grp}{how.hint ? ` · sorted by ${how.hint}` : ''}</div>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Type a name…" style={{ marginBottom: 8 }} />
+        {!people ? <div style={{ color: 'var(--text-tertiary)' }}>Loading…</div> : shown.map(p => {
+          const on = sel && ((p.student_id && p.student_id === sel.student_id) || (p.member_id && p.member_id === sel.member_id))
+          return (
+            <button key={p.student_id || p.member_id} type="button" onClick={() => setSel(p)}
+              style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 10px', marginBottom: 4, borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7522' : 'transparent', color: 'var(--text)' }}>
+              {p.photo ? <img src={p.photo} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover' }} /> : <span style={{ width: 34 }} />}
+              <span style={{ flex: 1, fontSize: 14, fontWeight: on ? 700 : 500 }}>{p.name}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'right' }}>
+                {p.sub || <>{p.sessions} sessions · {p.points} pts{p.joined?.startsWith(y) ? <><br /><b style={{ color: '#1D9E75' }}>joined {y}</b></> : null}</>}
+              </span>
+            </button>
+          )
+        })}
+        <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Why? (optional, e.g. never misses a session)" style={{ margin: '8px 0' }} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          {current && <button className="btn" onClick={remove}>Remove</button>}
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={busy || !sel} onClick={save}>{busy ? 'Saving…' : `Nominate ${sel?.name?.split(' ')[0] || ''}`}</button>
+        </div>
+      </div>
+    </div>
+  )
+}

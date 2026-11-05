@@ -5,6 +5,7 @@ import PhoneText from '../components/shared/PhoneText.jsx'
 import { useNavigate } from 'react-router-dom'
 import StockPanel from '../components/crm/StockPanel.jsx'
 import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
+import AwardsPanel from '../components/crm/AwardsPanel.jsx'
 import { INTEREST_GROUPS, interestOf, nextDateForDay, introOf } from '../lib/enquiryInterest.js'
 import { viewAsVenueScope } from '../lib/viewAsScope.js'
 import ParentRequestsPanel from '../components/parent/ParentRequestsPanel.jsx'
@@ -375,7 +376,7 @@ export default function CRM() {
   const [enqVenue, setEnqVenue] = useState('all')
   const [enqSearch, setEnqSearch] = useState('')   // Enquiries search: name, phone, email, who it's for, notes   // admin's venue filter on enquiries
   const location = useLocation()
-  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock', 'level_up']
+  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock', 'level_up', 'awards']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
   // Adds any newly-introduced tab that predates a saved order, and
   // drops any that no longer exist, rather than silently hiding/
@@ -3509,6 +3510,7 @@ export default function CRM() {
       {(() => {
         const TAB_DEFS = {
           level_up: { label: 'Level Up', colour: '#E24B4A', onSelect: () => setTab('level_up') },
+          awards: { label: '🏆 Awards', colour: '#EF9F27', onSelect: () => setTab('awards') },
           sell: { label: 'Sell', colour: '#1D9E75', onSelect: () => setTab('sell') },
           sales: { label: 'Sales', colour: '#8B5CF6', onSelect: () => setTab('sales') },
           stock: { label: 'Stock', colour: '#06B6D4', onSelect: () => setTab('stock') },
@@ -3587,6 +3589,7 @@ export default function CRM() {
 
 
       {tab === 'level_up' && <LevelUpPanel />}
+      {tab === 'awards' && isAdmin && <AwardsPanel />}
       {tab === 'sell' && <StockPanel key="sell" section="sell" />}
       {tab === 'sales' && <StockPanel key="sales" section="sales" />}
       {tab === 'stock' && <StockPanel key="stock" section="stock" />}
