@@ -337,10 +337,29 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     if (s.kind === 'grip') {
       const list = ranked([...pd.grip].sort((a, b) => b.pct - a.pct), r => Number(r.pct))
       const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
+      // like the mock-up: name (body weight under it) · GRIP kg · big % BW
+      const GripRow = ({ r, isMe }) => (
+        <div className={`lb-row${isMe ? ' lb-me' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 6, background: '#1A1F24',
+          border: isMe ? '1px solid #059669' : '1px solid #2A3138', boxShadow: isMe ? '0 0 10px #05966955' : 'none' }}>
+          <span style={{ ...NUM, width: 22, textAlign: 'center', fontSize: 15, color: r.rank === 1 ? '#F5C542' : r.rank === 2 ? '#C9CED6' : r.rank === 3 ? '#E08A3C' : '#9A9A9A' }}>{r.rank}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#F2F2F2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.display_name}{isMe ? ' (you)' : ''}</div>
+            <div style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A' }}>{Number(r.weight)}KG BODY WEIGHT</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ ...NUM, fontSize: 8, letterSpacing: 1.5, color: '#9A9A9A' }}>GRIP</div>
+            <div style={{ ...NUM, fontSize: 13, color: '#F2F2F2' }}>{Number(r.grip)}<span style={{ fontSize: 9, color: '#9A9A9A' }}>KG</span></div>
+          </div>
+          <div style={{ textAlign: 'right', minWidth: 64 }}>
+            <div style={{ ...NUM, fontSize: 8, letterSpacing: 1.5, color: '#9A9A9A' }}>% BW</div>
+            <div style={{ ...NUM, fontSize: 20, color: '#059669', textShadow: '0 0 6px #05966966' }}>{Number(r.pct)}</div>
+          </div>
+        </div>
+      )
       return (
         <Slide title="Grip test" colour="#059669" emoji="✊" sub="Best hand as a % of body weight" fixedPeriod>
-          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={`${Number(r.grip)}kg grip · ${Number(r.weight)}kg body weight`} value={Number(r.pct)} unit="% BW" colour="#059669" me={r.student_id === meId} />)}
-          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} sub={`${Number(me.grip)}kg grip · ${Number(me.weight)}kg body weight`} value={Number(me.pct)} unit="% BW" colour="#059669" me /></>}
+          {top.map(r => <GripRow key={r.student_id} r={r} isMe={r.student_id === meId} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><GripRow r={me} isMe /></>}
         </Slide>
       )
     }
