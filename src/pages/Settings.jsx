@@ -449,25 +449,12 @@ export default function Settings() {
 
   return (
     <div style={{ maxWidth: 640 }}>
-      <div className="card" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 13 }}><b>🔒 Membership documents</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>New uploads are private. Move older ones too, so they can't be opened from a link.</div></div>
-        <button className="btn btn-sm btn-primary" disabled={!!docMove} onClick={moveDocs}>{docMove ? `Moving ${docMove.done}/${docMove.total}…` : 'Move older documents to private storage'}</button>
-      </div>
-      <GoogleCalendarsSettings />
       <div className="page-header">
         <h1>Settings</h1>
         <p>Configure club details, belt levels, age categories, point types and Fit II Fight options</p>
       </div>
 
-      {/* Import data (moved here from the side menu) */}
-      <div className="card" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 13 }}><b>⬆️ Import data</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bring in members, students and other records from a spreadsheet.</div></div>
-        <Link to="/import" className="btn btn-sm btn-primary">Open Import data</Link>
-      </div>
-
-      <FocusAlwaysOnSettings />
-      <QuestionsManager />
-
+      {/* Always first: Team — roles & access, then Club details. New sections go below these. */}
       {SECTION('Team — roles & access')}
       <TeamAccess />
 
@@ -515,6 +502,22 @@ export default function Settings() {
           Changes take effect after the next page refresh.
         </p>
       </div>
+
+      <div className="card" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13 }}><b>🔒 Membership documents</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>New uploads are private. Move older ones too, so they can't be opened from a link.</div></div>
+        <button className="btn btn-sm btn-primary" disabled={!!docMove} onClick={moveDocs}>{docMove ? `Moving ${docMove.done}/${docMove.total}…` : 'Move older documents to private storage'}</button>
+      </div>
+      <GoogleCalendarsSettings />
+
+      {/* Import data (moved here from the side menu) */}
+      <div className="card" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13 }}><b>⬆️ Import data</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bring in members, students and other records from a spreadsheet.</div></div>
+        <Link to="/import" className="btn btn-sm btn-primary">Open Import data</Link>
+      </div>
+
+      <FocusAlwaysOnSettings />
+      <QuestionsManager />
+
 
       {SECTION('PKA Belt System')}
       <ListSetting label="Junior belts (under 16)" settingKey="pka_junior_belts" hint="Displayed on PKA student records for members under 16" />
