@@ -111,7 +111,7 @@ export default function MyGradingStudents() {
     return (
       <div className="card" style={{ marginBottom: 16, border: '1px dashed #8B5CF666' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <b style={{ fontSize: 14, flex: 1 }}>🎽 Grading — my students</b>
+          <b style={{ fontSize: 14, flex: 1 }}>🎽 Gradings to confirm</b>
           <button type="button" className="btn btn-sm" onClick={() => setPickMine(v => !v)}>⚙ My classes</button>
         </div>
         {!pickMine && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>No grading students from your classes{mineSaved?.length ? '' : ' -- tap ⚙ My classes to choose the classes you coach'}.</div>}
@@ -156,7 +156,7 @@ export default function MyGradingStudents() {
         </div>, document.body)}
       <div ref={cardRef} className="card" style={{ marginBottom: 16, border: '1px solid #8B5CF666' }}>
         <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
-          <b style={{ fontSize: 15, flex: 1 }}>🎽 Grading — my students</b>
+          <b style={{ fontSize: 15, flex: 1 }}>🎽 Gradings to confirm</b>
           {waitingRows.length > 0 && <span style={{ background: '#8B5CF6', color: '#fff', borderRadius: 999, fontSize: 11, fontWeight: 700, padding: '2px 8px' }}>{waitingRows.length} to OK</span>}
           {okBy && waitingRows.length > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: okBy < today ? 'var(--text-tertiary)' : '#EF9F27' }}>{okBy < today ? `OK-by date passed (${fmt(okBy)})` : `Please OK by ${fmt(okBy)}`}</span>}
           <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{open ? '▲' : '▼'}</span>
