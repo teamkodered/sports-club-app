@@ -1840,3 +1840,5 @@ tr.kc-flash-row > td { animation: kcFlashRow 1.6s ease 2; }
 .ts-sheet .ts-test { padding: 10px 12px; }
 .ts-sheet .ts-test-name { font-size: 14px; }
 .ts-sheet .ts-one input { height: 40px; max-width: 120px; }
+.kc-phone-only { display: none; }
+@media (max-width: 760px) { .kc-phone-only { display: block; } }

@@ -5354,7 +5354,7 @@ export default function CRM() {
                 )}
 
                 {/* Main table, grouped by age group then belt order -- scrolls sideways on a phone (Class / Coach on the right) */}
-                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }} className="reg-mobile-only">⇆ Swipe the list sideways for Class, Coach and Approved</div>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }} className="kc-phone-only">⇆ Swipe the list sideways for Class, Coach and Approved</div>
                 <div className="card" style={{ padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                   <table style={{ width: '100%', minWidth: 900, fontSize: 12, borderCollapse: 'collapse' }}>
                     <thead>
