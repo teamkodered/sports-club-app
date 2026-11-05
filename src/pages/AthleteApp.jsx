@@ -7992,7 +7992,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
         const todaysSessions = assignedClasses.filter(a => assignmentActiveOn(a, todayISO()) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
         return (
           <>
-            <button onClick={() => setCheckInDrawerOpen(v => !v)} className={`neon-checkin${activeCheckIn ? ' is-checked-in' : ''}${tab === 'home' ? ' neon-checkin-hidden' : ''}`} style={{
+            {/* side CHECK IN tab removed -- check in from the button under Foundation on Home (the drawer below still opens from there) */}
+            <button onClick={() => setCheckInDrawerOpen(v => !v)} className="neon-checkin neon-checkin-hidden" hidden style={{
               position: 'fixed', left: 0, top: '50%', transform: 'translateY(-50%) rotate(180deg)', writingMode: 'vertical-rl',
               background: activeCheckIn ? '#1D9E75' : '#E24B4A', color: '#fff', border: 'none', borderRadius: '0 8px 8px 0',
               padding: '14px 8px', fontSize: 12, fontWeight: 700, letterSpacing: 1, cursor: 'pointer', zIndex: 90,
