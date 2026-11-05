@@ -1034,6 +1034,19 @@ export default function CRM() {
     const bits = gradingListTitleBits().join('_').replace(/[^a-z0-9]+/gi, '_')
     XLSX.writeFile(wb, `grading_list${bits ? '_' + bits : ''}_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
+  // 📤 Send the selected requests to the coaches: each coach sees the ones from their own classes on
+  // their Dashboard and OKs them (coach_ok). Admin still approves + messages the students as before.
+  async function sendGradingToCoaches(rows) {
+    const toSend = rows.filter(r => !r.coach_ok)
+    if (!toSend.length) return alert(rows.length ? 'The coaches have already OK\'d all of these.' : 'No students selected.')
+    const coaches = [...new Set(toSend.flatMap(r => (r.coachLabel || '').split(', ').filter(Boolean)))]
+    if (!confirm(`Send ${toSend.length} grading request${toSend.length === 1 ? '' : 's'} to the coaches${coaches.length ? ` (${coaches.join(', ')})` : ''} to OK?\n\nEach coach sees the students from their own classes on their Dashboard.`)) return
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('grading_expressions').update({ sent_to_coach_at: now }).in('id', toSend.map(r => r.id))
+    if (error) return alert('Could not send: ' + error.message + (/sent_to_coach/.test(error.message) ? ' (run supabase_grading_coach_ok.sql first)' : ''))
+    setGradingRequests(prev => prev.map(r => toSend.some(t => t.id === r.id) ? { ...r, sent_to_coach_at: now } : r))
+    alert(`📤 Sent ${toSend.length} to the coaches.`)
+  }
   // printable / save-as-PDF list of the selected students (e.g. one coach's students)
   function printGradingSelected(rows) {
     if (!rows.length) return alert('No students selected.')
@@ -5126,6 +5139,11 @@ export default function CRM() {
                         ) : (
                           <button type="button" className="btn btn-sm" style={{ margin: '4px 0 6px', fontSize: 11 }} onClick={() => { const n = gradingTypedName(r)?.replace(/ \(age.*$/, '') || ''; setGradingLinking({ id: r.id, q: '', results: [] }); if (n) searchGradingLink(n.split(' ')[0]) }}>🔗 Link to student</button>
                         ))}
+                        {(r.sent_to_coach_at || r.coach_ok) && (
+                          <p style={{ fontSize: 12, margin: '2px 0', fontWeight: 600, color: r.coach_ok ? '#1D9E75' : '#EF9F27' }}>
+                            {r.coach_ok ? `🧑‍🏫 Coach OK ✓${r.coach_ok_by ? ` · ${r.coach_ok_by}` : ''}` : '🧑‍🏫 Sent to coach — waiting for their OK'}
+                          </p>
+                        )}
                         {r.trainClasses?.length > 0 && (
                           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0' }}>
                             🏫 {r.trainClasses.map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} · Class: ${c.name}${c.age_category ? ` (${c.age_category})` : ''}${c.instructor ? ` · Coach: ${c.instructor}` : ''}`).join('  |  ')}
@@ -5303,6 +5321,7 @@ export default function CRM() {
                   <button className="btn btn-sm" onClick={() => setGradingSelected(p => ({ ...p, ...Object.fromEntries(allRows.map(r => [r.id, false])) }))}>Select none</button>
                   <button className="btn btn-sm btn-primary" onClick={() => exportGradingList(selectedRows)}>⬇ Download selected (Excel)</button>
                   <button className="btn btn-sm" onClick={() => printGradingSelected(selectedRows)}>🖨️ Print / PDF selected</button>
+                  <button className="btn btn-sm" style={{ borderColor: '#8B5CF6', color: '#8B5CF6', fontWeight: 700 }} onClick={() => sendGradingToCoaches(selectedRows)}>📤 Send to coaches</button>
                   <button className="btn btn-sm" onClick={() => setShowOrderForm(v => !v)}>📋 Generate belt order form</button>
                   <button className="btn btn-sm" onClick={() => printExaminersForm(selectedRows)}>🖨️ Print examiners form</button>
                   <button className="btn btn-sm" onClick={() => printCertificateList(selectedRows)}>🖨️ Print certificate list</button>
@@ -5367,6 +5386,7 @@ export default function CRM() {
                         <th style={{ padding: 8, textAlign: 'left' }}>Grading for</th>
                         <th style={{ padding: 8, textAlign: 'left' }}>Class</th>
                         <th style={{ padding: 8, textAlign: 'left' }}>Coach</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Coach OK</th>
                         <th style={{ padding: 8, textAlign: 'left' }}>Approved</th>
                       </tr>
                       {(() => {
@@ -5388,6 +5408,7 @@ export default function CRM() {
                             <th style={{ padding: '0 6px 6px' }}>{sel('gradingFor', uniq(base.map(r => r.grading_for)))}</th>
                             <th style={{ padding: '0 6px 6px' }}>{sel('cls', uniq(base.flatMap(r => r.cl)))}</th>
                             <th style={{ padding: '0 6px 6px' }}>{sel('coach', uniq(base.flatMap(r => r.co)))}</th>
+                            <th></th>
                             <th style={{ padding: '0 6px 6px' }}>
                               <select value={gradingCol.approved} onChange={e => setGradingCol(f => ({ ...f, approved: e.target.value }))} style={{ fontSize: 11, padding: '3px 4px' }}>
                                 <option value="">All</option><option value="yes">✓ Approved</option><option value="no">Not yet</option>
@@ -5405,7 +5426,7 @@ export default function CRM() {
                           <Fragment key={r.id}>
                             {showBandHeader && (
                               <tr key={r.band + '-header'} style={{ background: 'var(--bg-tertiary)' }}>
-                                <td colSpan={9} style={{ padding: '6px 8px', fontWeight: 700, fontSize: 12 }}>{r.band}</td>
+                                <td colSpan={10} style={{ padding: '6px 8px', fontWeight: 700, fontSize: 12 }}>{r.band}</td>
                               </tr>
                             )}
                             <tr style={{ borderTop: '1px solid var(--border)' }}>
@@ -5418,6 +5439,7 @@ export default function CRM() {
                               <td style={{ padding: 8, fontWeight: 600 }}>{r.grading_for}</td>
                               <td style={{ padding: 8 }}>{r.clsLabel || '—'}</td>
                               <td style={{ padding: 8 }}>{r.coachLabel || '—'}</td>
+                              <td style={{ padding: 8 }} title={r.coach_ok_by || ''}>{r.coach_ok ? <span style={{ color: '#1D9E75' }}>✓ {r.coach_ok_by?.split(' ')[0] || ''}</span> : r.sent_to_coach_at ? <span style={{ color: '#EF9F27' }}>sent</span> : '—'}</td>
                               <td style={{ padding: 8 }}>{r.coach_approved ? <span style={{ color: '#1D9E75' }}>✓</span> : '—'}</td>
                             </tr>
                           </Fragment>
