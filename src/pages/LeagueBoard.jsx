@@ -339,8 +339,8 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
       return (
         <Slide title="Grip test" colour="#059669" emoji="✊" sub="Best hand as a % of body weight" fixedPeriod>
-          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={`${Number(r.grip)}kg grip`} value={Number(r.pct)} unit="% BW" colour="#059669" me={r.student_id === meId} />)}
-          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} sub={`${Number(me.grip)}kg grip`} value={Number(me.pct)} unit="% BW" colour="#059669" me /></>}
+          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={`${Number(r.grip)}kg grip · ${Number(r.weight)}kg body weight`} value={Number(r.pct)} unit="% BW" colour="#059669" me={r.student_id === meId} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} sub={`${Number(me.grip)}kg grip · ${Number(me.weight)}kg body weight`} value={Number(me.pct)} unit="% BW" colour="#059669" me /></>}
         </Slide>
       )
     }
