@@ -7,10 +7,12 @@ export function beltColour(name) {
   const hit = Object.keys(C).map(k => [k, n.indexOf(k)]).filter(([, i]) => i >= 0).sort((a, b) => a[1] - b[1])[0]
   return hit ? C[hit[0]] : null
 }
-// a pill style that stays readable on dark and light backgrounds
+// the grade written in its belt colour (no box). Black / dark brown get a faint light outline so they
+// still show on the dark screens; white gets a faint dark outline for light screens.
 export function beltStyle(name) {
   const c = beltColour(name)
   if (!c) return { fontWeight: 700 }
-  const dark = ['#111111', '#A0522D', '#3B82F6', '#9B5DE5', '#E24B4A', '#2FB36B'].includes(c)
-  return { fontWeight: 700, background: c, color: dark ? '#fff' : '#111', borderRadius: 6, padding: '1px 7px', border: c === '#111111' ? '1px solid #666' : 'none', whiteSpace: 'nowrap' }
+  const outline = c === '#111111' || c === '#A0522D' ? '0 0 2px rgba(255,255,255,0.85), 0 0 1px rgba(255,255,255,0.85)'
+    : c === '#E6E6E6' ? '0 0 2px rgba(0,0,0,0.7)' : 'none'
+  return { fontWeight: 800, color: c, textShadow: outline, whiteSpace: 'nowrap' }
 }
