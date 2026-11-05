@@ -241,7 +241,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
         {/* ❤️ HR recovery straight after a hard test (1 min standing, auto-stops) */}
         {HRR_AFTER[cat.key] && (
           <div className="ts-measure">
-            <button type="button" className="ts-measure-btn" onClick={() => setTool(`hrr-after:${HRR_AFTER[cat.key]}`)}>❤️ HR recovery after the {HRR_AFTER[cat.key].toLowerCase()} (1 min)</button>
+            <button type="button" className="ts-measure-btn" onClick={() => setTool(`hrr-after:${HRR_AFTER[cat.key]}`)}>❤️ HR recovery <small style={{ display: 'block', fontSize: 11, opacity: 0.75, fontStyle: 'normal', textTransform: 'none', letterSpacing: 0 }}>1 min after the {HRR_AFTER[cat.key].toLowerCase()}</small></button>
           </div>
         )}
         {tool?.startsWith?.('hrr-after:') ? createPortal(

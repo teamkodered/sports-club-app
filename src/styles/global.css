@@ -1853,3 +1853,4 @@ html.forced-phone .ff-sheet { max-height: calc(var(--kc-vh, 1vh) * 85) !importan
 html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var(--kc-vh, 1vh) * 88) !important; }
 /* test session tool buttons: long labels wrap inside the border instead of spilling over it */
 .ts-measure-btn { height: auto !important; min-height: 46px; padding-top: 8px !important; padding-bottom: 8px !important; line-height: 1.15 !important; white-space: normal !important; text-align: center; }
+.ts-measure-btn { padding-left: 12px !important; padding-right: 12px !important; overflow-wrap: anywhere; max-width: 100%; box-sizing: border-box; }
