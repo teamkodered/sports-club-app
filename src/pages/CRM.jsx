@@ -5139,9 +5139,11 @@ export default function CRM() {
                         ) : (
                           <button type="button" className="btn btn-sm" style={{ margin: '4px 0 6px', fontSize: 11 }} onClick={() => { const n = gradingTypedName(r)?.replace(/ \(age.*$/, '') || ''; setGradingLinking({ id: r.id, q: '', results: [] }); if (n) searchGradingLink(n.split(' ')[0]) }}>🔗 Link to student</button>
                         ))}
-                        {(r.sent_to_coach_at || r.coach_ok) && (
-                          <p style={{ fontSize: 12, margin: '2px 0', fontWeight: 600, color: r.coach_ok ? '#1D9E75' : '#EF9F27' }}>
-                            {r.coach_ok ? `🧑‍🏫 Coach OK ✓${r.coach_ok_by ? ` · ${r.coach_ok_by}` : ''}` : '🧑‍🏫 Sent to coach — waiting for their OK'}
+                        {(r.sent_to_coach_at || r.coach_ok || r.coach_not_ready) && (
+                          <p style={{ fontSize: 12, margin: '2px 0', fontWeight: 600, color: r.coach_ok ? '#1D9E75' : r.coach_not_ready ? '#E24B4A' : '#EF9F27' }}>
+                            {r.coach_ok ? `🧑‍🏫 Coach OK ✓${r.coach_ok_by ? ` · ${r.coach_ok_by}` : ''}`
+                              : r.coach_not_ready ? `🧑‍🏫 Coach says NOT READY${r.coach_ok_by ? ` (${r.coach_ok_by})` : ''}: ${r.coach_note || ''}`
+                              : '🧑‍🏫 With coach — waiting for their OK'}
                           </p>
                         )}
                         {r.trainClasses?.length > 0 && (
@@ -5439,7 +5441,7 @@ export default function CRM() {
                               <td style={{ padding: 8, fontWeight: 600 }}>{r.grading_for}</td>
                               <td style={{ padding: 8 }}>{r.clsLabel || '—'}</td>
                               <td style={{ padding: 8 }}>{r.coachLabel || '—'}</td>
-                              <td style={{ padding: 8 }} title={r.coach_ok_by || ''}>{r.coach_ok ? <span style={{ color: '#1D9E75' }}>✓ {r.coach_ok_by?.split(' ')[0] || ''}</span> : r.sent_to_coach_at ? <span style={{ color: '#EF9F27' }}>sent</span> : '—'}</td>
+                              <td style={{ padding: 8 }} title={r.coach_ok_by || ''}>{r.coach_ok ? <span style={{ color: '#1D9E75' }}>✓ {r.coach_ok_by?.split(' ')[0] || ''}</span> : r.coach_not_ready ? <span style={{ color: '#E24B4A' }} title={r.coach_note || ''}>✗ not ready</span> : r.sent_to_coach_at ? <span style={{ color: '#EF9F27' }}>waiting</span> : '—'}</td>
                               <td style={{ padding: 8 }}>{r.coach_approved ? <span style={{ color: '#1D9E75' }}>✓</span> : '—'}</td>
                             </tr>
                           </Fragment>
