@@ -913,7 +913,7 @@ export default function CRM() {
     const [{ data, error }, { data: settingsRows }] = await Promise.all([
       supabase
         .from('grading_expressions')
-        .select('*, students(id, discipline, pka_belt, krba_level, guardian_name, guardian_phone, members(first_name, last_name, date_of_birth, email, phone))')
+        .select('*, students(id, discipline, pka_belt, krba_level, guardian_name, guardian_phone, photo_url, members(first_name, last_name, date_of_birth, email, phone))')
         .order('created_at', { ascending: false }),
       supabase.from('settings').select('key,value').in('key', ['krba_levels', 'grading_belt_size_rule', 'grading_belt_stock', 'grading_next_date']),
     ])
@@ -5196,6 +5196,7 @@ export default function CRM() {
                         </p>
                       </div>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                        {r.students?.photo_url && <img src={r.students.photo_url} alt="" loading="lazy" style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', border: '1px solid var(--border)', order: 9 }} />}
                         <input type="checkbox" checked={gradingSel.includes(r.id)} title="Tick to approve / message together"
                           onChange={e => setGradingSel(sel => e.target.checked ? [...sel, r.id] : sel.filter(x => x !== r.id))} style={{ width: 18, height: 18 }} />
                         {r.coach_approved ? (

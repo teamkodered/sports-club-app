@@ -54,7 +54,7 @@ export default function MyGradingStudents() {
       if (!ids.length) { if (!cancelled) setRows([]); return }
       const since = new Date(); since.setMonth(since.getMonth() - 3)
       const { data } = await supabase.from('grading_expressions')
-        .select('*, students(id, members(first_name, last_name))').in('student_id', ids).not('sent_to_coach_at', 'is', null)
+        .select('*, students(id, photo_url, members(first_name, last_name))').in('student_id', ids).not('sent_to_coach_at', 'is', null)
         .gte('created_at', since.toISOString()).order('created_at', { ascending: false })
       if (cancelled) return
       // sessions done in the last 3 months (normal classes -- not the PT / Leader registers)
@@ -174,6 +174,7 @@ export default function MyGradingStudents() {
                   <div style={{ fontSize: 12, fontWeight: 600, color: r.sessions >= 12 ? '#1D9E75' : r.sessions >= 6 ? '#EF9F27' : '#E24B4A' }}>🥋 {r.sessions} session{r.sessions === 1 ? '' : 's'} in the last 3 months</div>
                   {r.coach_not_ready && <div style={{ fontSize: 12, color: '#E24B4A', marginTop: 2 }}>✗ Not ready: {r.coach_note}</div>}
                 </div>
+                {r.students?.photo_url && <img src={r.students.photo_url} alt="" loading="lazy" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', border: '1px solid var(--border)', order: 9 }} />}
                 {r.coach_ok ? (
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#1D9E75', textAlign: 'right' }}>✓ OK'd{r.coach_approved ? <><br /><span style={{ fontWeight: 500, color: 'var(--text-tertiary)' }}>admin approved</span></> : null}
                     <br /><button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 6px', marginTop: 2 }} disabled={busy === r.id} onClick={() => notReady(r)}>change</button></span>
