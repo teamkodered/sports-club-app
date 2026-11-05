@@ -12,6 +12,10 @@ const okByOf = gd => { if (!gd) return null; const x = new Date(gd + 'T12:00:00'
 
 export default function MyGradingStudents() {
   const { profile, registerAccess, isAdmin } = useAuth()
+  const [allClasses, setAllClasses] = useState([])          // admins: pick "my classes"
+  const [pickMine, setPickMine] = useState(false)
+  const [mineSaved, setMineSaved] = useState(null)          // admin's chosen class ids (members.access.my_classes)
+  const [reload, setReload] = useState(0)
   const [rows, setRows] = useState(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(null)
@@ -28,14 +32,21 @@ export default function MyGradingStudents() {
       if (isAdmin) {
         const fn = String(profile?.first_name || '').trim().toLowerCase(), ln = String(profile?.last_name || '').trim().toLowerCase()
         const initials = (fn[0] || '') + (ln[0] || '')
-        const { data: cl } = await supabase.from('classes').select('id, instructor')
-        myIds = (cl || []).filter(c => {
+        const { data: cl } = await supabase.from('classes').select('id, name, day_of_week, start_time, instructor, active').order('day_of_week')
+        if (!cancelled) setAllClasses((cl || []).filter(c => c.active !== false && !/register/i.test(c.name || '')))
+        // classes they've picked themselves win; otherwise the classes with their initials / name as Instructor
+        const { data: me } = await supabase.from('members').select('access').eq('id', profile?.id).maybeSingle()
+        const picked = me?.access?.my_classes
+        if (!cancelled) setMineSaved(Array.isArray(picked) ? picked : null)
+        if (Array.isArray(picked) && picked.length) myIds = picked
+        else myIds = (cl || []).filter(c => {
           const ins = String(c.instructor || '').toLowerCase()
           return ins && ins.split(/[,&/+]| and /).map(x => x.trim()).some(x => x === initials || (fn && (x === fn || x.startsWith(fn + ' ') || x === `${fn} ${ln}`)))
         }).map(c => c.id)
       }
       if (!myIds?.length) { if (!cancelled) setRows([]); return }
       const today = new Date().toISOString().split('T')[0]
+      const from3 = new Date(); from3.setMonth(from3.getMonth() - 3)
       const { data: asg } = await supabase.from('student_class_assignments').select('*, classes(name, day_of_week, start_time)').in('class_id', myIds)
       const active = (asg || []).filter(a => (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today))
       const cls = {}; active.forEach(a => { (cls[a.student_id] ||= []).push(a.classes) })
@@ -46,7 +57,17 @@ export default function MyGradingStudents() {
         .select('*, students(id, members(first_name, last_name))').in('student_id', ids).not('sent_to_coach_at', 'is', null)
         .gte('created_at', since.toISOString()).order('created_at', { ascending: false })
       if (cancelled) return
-      const list = (data || []).map(r => ({ ...r, classes: cls[r.student_id] || [] }))
+      // sessions done in the last 3 months (normal classes -- not the PT / Leader registers)
+      const sids = [...new Set((data || []).map(r => r.student_id))]
+      const sessions = {}
+      if (sids.length) {
+        const { data: att } = await supabase.from('attendance').select('student_id, session_date, attendance_type, classes(name)')
+          .in('student_id', sids).gte('session_date', from3.toISOString().split('T')[0])
+        const seen = new Set()
+        ;(att || []).filter(a => ['attended', 'full_kit'].includes(a.attendance_type) && !/register/i.test(a.classes?.name || ''))
+          .forEach(a => { const k = `${a.student_id}:${a.session_date}`; if (!seen.has(k)) { seen.add(k); sessions[a.student_id] = (sessions[a.student_id] || 0) + 1 } })
+      }
+      const list = (data || []).map(r => ({ ...r, classes: cls[r.student_id] || [], sessions: sessions[r.student_id] || 0 }))
       setRows(list)
       // 🔔 reminder once per login while some are waiting and the OK-by date hasn't passed
       const due = list.filter(r => !r.coach_ok && !r.coach_not_ready && (!okByOf(r.grading_date) || okByOf(r.grading_date) >= today))
@@ -54,9 +75,48 @@ export default function MyGradingStudents() {
       if (due.length && !shown) { setReminder(true); try { sessionStorage.setItem('kc_grading_reminder', '1') } catch { /* */ } }
     })()
     return () => { cancelled = true }
-  }, [isAdmin, JSON.stringify(classIds)]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdmin, JSON.stringify(classIds), reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!rows || !rows.length) return null
+  async function saveMine(ids) {
+    const { data: me } = await supabase.from('members').select('access').eq('id', profile?.id).maybeSingle()
+    const { error } = await supabase.from('members').update({ access: { ...(me?.access || {}), my_classes: ids } }).eq('id', profile?.id)
+    if (error) return alert('Could not save: ' + error.message)
+    setMineSaved(ids); setPickMine(false); setReload(n => n + 1)
+  }
+  const picker = pickMine && (
+    <div style={{ marginTop: 8, padding: 10, border: '1px dashed var(--border-strong)', borderRadius: 8 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>Tick the classes you coach -- their grading students come to you to OK.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
+        {allClasses.map(c => {
+          const on = (mineSaved || []).includes(c.id)
+          return (
+            <label key={c.id} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, cursor: 'pointer' }}>
+              <input type="checkbox" checked={on} onChange={() => setMineSaved(m => on ? (m || []).filter(x => x !== c.id) : [...(m || []), c.id])} />
+              {c.day_of_week?.slice(0, 3)} {String(c.start_time || '').slice(0, 5)} {c.name}{c.instructor ? ` · ${c.instructor}` : ''}
+            </label>
+          )
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => saveMine(mineSaved || [])}>Save my classes</button>
+        <button type="button" className="btn btn-sm" onClick={() => setPickMine(false)}>Cancel</button>
+      </div>
+    </div>
+  )
+  if (!rows) return null
+  if (!rows.length) {
+    if (!isAdmin) return null
+    return (
+      <div className="card" style={{ marginBottom: 16, border: '1px dashed #8B5CF666' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <b style={{ fontSize: 14, flex: 1 }}>🎽 Grading — my students</b>
+          <button type="button" className="btn btn-sm" onClick={() => setPickMine(v => !v)}>⚙ My classes</button>
+        </div>
+        {!pickMine && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>No grading students from your classes{mineSaved?.length ? '' : ' -- tap ⚙ My classes to choose the classes you coach'}.</div>}
+        {picker}
+      </div>
+    )
+  }
   const today = new Date().toISOString().split('T')[0]
   const waitingRows = rows.filter(r => !r.coach_ok && !r.coach_not_ready)
   const okBy = waitingRows.map(r => okByOf(r.grading_date)).filter(Boolean).sort()[0] || null
@@ -99,6 +159,8 @@ export default function MyGradingStudents() {
           {okBy && waitingRows.length > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: okBy < today ? 'var(--text-tertiary)' : '#EF9F27' }}>{okBy < today ? `OK-by date passed (${fmt(okBy)})` : `Please OK by ${fmt(okBy)}`}</span>}
           <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{open ? '▲' : '▼'}</span>
         </button>
+        {isAdmin && <div style={{ textAlign: 'right', marginTop: 4 }}><button type="button" className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setPickMine(v => !v)}>⚙ My classes</button></div>}
+        {picker}
         <div className={`kc-slide${open ? ' open' : ''}`}><div>
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 4px' }}>Students from your classes taking the grading. ✓ OK if they're ready, ✗ Not ready with a reason if not -- the admin sees it before approving.</div>
           {rows.map(r => {
@@ -109,6 +171,7 @@ export default function MyGradingStudents() {
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{m ? `${m.first_name} ${m.last_name}` : (r.student_name || 'Student')}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b>{r.grading_for}</b>{r.grading_date ? ` · grading ${fmt(r.grading_date)}` : ''}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>🏫 {r.classes.map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}`).join(' | ')}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: r.sessions >= 12 ? '#1D9E75' : r.sessions >= 6 ? '#EF9F27' : '#E24B4A' }}>🥋 {r.sessions} session{r.sessions === 1 ? '' : 's'} in the last 3 months</div>
                   {r.coach_not_ready && <div style={{ fontSize: 12, color: '#E24B4A', marginTop: 2 }}>✗ Not ready: {r.coach_note}</div>}
                 </div>
                 {r.coach_ok ? (
