@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase.js'
 import { CLASS_CATS, SQUAD_CATS, CLUB_CATS, VOTE_CATS, loadAwardsCurrent, saveAwardsCurrent, classLabel } from '../../lib/awards.js'
@@ -19,6 +19,23 @@ export default function AwardsPanel() {
   const [houses, setHouses] = useState(null)
   const [past, setPast] = useState(null), [pastYear, setPastYear] = useState('')
   const [busy, setBusy] = useState(false)
+  const [listOpen, setListOpen] = useState(false)   // the awards list starts closed -- press to view
+  const holdT = useRef(null), held = useRef(false)
+  // hold a group's header to delete that group's awards (and their nominations / votes)
+  async function deleteGroup(g) {
+    if (!confirm(`Delete "${g.grp}" from the Awards ${cur.year} list?\n\nIts ${g.cats.length} awards, and any nominations / votes for them, are removed.`)) return
+    const { error } = await supabase.from('awards_categories').delete().in('id', g.cats.map(c => c.id))
+    if (error) return alert('Could not delete: ' + error.message)
+    load()
+  }
+  // delete the whole year's awards so it can be set up again
+  async function deleteYear() {
+    if (!confirm(`Delete ALL of Awards ${cur.year}?\n\nEvery award, nomination and vote for ${cur.year} is removed so you can start again. (Past years aren't touched.)`)) return
+    const { error } = await supabase.from('awards_categories').delete().eq('year', cur.year)
+    if (error) return alert('Could not delete: ' + error.message)
+    await saveCur({ open: false })
+    load()
+  }
 
   async function load(c = cur) {
     const [{ data: cs }, { data: cl }] = await Promise.all([
@@ -154,12 +171,23 @@ export default function AwardsPanel() {
           ) : (
             <>
               <div style={{ fontSize: 13, marginBottom: 6 }}>Classes that get class awards ({CLASS_CATS.join(', ')}). KR, KRBA and club awards are added too.</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 4, maxHeight: 300, overflowY: 'auto', marginBottom: 8 }}>
-                {classes.map(c => (
-                  <label key={c.id} style={{ display: 'flex', gap: 6, fontSize: 12 }}>
-                    <input type="checkbox" checked={setup.classIds.has(c.id)} onChange={() => setSetup(s => { const n = new Set(s.classIds); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return { classIds: n } })} />{classLabel(c)}
-                  </label>
-                ))}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set(classes.map(c => c.id)) })}>Tick all</button>
+                <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set() })}>Untick all</button>
+                <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--text-secondary)' }}>{setup.classIds.size} of {classes.length} classes</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 6, maxHeight: 420, overflowY: 'auto', marginBottom: 10 }}>
+                {classes.map(c => {
+                  const on = setup.classIds.has(c.id)
+                  return (
+                    <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 16, padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                      border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7518' : 'transparent' }}>
+                      <input type="checkbox" checked={on} style={{ width: 24, height: 24, flex: '0 0 24px', margin: 0 }}
+                        onChange={() => setSetup(s => { const n = new Set(s.classIds); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return { classIds: n } })} />
+                      <span><b>{String(c.day_of_week || '').slice(0, 3)} {String(c.start_time || '').slice(0, 5)}</b> {c.name}</span>
+                    </label>
+                  )
+                })}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-primary" disabled={busy} onClick={startYear}>{busy ? 'Creating…' : 'Create awards'}</button>
@@ -170,11 +198,23 @@ export default function AwardsPanel() {
         </div>
       )}
 
-      {groups.filter(g => g.kind !== 'house').map(g => {
+      {cats.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <button type="button" className="btn" style={{ flex: 1, justifyContent: 'space-between' }} onClick={() => setListOpen(o => !o)}>
+            <b>🏆 Awards {cur.year} -- {groups.filter(g => g.kind !== 'house').length} groups</b><span>{listOpen ? '▲' : '▼'}</span>
+          </button>
+          <button type="button" className="btn btn-sm" style={{ color: '#E24B4A', borderColor: '#E24B4A' }} onClick={deleteYear}>🗑 Delete {cur.year} awards</button>
+        </div>
+      )}
+      {cats.length > 0 && listOpen && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>Press a group to open it · hold a group to delete it from the list</div>}
+      {listOpen && groups.filter(g => g.kind !== 'house').map(g => {
         const gDecided = g.cats.filter(c => c.winner_name).length
         return (
           <div key={g.grp} className="card" style={{ padding: 0, marginBottom: 8, overflow: 'hidden' }}>
-            <button type="button" onClick={() => setOpenGrp(o => ({ ...o, [g.grp]: !o[g.grp] }))} style={{ width: '100%', display: 'flex', gap: 8, padding: '11px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
+            <button type="button" title="Press to open · hold to delete"
+              onPointerDown={() => { held.current = false; clearTimeout(holdT.current); holdT.current = setTimeout(() => { held.current = true; navigator.vibrate?.(30); deleteGroup(g) }, 650) }}
+              onPointerUp={() => clearTimeout(holdT.current)} onPointerLeave={() => clearTimeout(holdT.current)} onContextMenu={e => e.preventDefault()}
+              onClick={() => { if (held.current) { held.current = false; return } setOpenGrp(o => ({ ...o, [g.grp]: !o[g.grp] })) }} style={{ width: '100%', display: 'flex', gap: 8, padding: '11px 14px', userSelect: 'none', WebkitUserSelect: 'none', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
               <b style={{ flex: 1 }}>{g.grp}</b>
               <span style={{ fontSize: 12, color: gDecided === g.cats.length ? '#1D9E75' : 'var(--text-secondary)' }}>{gDecided} of {g.cats.length} decided</span>
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{openGrp[g.grp] ? '▲' : '▼'}</span>
