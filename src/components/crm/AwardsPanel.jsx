@@ -5,6 +5,9 @@ import { CLASS_CATS, SQUAD_CATS, CLUB_CATS, VOTE_CATS, loadAwardsCurrent, saveAw
 
 // 🏆 Admin: set up the awards year, open / close nominations, see coaches' nominations and the
 // athletes' votes, pick the winners, houses from the points, export the register, past years.
+// a bulk insert sends the same columns for every row -- missing ones arrive as null, so fill them all in
+const fullRow = r => ({ class_id: null, squad: null, vote: false, winner_name: null, winner_student_id: null, winner_member_id: null, ...r })
+
 export default function AwardsPanel() {
   const [cur, setCur] = useState(null)
   const [cats, setCats] = useState([])
@@ -48,9 +51,9 @@ export default function AwardsPanel() {
     ;['KR', 'KRBA'].forEach(sq => SQUAD_CATS.forEach(n => rows.push({ year: cur.year, grp: sq, grp_kind: 'squad', squad: sq, name: n, vote: VOTE_CATS.includes(n), sort: sort++ })))
     CLUB_CATS.forEach(n => rows.push({ year: cur.year, grp: 'Club awards', grp_kind: 'club', name: n, sort: sort++ }))
     setBusy(true)
-    const { error } = await supabase.from('awards_categories').insert(rows)
+    const { error } = await supabase.from('awards_categories').insert(rows.map(fullRow))
     setBusy(false)
-    if (error) return alert('Could not create: ' + error.message + (/awards_/.test(error.message) ? ' (run supabase_awards.sql first)' : ''))
+    if (error) return alert('Could not create: ' + error.message + (/relation .*awards_categories.* does not exist/.test(error.message) ? ' (run supabase_awards.sql first)' : ''))
     setSetup(null); load()
   }
 
@@ -83,7 +86,7 @@ export default function AwardsPanel() {
     rows.push({ year: cur.year, grp: 'Houses', grp_kind: 'house', name: 'House winners', winner_name: houses.winner, sort: sort++ })
     if (houses.student) rows.push({ year: cur.year, grp: 'Houses', grp_kind: 'house', name: 'Student house winner', winner_name: houses.student.name, winner_student_id: houses.student.student_id, sort: sort++ })
     await supabase.from('awards_categories').delete().eq('year', cur.year).eq('grp_kind', 'house')
-    const { error } = await supabase.from('awards_categories').insert(rows)
+    const { error } = await supabase.from('awards_categories').insert(rows.map(fullRow))
     if (error) return alert('Could not save: ' + error.message)
     load(); alert('🏠 House results saved to the register.')
   }
