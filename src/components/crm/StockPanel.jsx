@@ -111,6 +111,7 @@ function StockLevels({ items, onChanged }) {
 function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
   const live = items.filter(i => i.active)
   const [itemId, setItemId] = useState(live[0]?.id || '')
+  const [itemQ, setItemQ] = useState('')   // type-to-search the items
   const item = live.find(i => i.id === itemId)
   const [variantId, setVariantId] = useState('')
   const [qty, setQty] = useState(1)
@@ -155,6 +156,16 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
   return (
     <div className="card stk-sell">
       <div className="field"><label>Item</label>
+        {/* type to search the items, then tap one (or pick from the full list below) */}
+        <input value={itemQ} onChange={e => setItemQ(e.target.value)} placeholder="🔍 Type to search items…" style={{ marginBottom: 6 }} />
+        {itemQ.trim() && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+            {live.filter(i => i.name.toLowerCase().includes(itemQ.trim().toLowerCase())).slice(0, 12).map(i => (
+              <button key={i.id} type="button" className={`btn btn-sm${i.id === itemId ? ' btn-primary' : ''}`} onClick={() => { setItemId(i.id); setItemQ('') }}>{i.name}</button>
+            ))}
+            {!live.some(i => i.name.toLowerCase().includes(itemQ.trim().toLowerCase())) && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No items match</span>}
+          </div>
+        )}
         <select value={itemId} onChange={e => setItemId(e.target.value)}>{live.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
       {item && <div className="field"><label>Size / option</label>
         <div className="stk-vars">{item.stock_variants.map(v => (
