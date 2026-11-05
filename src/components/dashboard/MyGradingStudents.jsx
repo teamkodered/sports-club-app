@@ -20,11 +20,23 @@ export default function MyGradingStudents() {
   const classIds = registerAccess?.classes || null
 
   useEffect(() => {
-    if (isAdmin || !classIds?.length) { setRows([]); return }
     let cancelled = false
     ;(async () => {
+      // which classes are "mine": coaches -> the classes in their access; admins -> classes where they're
+      // the instructor (their initials, e.g. "DR", or their first / full name in the class's Instructor)
+      let myIds = classIds
+      if (isAdmin) {
+        const fn = String(profile?.first_name || '').trim().toLowerCase(), ln = String(profile?.last_name || '').trim().toLowerCase()
+        const initials = (fn[0] || '') + (ln[0] || '')
+        const { data: cl } = await supabase.from('classes').select('id, instructor')
+        myIds = (cl || []).filter(c => {
+          const ins = String(c.instructor || '').toLowerCase()
+          return ins && ins.split(/[,&/+]| and /).map(x => x.trim()).some(x => x === initials || (fn && (x === fn || x.startsWith(fn + ' ') || x === `${fn} ${ln}`)))
+        }).map(c => c.id)
+      }
+      if (!myIds?.length) { if (!cancelled) setRows([]); return }
       const today = new Date().toISOString().split('T')[0]
-      const { data: asg } = await supabase.from('student_class_assignments').select('*, classes(name, day_of_week, start_time)').in('class_id', classIds)
+      const { data: asg } = await supabase.from('student_class_assignments').select('*, classes(name, day_of_week, start_time)').in('class_id', myIds)
       const active = (asg || []).filter(a => (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today))
       const cls = {}; active.forEach(a => { (cls[a.student_id] ||= []).push(a.classes) })
       const ids = Object.keys(cls)
