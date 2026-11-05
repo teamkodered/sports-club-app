@@ -6819,7 +6819,14 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         <div className="ae-book" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                             <button onClick={() => setShowAlterEgoModal(false)} className="btn btn-sm">← Close</button>
-                            <h2 className="ae-title" style={{ fontSize: 16, fontWeight: 600 }}>🎭 The Alter Ego Workbook</h2>
+                            <h2 className="ae-title" style={{ fontSize: 16, fontWeight: 600, flex: 1 }}>🎭 The Alter Ego Workbook</h2>
+                            {/* the workbook can be this month's Mentality focus too */}
+                            {!myFocus.mentality ? (
+                              <button type="button" className="kc-setfocus" style={{ '--c': '#22B14C', display: 'block', marginTop: 0 }}
+                                onClick={() => { const mn = new Date().toLocaleDateString('en-GB', { month: 'long' }); if (confirm(`Make the Alter Ego workbook your ${mn} Mentality focus? It's locked in until the end of the month.`)) setMyFocus('mentality', 'Alter Ego') }}>
+                                🎯 Set as my focus
+                              </button>
+                            ) : sameQ(myFocus.mentality, 'Alter Ego') ? <span style={{ fontSize: 11, fontWeight: 700, color: '#1D9E75' }}>🎯 FOCUS</span> : null}
                           </div>
                           <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}
                             onTouchStart={e => { aeSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
