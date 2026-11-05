@@ -1842,3 +1842,12 @@ tr.kc-flash-row > td { animation: kcFlashRow 1.6s ease 2; }
 .ts-sheet .ts-one input { height: 40px; max-width: 120px; }
 .kc-phone-only { display: none; }
 @media (max-width: 760px) { .kc-phone-only { display: block; } }
+/* Zoomed 'safety net' phones: every bottom-sheet pop-up fits the real screen so it can scroll to the end
+   (100vh is taller than the screen there -- e.g. Settings -> Team person sheet stopped half way) */
+html.forced-phone .team-sheet-backdrop, html.forced-phone .reg-m-backdrop, html.forced-phone .ts-backdrop,
+html.forced-phone .ff-backdrop, html.forced-phone .stk-backdrop, html.forced-phone .ct-backdrop { bottom: auto; height: calc(var(--kc-vh, 1vh) * 100); }
+html.forced-phone .team-sheet { max-height: calc(var(--kc-vh, 1vh) * 90) !important; }
+html.forced-phone .reg-m-sheet { max-height: calc(var(--kc-vh, 1vh) * 85) !important; }
+html.forced-phone .ts-sheet { max-height: calc(var(--kc-vh, 1vh) * 100 - 16px) !important; }
+html.forced-phone .ff-sheet { max-height: calc(var(--kc-vh, 1vh) * 85) !important; }
+html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var(--kc-vh, 1vh) * 88) !important; }
