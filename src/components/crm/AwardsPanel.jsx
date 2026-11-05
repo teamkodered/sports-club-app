@@ -143,6 +143,8 @@ export default function AwardsPanel() {
         <input type="number" value={cur.year} onChange={e => { const y = parseInt(e.target.value) || cur.year; saveCur({ year: y }).then(() => load({ ...cur, year: y })) }} style={{ width: 90 }} />
         <label style={{ fontSize: 13 }}>Nominations close <input type="date" value={cur.close || ''} onChange={e => saveCur({ close: e.target.value })} /></label>
         <button className={`btn btn-sm${cur.open ? ' btn-primary' : ''}`} onClick={() => saveCur({ open: !cur.open })}>{cur.open ? '✓ Nominations open' : 'Open nominations'}</button>
+        {cats.length > 0 && <button type="button" title={`Delete all ${cur.year} awards to start again`} onClick={deleteYear}
+          style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid #E24B4A88', background: 'none', color: '#E24B4A', cursor: 'pointer' }}>🗑 Delete</button>}
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{cats.length ? `${decided} of ${cats.length} decided · ${noms.length} nominations · ${votes.length} votes` : ''}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {cats.length > 0 && <button className="btn btn-sm" onClick={exportRegister}>⬇ Awards register (Excel)</button>}
@@ -206,7 +208,6 @@ export default function AwardsPanel() {
           <button type="button" className="btn" style={{ flex: 1, justifyContent: 'space-between' }} onClick={() => setListOpen(o => !o)}>
             <b>🏆 Awards {cur.year} -- {groups.filter(g => g.kind !== 'house').length} groups</b><span>{listOpen ? '▲' : '▼'}</span>
           </button>
-          <button type="button" className="btn btn-sm" style={{ color: '#E24B4A', borderColor: '#E24B4A' }} onClick={deleteYear}>🗑 Delete {cur.year} awards</button>
         </div>
       )}
       {cats.length > 0 && listOpen && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>Press a group to open it · hold a group to delete it from the list</div>}
