@@ -5,7 +5,6 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import FocusAndFormat from '../components/dashboard/FocusAndFormat.jsx'
 import WebsiteProfiles from '../components/dashboard/WebsiteProfiles.jsx'
-import PointsToConfirm from '../components/dashboard/PointsToConfirm.jsx'
 import MyGradingStudents from '../components/dashboard/MyGradingStudents.jsx'
 import { supabase } from '../lib/supabase.js'
 import { fetchAll } from '../lib/fetchAll.js'
@@ -20,7 +19,13 @@ const MEDALS = ['🥇','🥈','🥉','🎖️']
 export default function Dashboard() {
   const { profile, isAdmin, isHeadCoach, pageAccess } = useAuth()
   const [websiteWaiting, setWebsiteWaiting] = useState(0) // 🌐 website profile changes waiting for a coach
-  const showWebsite = pageAccess('athletes') !== 'none'
+  const showWebsite = isAdmin   // website profile approvals: admins only
+  // background jobs the Points-to-confirm card used to run when the Dashboard opened: monthly improvement
+  // items and closing forgotten check-outs (the card itself is no longer on the Dashboard)
+  useEffect(() => {
+    supabase.rpc('kc_generate_monthly_improvements').then(() => {}, () => {})
+    supabase.rpc('kc_auto_checkout').then(() => {}, () => {})
+  }, [])
   const [stats, setStats]         = useState({})
   const [memberBreakdownIndex, setMemberBreakdownIndex] = useState(0)
   const [athleteBreakdownIndex, setAthleteBreakdownIndex] = useState(0)
@@ -470,8 +475,6 @@ export default function Dashboard() {
       {/* 🎽 coaches: grading requests from their own students */}
       <MyGradingStudents />
 
-      {/* 🏆 PBs / monthly improvements waiting for a coach to confirm (below Recent points, slides open) */}
-      <PointsToConfirm />
 
       {/* 🌐 Website profiles approval (teamkodered.com) -- bottom of the coach dashboard */}
       {showWebsite && <WebsiteProfiles profile={profile} onCount={setWebsiteWaiting} />}
