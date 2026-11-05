@@ -8,6 +8,8 @@ import { CLASS_CATS, SQUAD_CATS, CLUB_CATS, VOTE_CATS, loadAwardsCurrent, saveAw
 // a bulk insert sends the same columns for every row -- missing ones arrive as null, so fill them all in
 const fullRow = r => ({ class_id: null, squad: null, vote: false, winner_name: null, winner_student_id: null, winner_member_id: null, ...r })
 
+const HOUSE_COL = { jet: '#2FB36B', dragon: '#E24B4A', ice: '#3B82F6', super: '#F28C28' }
+
 export default function AwardsPanel() {
   const [cur, setCur] = useState(null)
   const [cats, setCats] = useState([])
@@ -19,7 +21,8 @@ export default function AwardsPanel() {
   const [houses, setHouses] = useState(null)
   const [past, setPast] = useState(null), [pastYear, setPastYear] = useState('')
   const [busy, setBusy] = useState(false)
-  const [listOpen, setListOpen] = useState(false)   // the awards list starts closed -- press to view
+  const [listOpen, setListOpen] = useState(false)
+  const [housesOpen, setHousesOpen] = useState(false)   // the awards list starts closed -- press to view
   const holdT = useRef(null), held = useRef(false)
   // hold a group's header to delete that group's awards (and their nominations / votes)
   async function deleteGroup(g) {
@@ -251,23 +254,44 @@ export default function AwardsPanel() {
         )
       })}
 
-      {/* houses from the points */}
+      {/* houses from the points -- press to show / hide */}
       {cats.length > 0 && (
-        <div className="card" style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-            <b style={{ flex: 1 }}>🏠 Houses (from the points)</b>
-            <button className="btn btn-sm" onClick={loadHouses}>{houses ? '🔄 Refresh' : 'Show'}</button>
-            {houses && <button className="btn btn-sm btn-primary" onClick={saveHouses}>Save to register</button>}
-          </div>
-          {groups.find(g => g.kind === 'house') && !houses && <div style={{ fontSize: 12, color: '#1D9E75' }}>✓ House results saved -- {groups.find(g => g.kind === 'house').cats.map(c => `${c.name}: ${c.winner_name}`).join(' · ')}</div>}
-          {houses && (
-            <>
-              {houses.list.map(h => (
-                <div key={h.name} style={{ fontSize: 13, padding: '3px 0' }}><b>{h.name}</b> ({h.points}) -- {h.top.map((p, i) => `${i + 1}. ${p.name} (${p.pts})`).join('  ')}</div>
-              ))}
-              <div style={{ fontSize: 13, marginTop: 6 }}>🏆 House winners: <b>{houses.winner}</b> · Student house winner: <b>{houses.student?.name}</b></div>
-            </>
-          )}
+        <div className="card" style={{ marginBottom: 8, padding: 0, overflow: 'hidden' }}>
+          <button type="button" onClick={() => { const o = !housesOpen; setHousesOpen(o); if (o && !houses) loadHouses() }}
+            style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'center', padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
+            <b style={{ flex: 1 }}>🏠 Houses <span style={{ fontWeight: 400, color: 'var(--text-secondary)', fontSize: 12 }}>from the points</span></b>
+            {groups.find(g => g.kind === 'house') && <span style={{ fontSize: 12, color: '#1D9E75' }}>✓ saved</span>}
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{housesOpen ? '▲' : '▼'}</span>
+          </button>
+          <div className={`kc-slide${housesOpen ? ' open' : ''}`}><div style={{ padding: housesOpen ? '0 14px 14px' : 0 }}>
+            {!houses ? <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</div> : (
+              <>
+                {houses.list.map(h => (
+                  <div key={h.name} style={{ borderTop: '1px solid var(--border)', padding: '10px 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                      <b style={{ fontSize: 15, color: HOUSE_COL[h.name.split(' ')[0].toLowerCase()] || 'var(--text)' }}>{h.name}</b>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{h.points} pts</span>
+                    </div>
+                    {h.top.map((p, i) => (
+                      <div key={p.student_id} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 14, padding: '2px 0' }}>
+                        <span style={{ width: 22, color: ['#EF9F27', '#9CA3AF', '#B87333'][i], fontWeight: 800 }}>{i + 1}</span>
+                        <span style={{ flex: 1 }}>{p.name}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.pts}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'grid', gap: 4, fontSize: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏆 House winners</span><b>{houses.winner}</b></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🥇 Student house winner</span><b>{houses.student?.name}{houses.student ? ` (${houses.student.pts})` : ''}</b></div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button className="btn btn-sm" onClick={loadHouses}>🔄 Refresh</button>
+                  <button className="btn btn-sm btn-primary" onClick={saveHouses}>Save to register</button>
+                </div>
+              </>
+            )}
+          </div></div>
         </div>
       )}
     </div>
