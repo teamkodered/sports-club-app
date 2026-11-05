@@ -104,6 +104,7 @@ const HRR_METHODS = [
 ]
 // names shown on screen (the saved name stays the same, so history keeps matching)
 const TEST_SHOWN_AS = { 'HRR start heart rate (bpm)': 'Start - heart rate (bpm)', 'HRR end heart rate (bpm)': 'End - heart rate (bpm)' }
+const HRR_QUICK = ['HRR start heart rate (bpm)', 'HRR end heart rate (bpm)', 'Heart Rate Recovery (1 min)']
 const hrrNames = m => m.only || ['HRR start heart rate (bpm)', 'HRR end heart rate (bpm)', 'Heart Rate Recovery (1 min)', m.pct, ...(m.extra || [])]   // start / end first -> HRR + % worked out
 
 export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode, initialCat = null, thisWeek = null }) {
@@ -124,6 +125,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
   const [date, setDate] = useState(todayISO())
   const [hrrMethod, setHrrMethod] = useState(null)   // HRR test: chosen method key (collapsed list until picked)
   const [hrrPick, setHrrPick] = useState(false)
+  const hrrShown = () => { const m = HRR_METHODS.find(x => x.key === hrrMethod); return m ? hrrNames(m) : HRR_QUICK }   // quick entry until a method is picked
   const [hrrTimer, setHrrTimer] = useState('full')   // 'full' = 60 s all-out + 60 s seated, 'rest' = 60 s seated only
   const [hrMax, setHrMax] = useState(190)   // 220 - age (for start / end as % of max)
   useEffect(() => {
@@ -289,7 +291,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           </div>
         )}
         <div className="ts-tests">
-          {cat.tests.filter(t => cat.key !== 'fixedload' || t.name === (flColour || cat.tests[0]?.name) || (vals[t.name] !== '' && vals[t.name] != null)).filter(t => cat.key !== 'heart' || (hrrMethod && hrrNames(HRR_METHODS.find(x => x.key === hrrMethod)).includes(t.name))).sort((a, b) => cat.key !== 'heart' ? 0 : hrrNames(HRR_METHODS.find(x => x.key === hrrMethod)).indexOf(a.name) - hrrNames(HRR_METHODS.find(x => x.key === hrrMethod)).indexOf(b.name)).map(t => {
+          {cat.tests.filter(t => cat.key !== 'fixedload' || t.name === (flColour || cat.tests[0]?.name) || (vals[t.name] !== '' && vals[t.name] != null)).filter(t => cat.key !== 'heart' || hrrShown().includes(t.name)).sort((a, b) => cat.key !== 'heart' ? 0 : hrrShown().indexOf(a.name) - hrrShown().indexOf(b.name)).map(t => {
             const b = best[t.name], l = last[t.name]
             const hint = <div className="ts-hint">{b != null ? <>Best <b>{fmtVal(b, t.unit)}</b>{l ? <> · Last {fmtVal(l.value, t.unit)} ({new Date(l.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})</> : null}</> : 'No result yet'}{lowerIsBetter(t.name) ? ' · lower is better' : ''}</div>
             if (cat.multiSet) {
