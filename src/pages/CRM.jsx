@@ -2551,7 +2551,7 @@ export default function CRM() {
           return (
             <div onClick={() => setPillList(null)} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
               <div onClick={e => e.stopPropagation()} role="dialog" aria-label={`${s.label} list`}
-                style={{ width: '100%', maxWidth: 520, maxHeight: '80vh', overflowY: 'auto', boxSizing: 'border-box', padding: '14px 16px calc(18px + env(safe-area-inset-bottom, 0px))', borderRadius: '16px 16px 0 0', background: 'var(--bg)', borderTop: `3px solid ${s.colour}` }}>
+                style={{ width: '100%', maxWidth: 520, maxHeight: 'calc(var(--kc-vh, 1vh) * 80)', overflowY: 'auto', boxSizing: 'border-box', padding: '14px 16px calc(18px + env(safe-area-inset-bottom, 0px))', borderRadius: '16px 16px 0 0', background: 'var(--bg)', borderTop: `3px solid ${s.colour}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <div>
                     <b style={{ fontSize: 16, color: s.colour }}>{rows.length} {s.label}</b>
@@ -4053,7 +4053,7 @@ export default function CRM() {
           {viewingEnquiry && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
               onClick={() => setViewingEnquiry(null)}>
-              <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+              <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: 'calc(var(--kc-vh, 1vh) * 85)', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                   <h3 style={{ fontSize: 17, fontWeight: 600 }}>{viewingEnquiry.name}</h3>
                   <button onClick={() => setViewingEnquiry(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
@@ -6077,7 +6077,7 @@ export default function CRM() {
           {openMessage && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
               onClick={() => { setOpenMessage(null); setReplyDraft(null) }}>
-              <div className="card" style={{ width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+              <div className="card" style={{ width: '100%', maxWidth: 560, maxHeight: 'calc(var(--kc-vh, 1vh) * 85)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
                 {/* Top toolbar -- navigation, star, close. Always visible, even
                     while loading, so switching messages doesn't feel like it
                     resets the modal each time. */}
@@ -6325,7 +6325,7 @@ export default function CRM() {
           {editingCourse !== null && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
               onClick={() => setEditingCourse(null)}>
-              <div className="card" style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+              <div className="card" style={{ width: '100%', maxWidth: 420, maxHeight: 'calc(var(--kc-vh, 1vh) * 90)', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{editingCourse?.id ? 'Edit notice' : 'Add notice'}</h3>
 
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Title</label>
@@ -6421,7 +6421,7 @@ export default function CRM() {
       {addingNoteForStudent && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
           onClick={() => setAddingNoteForStudent(null)}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: 'calc(var(--kc-vh, 1vh) * 85)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>📝 Notes for {studentFullName(addingNoteForStudent)}</h3>
             {(athleteNotesByStudent[addingNoteForStudent.id] || []).length > 0 && (
               <div style={{ overflowY: 'auto', marginBottom: 12, paddingRight: 4 }}>

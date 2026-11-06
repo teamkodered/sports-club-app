@@ -334,7 +334,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
       onClick={embedded ? undefined : onClose}>
       <div style={embedded
         ? { background: 'var(--bg)', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }
-        : { background: 'var(--bg)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 580, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        : { background: 'var(--bg)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 580, maxHeight: 'calc(var(--kc-vh, 1vh) * 92)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         onClick={embedded ? undefined : e => e.stopPropagation()}>
 
         {/* Header */}
@@ -778,7 +778,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     {showMembershipForm && (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}
         onClick={() => setShowMembershipForm(false)}>
-        <div style={{ background: '#fff', color: '#111', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 680, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        <div style={{ background: '#fff', color: '#111', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 680, maxHeight: 'calc(var(--kc-vh, 1vh) * 92)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
           onClick={e => e.stopPropagation()}>
           <div className="no-print" style={{ padding: '14px 20px', borderBottom: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Membership Form</h2>

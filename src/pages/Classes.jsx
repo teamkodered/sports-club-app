@@ -369,7 +369,7 @@ export default function Classes() {
       {/* Add/Edit modal */}
       {adding && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto' }} onKeyDown={handleKeyDown}>
+          <div className="card" style={{ width: '100%', maxWidth: 460, maxHeight: 'calc(var(--kc-vh, 1vh) * 90)', overflowY: 'auto' }} onKeyDown={handleKeyDown}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600 }}>{editing ? 'Edit class' : 'Add class'}</h2>
               <button onClick={() => { setAdding(false); setEditing(null) }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
@@ -426,7 +426,7 @@ export default function Classes() {
       {viewingClass && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
           onClick={() => setViewingClass(null)}>
-          <div className="card" style={{ width: '95vw', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
+          <div className="card" style={{ width: '95vw', maxWidth: 480, maxHeight: 'calc(var(--kc-vh, 1vh) * 85)', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600 }}>{viewingClass.name}</h2>
               <button onClick={() => setViewingClass(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>

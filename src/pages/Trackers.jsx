@@ -899,7 +899,7 @@ export default function Trackers({ onStatsReady } = {}) {
           {weightSheetFor && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}
               onClick={() => setWeightSheetFor(null)}>
-              <div className="card" style={{ width: '100%', maxWidth: 560, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+              <div className="card" style={{ width: '100%', maxWidth: 560, maxHeight: 'calc(var(--kc-vh, 1vh) * 85)', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <h2 style={{ fontSize: 16, fontWeight: 600 }}>{weightSheetFor.name} — all weight entries</h2>
                   <button onClick={() => setWeightSheetFor(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>

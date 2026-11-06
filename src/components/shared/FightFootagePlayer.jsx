@@ -1901,7 +1901,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
       {recResult && (
         <div data-no-toggle style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 215, padding: 16, borderRadius: 12, ...GLASS_STYLE }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Screen recording · {Math.floor(recResult.seconds / 60)}:{String(recResult.seconds % 60).padStart(2, '0')}</h3>
-          <video src={recResult.url} controls playsInline style={{ width: '100%', maxHeight: '32vh', borderRadius: 8, background: '#000', marginBottom: 10 }} />
+          <video src={recResult.url} controls playsInline style={{ width: '100%', maxHeight: 'calc(var(--kc-vh, 1vh) * 32)', borderRadius: 8, background: '#000', marginBottom: 10 }} />
           {footageId && isCoach && (
             <input value={recNoteText} onChange={e => setRecNoteText(e.target.value)} placeholder="Note for this recording (optional)"
               style={{ width: '100%', fontSize: 13, marginBottom: 10 }} />

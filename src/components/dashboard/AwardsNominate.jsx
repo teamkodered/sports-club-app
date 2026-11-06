@@ -179,8 +179,8 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
   const y = String(year)
   const shown = (people || []).filter(p => !q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase()))
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-      <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, maxHeight: '88vh', overflowY: 'auto', padding: 16 }}>
+    <div onClick={onClose} style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'calc(var(--kc-vh, 1vh) * 100)', zIndex: 500, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, maxHeight: 'calc(var(--kc-vh, 1vh) * 88)', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <b style={{ fontSize: 15 }}>🏆 {cat.name}</b><button className="btn btn-sm" onClick={onClose}>✕</button>
         </div>

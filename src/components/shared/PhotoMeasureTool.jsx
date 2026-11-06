@@ -93,7 +93,7 @@ export default function PhotoMeasureTool({ tests = [], onSave, onClose, zIndex =
               <button type="button" style={{ ...btn, height: 32, fontSize: 12 }} onClick={() => setPts(s => ({ ...s, [mode]: [] }))}>Clear</button>
               <select value={zoom} onChange={e => setZoom(+e.target.value)} style={sel} aria-label="Zoom">{[1, 2, 3].map(z => <option key={z} value={z}>{z}× zoom</option>)}</select>
             </div>
-            <div style={{ overflow: 'auto', maxHeight: '55vh', borderRadius: 8, background: '#000' }}>
+            <div style={{ overflow: 'auto', maxHeight: 'calc(var(--kc-vh, 1vh) * 55)', borderRadius: 8, background: '#000' }}>
               <div style={{ position: 'relative', width: `${zoom * 100}%`, touchAction: 'none' }} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
                 <img ref={imgRef} src={url} alt="Stretch to measure" onLoad={e => setNat({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
                   onPointerDown={onImgDown} draggable={false} style={{ width: '100%', display: 'block', userSelect: 'none' }} />

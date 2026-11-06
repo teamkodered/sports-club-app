@@ -124,7 +124,7 @@ export default function BleepTestPlayer({ course = 20, runners: fixedRunners, ca
           <>
             <p style={{ fontSize: 14, marginBottom: 8 }}>Who's running? ({picked.size} picked)</p>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ width: '100%', padding: 10, borderRadius: 8, marginBottom: 8 }} />
-            <div style={{ border: '1px solid var(--border, #2A3138)', borderRadius: 8, maxHeight: '55vh', overflowY: 'auto' }}>
+            <div style={{ border: '1px solid var(--border, #2A3138)', borderRadius: 8, maxHeight: 'calc(var(--kc-vh, 1vh) * 55)', overflowY: 'auto' }}>
               {(candidates || []).filter(c => !q || c.name.toLowerCase().includes(q)).map(c => (
                 <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--border, #2A3138)', fontSize: 15 }}>
                   <input type="checkbox" checked={picked.has(c.id)} onChange={() => setPicked(p => { const n = new Set(p); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n })} />

@@ -1086,7 +1086,7 @@ export default function LeagueViews() {
       {scoreHistoryOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}
           onClick={() => setScoreHistoryOpen(false)}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: 'calc(var(--kc-vh, 1vh) * 85)', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
               <button onClick={() => setScoreHistoryOpen(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
             </div>
@@ -1248,7 +1248,7 @@ export default function LeagueViews() {
 
       {enlargedPhoto && (
         <div onClick={() => setEnlargedPhoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24, cursor: 'zoom-out' }}>
-          <img src={enlargedPhoto} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
+          <img src={enlargedPhoto} alt="" style={{ maxWidth: '90vw', maxHeight: 'calc(var(--kc-vh, 1vh) * 90)', borderRadius: 8 }} />
         </div>
       )}
     </div>

@@ -3031,7 +3031,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadRegisterPhoto(photoTargetRef.current, f) }} />
       {enlargedPhoto && (
         <div onClick={() => setEnlargedPhoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24, cursor: 'zoom-out' }}>
-          <img src={enlargedPhoto} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
+          <img src={enlargedPhoto} alt="" style={{ maxWidth: '90vw', maxHeight: 'calc(var(--kc-vh, 1vh) * 90)', borderRadius: 8 }} />
         </div>
       )}
 
@@ -3104,7 +3104,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       )}
       {groupPopup && createPortal(
         <div onClick={() => { setGroupPopup(null); setGroupForm(null) }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, padding: 18, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, padding: 18, maxHeight: 'calc(var(--kc-vh, 1vh) * 90)', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <b style={{ fontSize: 16 }}>{groupPopup.flag === 'is_pts' ? '💪 PT session' : '🧑‍🏫 Leadership session'} — {groupPopup.student.members?.first_name} {groupPopup.student.members?.last_name}</b>
               <button className="btn btn-sm" onClick={() => setGroupPopup(null)}>✕</button>
@@ -3273,7 +3273,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             </div>
             <div className="reg-award-bar" style={{ position: 'sticky', bottom: 0, background: 'var(--bg)', padding: '10px 0 14px', marginTop: 4, borderTop: awardList.length ? '1px solid var(--border)' : 'none', boxShadow: awardList.length ? '0 -8px 16px rgba(0,0,0,0.25)' : 'none' }}>
             {awardList.length > 0 && (
-              <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '10px 12px', marginBottom: 12, maxHeight: '28vh', overflowY: 'auto' }}>
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '10px 12px', marginBottom: 12, maxHeight: 'calc(var(--kc-vh, 1vh) * 28)', overflowY: 'auto' }}>
                 {awardList.map(p => (
                   <div key={p.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                     <span>{p.label}</span>

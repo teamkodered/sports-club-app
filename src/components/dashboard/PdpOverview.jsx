@@ -415,7 +415,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
           {!visible.length && <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No athletes to show.</p>}
         </div>
       ) : (
-      <div ref={tableRef} style={{ overflowX: 'auto', maxHeight: '70vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+      <div ref={tableRef} style={{ overflowX: 'auto', maxHeight: 'calc(var(--kc-vh, 1vh) * 70)', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr>

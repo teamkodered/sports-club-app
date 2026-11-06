@@ -77,7 +77,7 @@ export default function FootageTagPanel({ footageId, onClose, onSaved, zIndex = 
   return createPortal(
     <div role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
       style={{ position: 'fixed', inset: 0, zIndex, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: 520, maxHeight: '88vh', overflowY: 'auto', background: 'var(--bg, #0B0F12)', color: 'var(--text, #fff)', borderRadius: '14px 14px 0 0', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: 520, maxHeight: 'calc(var(--kc-vh, 1vh) * 88)', overflowY: 'auto', background: 'var(--bg, #0B0F12)', color: 'var(--text, #fff)', borderRadius: '14px 14px 0 0', padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <h3 style={{ flex: 1, fontSize: 16, fontWeight: 700 }}>🏷 Tag video{row?.title ? ` · ${row.title}` : ''}</h3>
           <button type="button" className="btn btn-sm" onClick={onClose}>✕</button>

@@ -527,7 +527,7 @@ export default function Forms() {
       {/* View response modal */}
       {viewResponse && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 540, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 540, maxHeight: 'calc(var(--kc-vh, 1vh) * 85)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0 }}>
               <h2 style={{ fontSize: 15, fontWeight: 600 }}>{viewResponse.first_name} {viewResponse.last_name}</h2>
               <div style={{ display: 'flex', gap: 8 }}>

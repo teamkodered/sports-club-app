@@ -184,7 +184,7 @@ export default function CoachingTools() {
                   <iframe src={playing.src} title={playing.title} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }} />
                 </div>
-              : <video src={playing.src} controls playsInline autoPlay preload="auto" style={{ width: '100%', maxHeight: '75vh', borderRadius: 8, background: '#000' }}
+              : <video src={playing.src} controls playsInline autoPlay preload="auto" style={{ width: '100%', maxHeight: 'calc(var(--kc-vh, 1vh) * 75)', borderRadius: 8, background: '#000' }}
                   onError={() => playing.external && setPlaying(p => p && { ...p, failed: true })} />}
             {playing.failed && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>This video won't play here (its format may not suit this device). <a href={playing.external} target="_blank" rel="noreferrer">Open it in Dropbox instead</a>.</p>}
           </div>

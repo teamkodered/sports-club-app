@@ -4359,7 +4359,7 @@ export default function AthleteProfiles() {
     return (
       <div role="dialog" aria-modal="true" aria-label={`${historyView.label} history`} onClick={() => setHistoryView(null)}
         style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, maxHeight: '88vh', overflowY: 'auto', boxSizing: 'border-box',
+        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, maxHeight: 'calc(var(--kc-vh, 1vh) * 88)', overflowY: 'auto', boxSizing: 'border-box',
           padding: '16px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderRadius: '14px 14px 0 0', background: '#111518', border: `1px solid ${colour}`, borderBottom: 'none', boxShadow: `0 -6px 24px ${colour}55`, color: '#F2F2F2' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
             <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 24, letterSpacing: 1, lineHeight: 1, color: colour, textTransform: 'uppercase' }}>{historyView.label}</div>
@@ -7565,7 +7565,7 @@ export default function AthleteProfiles() {
               return (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
                   onClick={() => setShowGroupLogger(false)}>
-                  <div className="card" style={{ width: '95vw', maxWidth: 700, maxHeight: '85vh', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
+                  <div className="card" style={{ width: '95vw', maxWidth: 700, maxHeight: 'calc(var(--kc-vh, 1vh) * 85)', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <h2 style={{ fontSize: 16, fontWeight: 600 }}>Group training session logger</h2>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -7936,7 +7936,7 @@ export default function AthleteProfiles() {
               return (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
                   onClick={() => { setCalDayModal(null); setCalDayAddEvent(false) }}>
-                  <div className="card" style={{ width: 380, maxHeight: '80vh', overflowY: 'auto', padding: 16 }} onClick={e => e.stopPropagation()}>
+                  <div className="card" style={{ width: 380, maxHeight: 'calc(var(--kc-vh, 1vh) * 80)', overflowY: 'auto', padding: 16 }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <h2 style={{ fontSize: 15, fontWeight: 600 }}>{new Date(calDayModal + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
                       <button onClick={() => { setCalDayModal(null); setCalDayAddEvent(false) }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
@@ -9490,7 +9490,7 @@ export default function AthleteProfiles() {
               {showQuickLoggerPicker && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
                   onClick={() => { setShowQuickLoggerPicker(false); setQuickLoggerSearch('') }}>
-                  <div className="card" style={{ width: '100%', maxWidth: 360, maxHeight: '70vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                  <div className="card" style={{ width: '100%', maxWidth: 360, maxHeight: 'calc(var(--kc-vh, 1vh) * 70)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
                     <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>🔥 Quick logger — pick an athlete</h3>
                     <input value={quickLoggerSearch} onChange={e => setQuickLoggerSearch(e.target.value)}
                       placeholder="Search athletes…" autoFocus style={{ width: '100%', marginBottom: 10 }} />

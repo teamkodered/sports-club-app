@@ -34,7 +34,7 @@ export default function CreateLogin({ memberId = null, defaults = {}, label = '�
       <button type="button" className="btn btn-sm" onClick={start}>{label}</button>
       {open && (
         <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="card" onClick={e => e.stopPropagation()} role="dialog" aria-label="Create login" style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="card" onClick={e => e.stopPropagation()} role="dialog" aria-label="Create login" style={{ width: '100%', maxWidth: 420, maxHeight: 'calc(var(--kc-vh, 1vh) * 90)', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><b style={{ fontSize: 16 }}>{hasLogin ? '🔑 Reset password' : '🔑 Create login'}</b><button className="btn btn-sm" onClick={() => setOpen(false)}>Close</button></div>
             {done ? (
               <>

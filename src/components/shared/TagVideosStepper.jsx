@@ -30,7 +30,7 @@ export default function TagVideosStepper({ items, startIndex = 0, batchIds, stud
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-        <video key={item.key} src={url} controls muted playsInline autoPlay loop style={{ width: '100%', maxHeight: '42vh', background: '#000', borderRadius: 10, display: 'block' }} />
+        <video key={item.key} src={url} controls muted playsInline autoPlay loop style={{ width: '100%', maxHeight: 'calc(var(--kc-vh, 1vh) * 42)', background: '#000', borderRadius: 10, display: 'block' }} />
         {item.frames?.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${item.frames.length}, 1fr)`, gap: 4, marginTop: 6 }}>
             {item.frames.map((f, k) => <img key={k} src={f} alt="" style={{ width: '100%', borderRadius: 6, display: 'block' }} />)}

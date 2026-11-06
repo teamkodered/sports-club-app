@@ -335,7 +335,7 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
                 <input type="checkbox" checked={allOn} onChange={() => setPickSel(prev => { const n = new Set(prev); shown.forEach(e => allOn ? n.delete(e.id) : n.add(e.id)); return n })} />
                 Select all shown ({shown.length})
               </label>
-              <div style={{ maxHeight: '42vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
+              <div style={{ maxHeight: 'calc(var(--kc-vh, 1vh) * 42)', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
                 {shown.length === 0 && <div className="ets-hint" style={{ padding: 10 }}>Nobody here.</div>}
                 {shown.map(e => (
                   <label key={e.id} style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: pickSel.has(e.id) ? '#378ADD14' : undefined }}>

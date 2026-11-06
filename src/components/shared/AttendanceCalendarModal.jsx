@@ -168,7 +168,7 @@ export default function AttendanceCalendarModal({ student, onClose, onChanged })
     <div onClick={onClose}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
       <div className="card" onClick={e => e.stopPropagation()} role="dialog" aria-label={`Attendance for ${name}`}
-        style={{ width: '100%', maxWidth: 380, maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
+        style={{ width: '100%', maxWidth: 380, maxHeight: 'calc(var(--kc-vh, 1vh) * 90)', overflowY: 'auto', position: 'relative' }}>
         <button onClick={onClose} aria-label="Close"
           style={{ position: 'absolute', top: 10, right: 10, background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)', lineHeight: 1 }}>✕</button>
         <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 2, paddingRight: 28 }}>{name}</h3>
