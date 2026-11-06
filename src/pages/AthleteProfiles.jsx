@@ -5756,14 +5756,13 @@ export default function AthleteProfiles() {
     const create = within(supabase.from('app_invites').insert({ token, student_id: s.id, kind: 'athlete', created_by: profile?.id || null }), 10000)
       .then(r => r?.error || null, () => ({ message: 'The connection timed out -- check the signal and tap Try again.' }))
     const [hasLogin, error] = await Promise.all([loginCheck, create])
-    if (hasLogin) {
-      const url = `${origin}/athlete-login`
-      setInviteInfo({ hasLogin, url, msg: `Hi ${name}, your KR Centre athlete app is ready. Sign in here with your email: ${url} — if you don't know your password, tap "Forgot password" on that page.` })
-      return
-    }
+    // always a real invite link (even if they already have a login): opening it and signing in links the login
+    // to this athlete -- a plain sign-in page link can't fix a login that isn't linked yet
     if (error) { setInviteInfo({ error: error.message }); return }
     const url = `${origin}/invite/${token}?app=f2f` // ?app=f2f -> the link preview shows the Fit II Fight logo
-    setInviteInfo({ hasLogin, url, msg: `Hi ${name}, you've been invited to the KR Centre athlete app. Tap this link to set up your login (it works once and lasts 14 days): ${url}` })
+    setInviteInfo({ hasLogin, url, msg: hasLogin
+      ? `Hi ${name}, here's your link to the KR Centre athlete app. Tap it and choose "Already have a login? Sign in" (it works once and lasts 14 days): ${url}`
+      : `Hi ${name}, you've been invited to the KR Centre athlete app. Tap this link to set up your login (it works once and lasts 14 days): ${url}` })
   }
   useEffect(() => { if (showInviteMenu && selected) prepareInvite(selected) }, [showInviteMenu, selected?.id])
 
