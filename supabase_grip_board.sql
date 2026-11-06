@@ -1,5 +1,5 @@
 -- League: Grip board ranked by grip as a % of body weight (best hand). Body weight = that day's weigh-in,
--- otherwise their latest weight. Athletes with no weight at all aren't on the board.
+-- otherwise their profile weight, otherwise their latest weigh-in. Athletes with no weight at all aren't on the board.
 create or replace function public.public_grip_board()
 returns table (student_id uuid, display_name text, house_name text, grip numeric, weight numeric, pct numeric, session_date date)
 language sql stable security definer set search_path = public as $$
@@ -11,11 +11,13 @@ language sql stable security definer set search_path = public as $$
     from fit2fight_sessions f
     where f.test is not null
   ), w as (
+    -- that day's weigh-in, otherwise the weight on their profile (kept up to date by the coach),
+    -- and only if neither exists their latest weigh-in
     select g.*, coalesce(g.day_w,
+      (select s.weight_kg from students s where s.id = g.student_id),
       (select coalesce(x.weight_before, x.weight_after) from fit2fight_sessions x
         where x.student_id = g.student_id and coalesce(x.weight_before, x.weight_after) is not null
-        order by x.session_date desc limit 1),
-      (select s.weight_kg from students s where s.id = g.student_id)) as bw
+        order by x.session_date desc limit 1)) as bw
     from g where g.grip > 0
   ), best as (
     select distinct on (w.student_id) w.student_id, w.grip, w.bw, w.session_date, round(w.grip / w.bw * 100) as pct
