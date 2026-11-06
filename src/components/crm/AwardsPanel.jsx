@@ -11,6 +11,9 @@ const fullRow = r => ({ class_id: null, squad: null, vote: false, winner_name: n
 // classes in week order (Mon, Mon/Fri, Tue, Tue/Thu, Wed ... Sun), then time
 const DAY_ORDER = ['Monday', 'Mon/Fri', 'Tuesday', 'Tue/Thu', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const sortClasses = cl => [...cl].sort((a, b) => ((DAY_ORDER.indexOf(a.day_of_week) + 1 || 99) - (DAY_ORDER.indexOf(b.day_of_week) + 1 || 99)) || String(a.start_time).localeCompare(String(b.start_time)))
+// individual / extra sessions (Running, GB Boxing / S&C / Training, SnC, day sessions) -- not class awards,
+// hidden from the setup list unless "Show other sessions" is pressed
+const isOtherSession = c => /running|\bgb\b|s\s*&\s*c|\bsnc\b|day session/i.test(c.name || '')
 const HOUSE_COL = { jet: '#2FB36B', dragon: '#E24B4A', ice: '#3B82F6', super: '#F28C28' }
 
 export default function AwardsPanel() {
@@ -25,7 +28,8 @@ export default function AwardsPanel() {
   const [past, setPast] = useState(null), [pastYear, setPastYear] = useState('')
   const [busy, setBusy] = useState(false)
   const [listOpen, setListOpen] = useState(false)
-  const [housesOpen, setHousesOpen] = useState(false)   // the awards list starts closed -- press to view
+  const [housesOpen, setHousesOpen] = useState(false)
+  const [showOther, setShowOther] = useState(false)   // the awards list starts closed -- press to view
   const holdT = useRef(null), held = useRef(false)
   // hold a group's header to delete that group's awards (and their nominations / votes)
   async function deleteGroup(g) {
@@ -70,7 +74,7 @@ export default function AwardsPanel() {
 
   async function startYear() {
     const rows = []; let sort = 0
-    awardGroupsFromClasses(sortClasses(classes.filter(c => setup.classIds.has(c.id)))).forEach(g => CLASS_CATS.forEach(n => rows.push({ year: cur.year, grp: g.label, grp_kind: 'class', class_id: g.ids[0], class_ids: g.ids, name: n, sort: sort++ })))
+    awardGroupsFromClasses(sortClasses(classes.filter(c => setup.classIds.has(c.id) && (showOther || !isOtherSession(c))))).forEach(g => CLASS_CATS.forEach(n => rows.push({ year: cur.year, grp: g.label, grp_kind: 'class', class_id: g.ids[0], class_ids: g.ids, name: n, sort: sort++ })))
     ;['KR', 'KRBA'].forEach(sq => SQUAD_CATS.forEach(n => rows.push({ year: cur.year, grp: sq, grp_kind: 'squad', squad: sq, name: n, vote: VOTE_CATS.includes(n), sort: sort++ })))
     CLUB_CATS.forEach(n => rows.push({ year: cur.year, grp: 'Club awards', grp_kind: 'club', name: n, sort: sort++ }))
     setBusy(true)
@@ -175,19 +179,20 @@ export default function AwardsPanel() {
           {!setup ? (
             <>
               <div style={{ fontSize: 14, marginBottom: 8 }}>No awards set up for {cur.year} yet.</div>
-              <button className="btn btn-primary" onClick={() => setSetup({ classIds: new Set(classes.map(c => c.id)) })}>Start Awards {cur.year}</button>
+              <button className="btn btn-primary" onClick={() => setSetup({ classIds: new Set(classes.filter(c => !isOtherSession(c)).map(c => c.id)) })}>Start Awards {cur.year}</button>
             </>
           ) : (
             <>
               <div style={{ fontSize: 13, marginBottom: 6 }}>Classes that get class awards ({CLASS_CATS.join(', ')}). KR, KRBA and club awards are added too.</div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set(classes.map(c => c.id)) })}>Tick all</button>
+                <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set(classes.filter(c => showOther || !isOtherSession(c)).map(c => c.id)) })}>Tick all</button>
                 <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set() })}>Untick all</button>
-                <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--text-secondary)' }}>{awardGroupsFromClasses(sortClasses(classes)).filter(g => g.ids.every(id => setup.classIds.has(id))).length} of {awardGroupsFromClasses(sortClasses(classes)).length} classes</span>
+                <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--text-secondary)' }}>{awardGroupsFromClasses(sortClasses(classes.filter(c => showOther || !isOtherSession(c)))).filter(g => g.ids.every(id => setup.classIds.has(id))).length} of {awardGroupsFromClasses(sortClasses(classes.filter(c => showOther || !isOtherSession(c)))).length} classes</span>
+                <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setShowOther(v => !v)}>{showOther ? 'Hide other sessions' : `Show other sessions (${classes.filter(isOtherSession).length})`}</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 6, maxHeight: 420, overflowY: 'auto', marginBottom: 10 }}>
                 {/* shown the way the awards will be grouped: pairs as in Classes (Mon/Fri, Tue/Thu) and Wed + Sun together */}
-                {awardGroupsFromClasses(sortClasses(classes)).map(g => {
+                {awardGroupsFromClasses(sortClasses(classes.filter(c => showOther || !isOtherSession(c)))).map(g => {
                   const on = g.ids.every(id => setup.classIds.has(id))
                   return (
                     <label key={g.ids.join('-')} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 16, padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
