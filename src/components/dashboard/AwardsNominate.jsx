@@ -110,9 +110,7 @@ export default function AwardsNominate() {
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setReminder(false)}>Later</button>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => {
                 setReminder(false); setOpen(true)
-                // open the awards list and scroll down to it (and open the first group still to do)
-                const first = groups.find(g => g.cats.some(c => !mine[c.id]))
-                if (first) setOpenGrp(o => ({ ...o, [first.grp]: true }))
+                // open the awards list and scroll down to it (the class groups stay closed until pressed)
                 setTimeout(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
               }}>Nominate now</button>
             </div>

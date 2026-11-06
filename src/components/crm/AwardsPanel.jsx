@@ -72,6 +72,33 @@ export default function AwardsPanel() {
     setCur(v)
   }
 
+  // ✏️ change which classes get class awards after the year's been created (adds / removes class groups)
+  function startEdit() {
+    const ids = new Set(cats.filter(c => c.grp_kind === 'class').flatMap(c => c.class_ids?.length ? c.class_ids : [c.class_id]).filter(Boolean))
+    setSetup({ classIds: ids, edit: true })
+  }
+  async function saveEdit() {
+    const want = awardGroupsFromClasses(sortClasses(classes.filter(c => setup.classIds.has(c.id) && (showOther || !isOtherSession(c)))))
+    const have = [...new Set(cats.filter(c => c.grp_kind === 'class').map(c => c.grp))]
+    const add = want.filter(g => !have.includes(g.label)), drop = have.filter(l => !want.some(g => g.label === l))
+    const dropNoms = noms.filter(n => cats.some(c => c.id === n.category_id && drop.includes(c.grp))).length
+    if (!add.length && !drop.length) { setSetup(null); return }
+    if (!confirm(`Update Awards ${cur.year}?\n\n${add.length ? `Add: ${add.map(g => g.label).join(', ')}\n` : ''}${drop.length ? `Remove: ${drop.join(', ')}${dropNoms ? ` (and ${dropNoms} nomination${dropNoms === 1 ? '' : 's'} for them)` : ''}` : ''}`)) return
+    setBusy(true)
+    if (drop.length) {
+      const { error } = await supabase.from('awards_categories').delete().eq('year', cur.year).eq('grp_kind', 'class').in('grp', drop)
+      if (error) { setBusy(false); return alert('Could not remove: ' + error.message) }
+    }
+    if (add.length) {
+      let sort = Math.max(0, ...cats.map(c => c.sort || 0)) + 1
+      const rows = []
+      add.forEach(g => CLASS_CATS.forEach(n => rows.push({ year: cur.year, grp: g.label, grp_kind: 'class', class_id: g.ids[0], class_ids: g.ids, name: n, sort: sort++ })))
+      const { error } = await supabase.from('awards_categories').insert(rows)
+      if (error) { setBusy(false); return alert('Could not add: ' + error.message) }
+    }
+    setBusy(false); setSetup(null); load()
+  }
+
   async function startYear() {
     const rows = []; let sort = 0
     awardGroupsFromClasses(sortClasses(classes.filter(c => setup.classIds.has(c.id) && (showOther || !isOtherSession(c))))).forEach(g => CLASS_CATS.forEach(n => rows.push({ year: cur.year, grp: g.label, grp_kind: 'class', class_id: g.ids[0], class_ids: g.ids, name: n, sort: sort++ })))
@@ -152,6 +179,8 @@ export default function AwardsPanel() {
         <button className={`btn btn-sm${cur.open ? ' btn-primary' : ''}`} onClick={() => saveCur({ open: !cur.open })}>{cur.open ? '✓ Nominations open' : 'Open nominations'}</button>
         {cats.length > 0 && <button type="button" title={`Delete all ${cur.year} awards to start again`} onClick={deleteYear}
           style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid #E24B4A88', background: 'none', color: '#E24B4A', cursor: 'pointer' }}>🗑 Delete</button>}
+        {cats.length > 0 && !setup && <button type="button" title="Change which classes get class awards" onClick={startEdit}
+          style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text)', cursor: 'pointer' }}>✏️ Edit classes</button>}
         {cats.length > 0 && <span style={{ fontSize: 13, fontWeight: 700, background: '#EF9F2722', color: '#EF9F27', borderRadius: 999, padding: '2px 10px' }}>{cats.filter(c => c.grp_kind !== 'house').length} awards</span>}
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{cats.length ? `${decided} decided · ${noms.length} nominations · ${votes.length} votes` : ''}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -174,7 +203,7 @@ export default function AwardsPanel() {
         </div>
       )}
 
-      {!cats.length && (
+      {(!cats.length || setup?.edit) && (
         <div className="card" style={{ marginBottom: 12 }}>
           {!setup ? (
             <>
@@ -205,7 +234,7 @@ export default function AwardsPanel() {
                 })}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" disabled={busy} onClick={startYear}>{busy ? 'Creating…' : 'Create awards'}</button>
+                <button className="btn btn-primary" disabled={busy} onClick={setup.edit ? saveEdit : startYear}>{busy ? 'Saving…' : setup.edit ? 'Save classes' : 'Create awards'}</button>
                 <button className="btn" onClick={() => setSetup(null)}>Cancel</button>
               </div>
             </>
