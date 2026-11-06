@@ -145,7 +145,8 @@ export default function AwardsPanel() {
         <button className={`btn btn-sm${cur.open ? ' btn-primary' : ''}`} onClick={() => saveCur({ open: !cur.open })}>{cur.open ? '✓ Nominations open' : 'Open nominations'}</button>
         {cats.length > 0 && <button type="button" title={`Delete all ${cur.year} awards to start again`} onClick={deleteYear}
           style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid #E24B4A88', background: 'none', color: '#E24B4A', cursor: 'pointer' }}>🗑 Delete</button>}
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{cats.length ? `${decided} of ${cats.length} decided · ${noms.length} nominations · ${votes.length} votes` : ''}</span>
+        {cats.length > 0 && <span style={{ fontSize: 13, fontWeight: 700, background: '#EF9F2722', color: '#EF9F27', borderRadius: 999, padding: '2px 10px' }}>{cats.filter(c => c.grp_kind !== 'house').length} awards</span>}
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{cats.length ? `${decided} decided · ${noms.length} nominations · ${votes.length} votes` : ''}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {cats.length > 0 && <button className="btn btn-sm" onClick={exportRegister}>⬇ Awards register (Excel)</button>}
           <button className="btn btn-sm" onClick={past ? () => setPast(null) : loadPast}>📜 {past ? 'Hide past years' : 'Past years'}</button>

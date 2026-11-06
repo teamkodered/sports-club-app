@@ -17,6 +17,8 @@ export default function AwardsNominate() {
   const [openGrp, setOpenGrp] = useState({})
   const [pick, setPick] = useState(null)          // { cat } -- picker open
   const myClassIds = registerAccess?.classes || null
+  const [allowed, setAllowed] = useState(null)    // coaches: ids of students in their classes (admins: null = everyone)
+  const [reminder, setReminder] = useState(false)
 
   async function load() {
     const c = await loadAwardsCurrent()
@@ -26,9 +28,28 @@ export default function AwardsNominate() {
       supabase.from('awards_categories').select('*').eq('year', c.year).eq('vote', false).neq('grp_kind', 'house').order('sort'),
       supabase.from('awards_nominations').select('*').eq('coach_member_id', profile?.id),
     ])
-    // class awards: only my classes (admins: all); squad + club awards: everyone
-    setCats((cs || []).filter(x => x.grp_kind !== 'class' || isAdmin || !myClassIds || myClassIds.includes(x.class_id)))
-    setMine(Object.fromEntries((noms || []).map(n => [n.category_id, n])))
+    // coaches only see / nominate students from THEIR classes: class awards for their classes, and the
+    // KR / KRBA / club awards only if some of their students are in them (admins see everything)
+    let ids = null, squads = null
+    if (!isAdmin && myClassIds) {
+      const today = new Date().toISOString().split('T')[0]
+      const { data: asg } = await supabase.from('student_class_assignments').select('*').in('class_id', myClassIds.length ? myClassIds : ['00000000-0000-0000-0000-000000000000'])
+      ids = [...new Set((asg || []).filter(a => (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today)).map(a => a.student_id))]
+      const { data: st } = ids.length ? await supabase.from('students').select('id, is_kr, discipline').in('id', ids) : { data: [] }
+      squads = new Set([(st || []).some(x => x.is_kr) && 'KR', (st || []).some(x => x.discipline === 'KRBA') && 'KRBA'].filter(Boolean))
+    }
+    setAllowed(ids)
+    const visible = (cs || []).filter(x => isAdmin || !myClassIds ? true
+      : x.grp_kind === 'class' ? myClassIds.includes(x.class_id)
+      : x.grp_kind === 'squad' ? squads.has(x.squad)
+      : (ids || []).length > 0)
+    setCats(visible)
+    const mineMap = Object.fromEntries((noms || []).map(n => [n.category_id, n]))
+    setMine(mineMap)
+    // 🔔 reminder once per login while some are still to do
+    const left = visible.filter(x => !mineMap[x.id]).length
+    let shown = false; try { shown = sessionStorage.getItem('kc_awards_reminder') === '1' } catch { /* */ }
+    if (left && !shown) { setReminder(true); try { sessionStorage.setItem('kc_awards_reminder', '1') } catch { /* */ } }
   }
   useEffect(() => { if (profile?.id) load() }, [profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -50,7 +71,7 @@ export default function AwardsNominate() {
         <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{open ? '▲' : '▼'}</span>
       </button>
       <div className={`kc-slide${open ? ' open' : ''}`}><div>
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0' }}>Pick one student for each award -- your classes, plus the KR / KRBA and club awards. You can change it until nominations close.</div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0' }}>Pick one student for each award -- only students from your classes are shown. You can change it until nominations close.</div>
         {groups.map(g => {
           const gDone = g.cats.filter(c => mine[c.id]).length
           return (
@@ -76,14 +97,28 @@ export default function AwardsNominate() {
           )
         })}
       </div></div>
-      {pick && createPortal(<Picker cat={pick.cat} current={mine[pick.cat.id]} year={cur.year} profile={profile}
+      {reminder && createPortal(
+        <div onClick={() => setReminder(false)} style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="card" onClick={e => e.stopPropagation()} style={{ maxWidth: 360, width: '100%', padding: 20, textAlign: 'center' }}>
+            <div style={{ fontSize: 30 }}>🏆</div>
+            <div style={{ fontSize: 17, fontWeight: 700, margin: '6px 0' }}>Awards {cur.year} nominations</div>
+            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              {cats.length - done} award{cats.length - done === 1 ? '' : 's'} still to nominate for{cur.close ? <> · nominations close <b>{fmt(cur.close)}</b></> : ''}. Pick one student from your classes for each.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setReminder(false)}>Later</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setReminder(false); setOpen(true) }}>Nominate now</button>
+            </div>
+          </div>
+        </div>, document.body)}
+      {pick && createPortal(<Picker cat={pick.cat} current={mine[pick.cat.id]} year={cur.year} profile={profile} allowed={allowed}
         onClose={() => setPick(null)} onSaved={n => { setMine(m => ({ ...m, [pick.cat.id]: n })); setPick(null) }}
         onRemoved={() => { setMine(m => { const x = { ...m }; delete x[pick.cat.id]; return x }); setPick(null) }} />, document.body)}
     </div>
   )
 }
 
-function Picker({ cat, current, year, profile, onClose, onSaved, onRemoved }) {
+function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemoved }) {
   const [people, setPeople] = useState(null)
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(current ? { student_id: current.student_id, member_id: current.member_id, name: current.nominee_name } : null)
@@ -107,7 +142,7 @@ function Picker({ cat, current, year, profile, onClose, onSaved, onRemoved }) {
         let qs = supabase.from('students').select('id, is_kr, discipline, house_points, photo_url, members(first_name, last_name, joined_date, status)')
         if (ids) qs = qs.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
         const { data: st } = await qs
-        let rows = (st || []).filter(s => (s.members?.status || 'active') === 'active')
+        let rows = (st || []).filter(s => (s.members?.status || 'active') === 'active' && (!allowed || allowed.includes(s.id)))   // coaches: their classes only
         if (cat.squad === 'KR') rows = rows.filter(s => s.is_kr)
         if (cat.squad === 'KRBA') rows = rows.filter(s => s.discipline === 'KRBA')
         // sessions this year
