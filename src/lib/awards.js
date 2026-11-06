@@ -24,5 +24,28 @@ export async function loadAwardsCurrent() {
 export async function saveAwardsCurrent(v) {
   return supabase.from('settings').upsert({ key: 'awards_current', value: v }, { onConflict: 'key' })
 }
-export const classLabel = c => `${String(c.day_of_week || '').slice(0, 3)} ${String(c.start_time || '').slice(0, 5)} ${c.name}`.trim()
+// "Mon/Fri 18:00 KR Centre" (pairs kept as they are in Classes), "Tue 18:30 Moorways"
+const dayShort = d => String(d || '').includes('/') ? String(d) : String(d || '').slice(0, 3)
+export const classLabel = c => `${dayShort(c.day_of_week)} ${String(c.start_time || '').slice(0, 5)} ${c.name}`.trim()
+
+// classes that run as a pair on two separate days (e.g. KR Centre Wednesday 19:00 + Sunday 12:00) become one
+// awards group "Wed/Sun 19:00/12:00 KR Centre"
+const PAIRS = [['Wednesday', 'Sunday']]
+export function awardGroupsFromClasses(classes) {
+  const used = new Set(), out = []
+  classes.forEach(c => {
+    if (used.has(c.id)) return
+    const pair = PAIRS.find(p => p[0] === c.day_of_week)
+    const mate = pair && classes.find(x => !used.has(x.id) && x.id !== c.id && x.name === c.name && x.day_of_week === pair[1])
+    if (mate) {
+      used.add(c.id); used.add(mate.id)
+      out.push({ label: `${dayShort(c.day_of_week)}/${dayShort(mate.day_of_week)} ${String(c.start_time || '').slice(0, 5)}/${String(mate.start_time || '').slice(0, 5)} ${c.name}`, ids: [c.id, mate.id] })
+    } else if (!classes.some(x => x.id !== c.id && x.name === c.name && PAIRS.some(p => p[1] === c.day_of_week && p[0] === x.day_of_week && !used.has(x.id)))) {
+      used.add(c.id); out.push({ label: classLabel(c), ids: [c.id] })
+    }
+  })
+  // anything not placed (a Sunday whose Wednesday came later in the list)
+  classes.filter(c => !used.has(c.id)).forEach(c => out.push({ label: classLabel(c), ids: [c.id] }))
+  return out
+}
 export const nominationsOpen = cur => !!cur?.open && (!cur.close || cur.close >= new Date().toISOString().split('T')[0])

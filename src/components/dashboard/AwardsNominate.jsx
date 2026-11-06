@@ -41,7 +41,7 @@ export default function AwardsNominate() {
     }
     setAllowed(ids)
     const visible = (cs || []).filter(x => isAdmin || !myClassIds ? true
-      : x.grp_kind === 'class' ? myClassIds.includes(x.class_id)
+      : x.grp_kind === 'class' ? (x.class_ids?.length ? x.class_ids : [x.class_id]).some(id => myClassIds.includes(id))
       : x.grp_kind === 'squad' ? squads.has(x.squad)
       : (ids || []).length > 0)
     setCats(visible)
@@ -143,7 +143,7 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
       } else {
         let ids = null
         if (cat.grp_kind === 'class' && cat.class_id) {
-          const { data: asg } = await supabase.from('student_class_assignments').select('*').eq('class_id', cat.class_id)
+          const { data: asg } = await supabase.from('student_class_assignments').select('*').in('class_id', cat.class_ids?.length ? cat.class_ids : [cat.class_id])
           ids = [...new Set((asg || []).filter(a => (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today)).map(a => a.student_id))]
         }
         let qs = supabase.from('students').select('id, is_kr, discipline, house_points, photo_url, members(first_name, last_name, joined_date, status)')

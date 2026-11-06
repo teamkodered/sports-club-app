@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase.js'
-import { CLASS_CATS, SQUAD_CATS, CLUB_CATS, VOTE_CATS, loadAwardsCurrent, saveAwardsCurrent, classLabel } from '../../lib/awards.js'
+import { CLASS_CATS, SQUAD_CATS, CLUB_CATS, VOTE_CATS, loadAwardsCurrent, saveAwardsCurrent, classLabel, awardGroupsFromClasses } from '../../lib/awards.js'
 
 // 🏆 Admin: set up the awards year, open / close nominations, see coaches' nominations and the
 // athletes' votes, pick the winners, houses from the points, export the register, past years.
@@ -67,7 +67,7 @@ export default function AwardsPanel() {
 
   async function startYear() {
     const rows = []; let sort = 0
-    classes.filter(c => setup.classIds.has(c.id)).forEach(c => CLASS_CATS.forEach(n => rows.push({ year: cur.year, grp: classLabel(c), grp_kind: 'class', class_id: c.id, name: n, sort: sort++ })))
+    awardGroupsFromClasses(classes.filter(c => setup.classIds.has(c.id))).forEach(g => CLASS_CATS.forEach(n => rows.push({ year: cur.year, grp: g.label, grp_kind: 'class', class_id: g.ids[0], class_ids: g.ids, name: n, sort: sort++ })))
     ;['KR', 'KRBA'].forEach(sq => SQUAD_CATS.forEach(n => rows.push({ year: cur.year, grp: sq, grp_kind: 'squad', squad: sq, name: n, vote: VOTE_CATS.includes(n), sort: sort++ })))
     CLUB_CATS.forEach(n => rows.push({ year: cur.year, grp: 'Club awards', grp_kind: 'club', name: n, sort: sort++ }))
     setBusy(true)
