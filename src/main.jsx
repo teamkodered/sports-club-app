@@ -1,4 +1,5 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react'
+import HrHub from './pages/HrHub.jsx'
 
 // Pages load when first opened (not all at start-up) -- the app used to download and start
 // every page (3.5 MB) before showing anything. If a new version was deployed while the app was
@@ -208,6 +209,7 @@ function App() {
             <Route path="boxing-tpt"      element={<ProtectedRoute><BoxingTPT /></ProtectedRoute>} />
             <Route path="kickboxing-tpt"  element={<ProtectedRoute><KickboxingTPT /></ProtectedRoute>} />
             <Route path="fit2fight"       element={<FitToFight />} />
+            <Route path="hr-hub"         element={<ProtectedRoute staffOnly><HrHub /></ProtectedRoute>} />
             <Route path="athletes"        element={<ProtectedRoute page="athletes"><AthleteProfiles /></ProtectedRoute>} />
             <Route path="cctv"            element={<ProtectedRoute page="cctv"><CctvViewer /></ProtectedRoute>} />
             <Route path="view-it"         element={<Navigate to="/media" replace />} />

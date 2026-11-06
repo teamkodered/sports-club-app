@@ -9327,7 +9327,10 @@ export default function AthleteProfiles() {
                 {wearView === 'trend' ? (
                   <TeamWorkrate students={students.filter(inDashTeam)} onOpen={st => { selectStudent(st); setTab('whoop') }} />
                 ) : wearView === 'live' ? (
+                  <>
+                  <a href="/hr-hub" className="btn btn-sm" style={{ marginBottom: 8 }}>❤️ Open the gym heart rate hub (connect athletes' straps on this device)</a>
                   <LiveHrTable title="❤️ Live heart rate -- recording now" />
+                  </>
                 ) : wearView !== 'athletes' ? (
                   <WearableCompare mode={wearView} students={students} classes={allClasses} providerLabel={providerLabel} onOpen={s => { selectStudent(s); setTab('whoop') }} />
                 ) : (

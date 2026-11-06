@@ -110,7 +110,12 @@ function WebHeartRate({ live, onSave }) {
         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Polar H10 · Whoop · any Bluetooth HR strap</span>
       </div>
       {!supported ? (
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>Live heart rate needs <b>Chrome on Android</b> (or a computer). iPhone browsers don't allow Bluetooth -- use the Polar / Whoop account sync instead.</p>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+          <p style={{ margin: '0 0 6px' }}><b>On iPhone:</b> Safari and Chrome can't use Bluetooth. Two ways to show live:</p>
+          <p style={{ margin: '0 0 6px' }}>1. Install the free <b>Bluefy</b> app from the App Store (“Bluefy – Web BLE Browser”), open this app's link in it, sign in, then <b>Connect strap</b> here.</p>
+          <button type="button" className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => { const u = window.location.origin + '/athlete-app'; navigator.clipboard?.writeText(u).then(() => alert('Link copied -- paste it into Bluefy.'), () => prompt('Copy this link into Bluefy:', u)) }}>📋 Copy the app link for Bluefy</button>
+          <p style={{ margin: 0 }}>2. Or just turn on your strap's <b>Heart Rate Broadcast</b> (Whoop) / wear your Polar -- your coach can connect it on the <b>gym hub</b>.</p>
+        </div>
       ) : !connected ? (
         <>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}><b>Polar H10:</b> put the strap on (wet the sensors), then connect.</p>
