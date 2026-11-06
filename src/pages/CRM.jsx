@@ -3253,6 +3253,13 @@ export default function CRM() {
     else (linksByPayerName[n] ||= []).push(l.student_id)
   }
   const studentByNormalizedName = Object.fromEntries(students.map(s => [normalizeName(studentFullName(s)), s.id]))
+  // each word of a multi-word surname, and how many students have it (for "A Rychnov" -> Alan Mohammed Rychnov)
+  const lastWordCounts = {}
+  for (const s of students) {
+    const lw = wordsOf(s.members?.last_name)
+    if (lw.length > 1) new Set(lw).forEach(w => { lastWordCounts[w] = (lastWordCounts[w] || 0) + 1 })
+  }
+  for (const s of students) { const ln = normalizeName(s.members?.last_name); if (ln && lastWordCounts[ln]) lastWordCounts[ln]++ }
   const firstNameCounts = {}
   const lastNameCounts = {}
   for (const s of students) {
@@ -3317,6 +3324,9 @@ export default function CRM() {
         for (const w of paymentWordSet) {
           if (w.length >= 3 && lastNameCounts[w] === 1) {
             surnameCandidates.push(...students.filter(s => normalizeName(s.members?.last_name) === w))
+          } else if (w.length >= 5 && lastWordCounts[w] === 1) {
+            // one word of a double-barrelled / two-word surname (e.g. "Rychnov" for "Mohammed Rychnov")
+            surnameCandidates.push(...students.filter(s => wordsOf(s.members?.last_name).includes(w)))
           }
         }
         const filteredSurname = dropExcluded(surnameCandidates)
