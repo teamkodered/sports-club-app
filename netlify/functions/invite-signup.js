@@ -29,6 +29,37 @@ exports.handler = async (event) => {
     if (isAthlete && !st?.member_id) return json(404, { error: 'The athlete record for this invite wasn\'t found. Ask your coach.' })
     const mem = isAthlete ? (await (await fetch(`${url}/rest/v1/members?id=eq.${st.member_id}&select=id,auth_id,email`, { headers: S })).json())?.[0] : null
 
+    // 'Already have a login? Sign in': check the email + password, then link that login to the athlete
+    if (body.mode === 'signin') {
+      const anon = process.env.VITE_SUPABASE_ANON_KEY
+      const t = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
+      const tj = await t.json().catch(() => ({}))
+      if (!t.ok) {
+        // a login that was never confirmed: the invite proves who they are -- confirm it and try again
+        if (/not confirmed/i.test(tj.error_description || tj.msg || '')) {
+          const list = await (await fetch(`${url}/auth/v1/admin/users?per_page=1000`, { headers: S })).json()
+          const u = (list.users || list || []).find(x => String(x.email || '').toLowerCase() === email)
+          if (u) await fetch(`${url}/auth/v1/admin/users/${u.id}`, { method: 'PUT', headers: S, body: JSON.stringify({ email_confirm: true }) })
+          const t2 = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
+          if (!t2.ok) return json(401, { error: 'Wrong email or password.' })
+          Object.assign(tj, await t2.json())
+        } else return json(401, { error: 'Wrong email or password. If you\'ve forgotten it, use "Reset password" on the athlete login page.' })
+      }
+      const uid = tj.user?.id
+      if (!uid) return json(401, { error: 'Could not sign in.' })
+      if (isAthlete) {
+        if (mem?.auth_id && mem.auth_id !== uid) {
+          // the record points at an older login with no use -- move it to this one
+          await fetch(`${url}/rest/v1/members?id=eq.${st.member_id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ auth_id: null }) })
+        }
+        // free this login from any other record it was wrongly attached to, then link it here
+        await fetch(`${url}/rest/v1/members?auth_id=eq.${uid}&id=neq.${st.member_id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ auth_id: null }) })
+        await fetch(`${url}/rest/v1/members?id=eq.${st.member_id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ auth_id: uid, ...(mem?.email ? {} : { email }) }) })
+        await fetch(`${url}/rest/v1/app_invites?id=eq.${inv.id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ used_at: new Date().toISOString(), used_by: uid }) })
+      }
+      return json(200, { ok: true, linked: isAthlete })
+    }
+
     // create the login confirmed, or confirm an existing never-confirmed one
     let authId = null
     const cu = await fetch(`${url}/auth/v1/admin/users`, { method: 'POST', headers: S, body: JSON.stringify({ email, password, email_confirm: true }) })

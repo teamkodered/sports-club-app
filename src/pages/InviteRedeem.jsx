@@ -38,6 +38,22 @@ export default function InviteRedeem() {
         if (!r.ok || out.error) { setBusy(false); return setMsg(out.error || 'Could not create the login.') }
       } catch (err) { setBusy(false); return setMsg('Could not create the login: ' + (err.message || err)) }
     }
+    if (mode === 'signin') {
+      // link on the server first (checks the password, confirms + links the login to this athlete)
+      try {
+        const r = await fetch('/.netlify/functions/invite-signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, email: email.trim(), password, mode: 'signin' }) })
+        const out = await r.json().catch(() => ({}))
+        if (!r.ok || out.error) { setBusy(false); return setMsg(out.error || 'Could not sign in.') }
+        if (out.linked) {
+          const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+          setBusy(false)
+          if (error) return setMsg(error.message)
+          try { localStorage.removeItem('kc_pending_invite') } catch {}
+          window.location.href = '/athlete-app'
+          return
+        }
+      } catch { /* fall back to the normal sign-in below */ }
+    }
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     setBusy(false)
     if (error) return setMsg(/not confirmed/i.test(error.message) ? 'Your email still needs confirming -- ask your coach to resend the invite.' : error.message)
