@@ -129,7 +129,14 @@ export default function AthleteLogin() {
                 <div className="field"><label>Password</label>
                   <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" required />
                 </div>
-                {error && <p style={{ fontSize: 12, color: '#e24b4a', marginBottom: 10 }}>{error}</p>}
+                {error && <p style={{ fontSize: 12, color: '#e24b4a', marginBottom: 10 }}>{/not confirmed/i.test(error) ? 'Your email address hasn\u2019t been confirmed yet -- check your inbox (and junk / spam) for the confirmation email from Klass Champ.' : error}</p>}
+                {error && /not confirmed/i.test(error) && (
+                  <button type="button" className="btn btn-sm" style={{ marginBottom: 10 }} onClick={async () => {
+                    const { error: e } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: `${window.location.origin}/athlete-login` } })
+                    setError(e ? e.message : '')
+                    if (!e) alert('Confirmation email sent again to ' + email.trim() + ' -- tap the link in it, then sign in. Check junk / spam too.')
+                  }}>✉️ Send the confirmation email again</button>
+                )}
                 <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
                   {loading ? 'Signing in…' : 'Sign in'}
                 </button>
