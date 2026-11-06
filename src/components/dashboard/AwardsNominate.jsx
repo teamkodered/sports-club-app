@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
@@ -19,6 +19,7 @@ export default function AwardsNominate() {
   const myClassIds = registerAccess?.classes || null
   const [allowed, setAllowed] = useState(null)    // coaches: ids of students in their classes (admins: null = everyone)
   const [reminder, setReminder] = useState(false)
+  const cardRef = useRef(null)
 
   async function load() {
     const c = await loadAwardsCurrent()
@@ -64,7 +65,7 @@ export default function AwardsNominate() {
   const done = cats.filter(c => mine[c.id]).length
 
   return (
-    <div className="card" style={{ marginBottom: 16, border: '1px solid #EF9F2766' }}>
+    <div ref={cardRef} className="card" style={{ marginBottom: 16, border: '1px solid #EF9F2766', scrollMarginTop: 70 }}>
       <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
         <b style={{ fontSize: 15, flex: 1 }}>🏆 Awards {cur.year} nominations</b>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#EF9F27' }}>{done} of {cats.length} done{cur.close ? ` · close ${fmt(cur.close)}` : ''}</span>
@@ -107,7 +108,13 @@ export default function AwardsNominate() {
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setReminder(false)}>Later</button>
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setReminder(false); setOpen(true) }}>Nominate now</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => {
+                setReminder(false); setOpen(true)
+                // open the awards list and scroll down to it (and open the first group still to do)
+                const first = groups.find(g => g.cats.some(c => !mine[c.id]))
+                if (first) setOpenGrp(o => ({ ...o, [first.grp]: true }))
+                setTimeout(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+              }}>Nominate now</button>
             </div>
           </div>
         </div>, document.body)}
