@@ -36,7 +36,9 @@ export function awardGroupsFromClasses(classes) {
   classes.forEach(c => {
     if (used.has(c.id)) return
     const pair = PAIRS.find(p => p[0] === c.day_of_week)
-    const mate = pair && classes.find(x => !used.has(x.id) && x.id !== c.id && x.name === c.name && x.day_of_week === pair[1])
+    // if there's more than one Sunday class with that name, pair with the later one (KR Centre: Wed 19:00 + Sun 12:00)
+    const mate = pair && classes.filter(x => !used.has(x.id) && x.id !== c.id && x.name === c.name && x.day_of_week === pair[1])
+      .sort((a, b) => String(b.start_time).localeCompare(String(a.start_time)))[0]
     if (mate) {
       used.add(c.id); used.add(mate.id)
       out.push({ label: `${dayShort(c.day_of_week)}/${dayShort(mate.day_of_week)} ${String(c.start_time || '').slice(0, 5)}/${String(mate.start_time || '').slice(0, 5)} ${c.name}`, ids: [c.id, mate.id] })
