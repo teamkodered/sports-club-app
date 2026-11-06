@@ -129,6 +129,13 @@ function SectionSpeedPicker({ value, onChange }) {
   )
 }
 
+// 📺 Cast to TV (Nov 2026): Chrome (Android + computer) sends the video to a Chromecast /
+// Google TV through the Remote Playback API; Safari (iPhone / iPad / Mac) uses AirPlay.
+// The TV fetches the video's own (signed) link, so the app's controls keep driving it.
+const CAN_AIRPLAY = typeof window !== 'undefined' && !!window.WebKitPlaybackTargetAvailabilityEvent
+const CAN_REMOTE = typeof HTMLMediaElement !== 'undefined' && 'remote' in HTMLMediaElement.prototype
+const CAN_CAST = CAN_AIRPLAY || CAN_REMOTE
+
 // shared between player instances -- see the history handover in the component
 const playerHandoff = { open: 0, timer: null }
 
@@ -153,6 +160,25 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [isFullscreen, setIsFullscreen] = useState(false)
   // 📐 Measure: jump / sprint / punch speed / punch count on this video. Results are shown
   // to read off (View iT footage isn't tied to one athlete's test results).
+  const [castState, setCastState] = useState('disconnected') // disconnected | connecting | connected
+  useEffect(() => {
+    const r = videoRef.current?.remote
+    if (!r) return
+    const on = () => setCastState(r.state)
+    r.addEventListener('connecting', on); r.addEventListener('connect', on); r.addEventListener('disconnect', on)
+    return () => { r.removeEventListener('connecting', on); r.removeEventListener('connect', on); r.removeEventListener('disconnect', on) }
+  }, [videoUrl])
+  function castToTv() {
+    const v = videoRef.current
+    if (!v) return
+    if (CAN_AIRPLAY && v.webkitShowPlaybackTargetPicker) { v.webkitShowPlaybackTargetPicker(); return }
+    v.remote?.prompt().catch(err => {
+      if (err?.name === 'AbortError') return // picker closed
+      alert(err?.name === 'NotFoundError'
+        ? 'No Chromecast or TV found. Check the TV is on and on the same Wi-Fi as this phone.'
+        : "This video can't be cast from this browser -- try Chrome, or use Chrome's ⋮ menu → Cast… to show the whole screen.")
+    })
+  }
   const [tagOpen, setTagOpen] = useState(false) // 🏷 tag athletes + event (coaches, View iT clips)
   const [measureMode, setMeasureMode] = useState(null) // null | 'jump' | 'sprint' | 'punch' | 'timer' | 'count' | 'reps'
   function openMeasure() {
@@ -1520,6 +1546,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           <video
             ref={videoRef}
             src={videoUrl}
+            x-webkit-airplay="allow"
             crossOrigin="anonymous"
             onLoadedMetadata={e => {
               if (startAt > 0 && startAt < (e.currentTarget.duration || Infinity)) e.currentTarget.currentTime = startAt
@@ -1626,9 +1653,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         {/* Title sits between the fullscreen button's corner and the
             right-hand cluster, so it can't run underneath either. */}
         <span className="ffp-title" style={{
-          position: 'absolute', top: 18, right: 190 + (onNext ? 44 : 0) + (onPrev ? 44 : 0), textAlign: 'center',
+          position: 'absolute', top: 18, right: 190 + (onNext ? 44 : 0) + (onPrev ? 44 : 0) + (CAN_CAST ? 44 : 0), textAlign: 'center',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{title}</span>
+        }}>{castState === 'connected' ? '📺 Playing on TV' : castState === 'connecting' ? '📺 Connecting to TV…' : title}</span>
         {/* 📷 and ⟳ live in one row with Close (to its left), pinned to the
             screen's top-right corner rather than the video, so they sit in
             the same place in portrait and landscape and never overlap it. */}
@@ -1644,6 +1671,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           <button className="view-it-btn" title={canSaveRotation ? 'Rotate 90° (saved for everyone)' : 'Rotate 90°'}
             style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
             onClick={e => { e.stopPropagation(); rotateView() }}>⟳</button>
+          {CAN_CAST && (
+            <button className="view-it-btn" title={castState === 'connected' ? 'Playing on TV -- tap to change' : 'Cast to TV (Chromecast / AirPlay)'}
+              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                ...(castState === 'connected' ? { borderColor: '#378ADD', boxShadow: '0 0 0 2px #378ADD' } : {}) }}
+              onClick={e => { e.stopPropagation(); castToTv() }}>📺</button>
+          )}
           {onPrev && (
             <button className="view-it-btn" title="Previous video"
               style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
