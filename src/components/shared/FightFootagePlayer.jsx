@@ -135,6 +135,15 @@ function SectionSpeedPicker({ value, onChange }) {
 const CAN_AIRPLAY = typeof window !== 'undefined' && !!window.WebKitPlaybackTargetAvailabilityEvent
 const CAN_REMOTE = typeof HTMLMediaElement !== 'undefined' && 'remote' in HTMLMediaElement.prototype
 const CAN_CAST = CAN_AIRPLAY || CAN_REMOTE
+// the standard Cast icon (screen + signal waves); the screen fills in while casting
+function CastIcon({ connected, size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ display: 'block' }}>
+      {connected && <path d="M19 7H5v1.63c3.96 1.28 7.09 4.41 8.37 8.37H19V7z" />}
+      <path d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z" />
+    </svg>
+  )
+}
 
 // shared between player instances -- see the history handover in the component
 const playerHandoff = { open: 0, timer: null }
@@ -1655,7 +1664,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         <span className="ffp-title" style={{
           position: 'absolute', top: 18, right: 190 + (onNext ? 44 : 0) + (onPrev ? 44 : 0) + (CAN_CAST ? 44 : 0), textAlign: 'center',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{castState === 'connected' ? '📺 Playing on TV' : castState === 'connecting' ? '📺 Connecting to TV…' : title}</span>
+        }}>{castState === 'connected' ? 'Playing on TV' : castState === 'connecting' ? 'Connecting to TV…' : title}</span>
         {/* 📷 and ⟳ live in one row with Close (to its left), pinned to the
             screen's top-right corner rather than the video, so they sit in
             the same place in portrait and landscape and never overlap it. */}
@@ -1673,9 +1682,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             onClick={e => { e.stopPropagation(); rotateView() }}>⟳</button>
           {CAN_CAST && (
             <button className="view-it-btn" title={castState === 'connected' ? 'Playing on TV -- tap to change' : 'Cast to TV (Chromecast / AirPlay)'}
-              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, color: '#fff',
                 ...(castState === 'connected' ? { borderColor: '#378ADD', boxShadow: '0 0 0 2px #378ADD' } : {}) }}
-              onClick={e => { e.stopPropagation(); castToTv() }}>📺</button>
+              onClick={e => { e.stopPropagation(); castToTv() }}><CastIcon connected={castState === 'connected'} /></button>
           )}
           {onPrev && (
             <button className="view-it-btn" title="Previous video"
