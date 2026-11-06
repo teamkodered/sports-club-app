@@ -29,11 +29,15 @@ export function AuthProvider({ children }) {
   const attemptedAutoLinkFor = useRef(null)
 
   async function fetchProfile(userId, accessToken) {
-    const { data, error } = await supabase
+    // one login can be on more than one record (e.g. an athlete + a staff record, or a stray copy):
+    // use the staff record first, then the one that's an athlete, never fail on 'multiple rows'
+    const { data: rows, error } = await supabase
       .from('members')
-      .select('*, houses(id, name, colour)')
+      .select('*, houses(id, name, colour), students(id)')
       .eq('auth_id', userId)
-      .maybeSingle()
+    const STAFF = ['admin', 'head_coach', 'captain', 'coach', 'leader']
+    const data = (rows || []).slice().sort((a, b) =>
+      (STAFF.includes(b.role) - STAFF.includes(a.role)) || ((b.students?.length ? 1 : 0) - (a.students?.length ? 1 : 0)) || (a.status === 'stopped') - (b.status === 'stopped'))[0] || null
     if (error) {
       console.error('Error fetching member profile:', error)
       setProfileError(error.message)
