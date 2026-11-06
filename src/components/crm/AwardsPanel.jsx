@@ -8,6 +8,9 @@ import { CLASS_CATS, SQUAD_CATS, CLUB_CATS, VOTE_CATS, loadAwardsCurrent, saveAw
 // a bulk insert sends the same columns for every row -- missing ones arrive as null, so fill them all in
 const fullRow = r => ({ class_id: null, squad: null, vote: false, winner_name: null, winner_student_id: null, winner_member_id: null, ...r })
 
+// classes in week order (Mon, Mon/Fri, Tue, Tue/Thu, Wed ... Sun), then time
+const DAY_ORDER = ['Monday', 'Mon/Fri', 'Tuesday', 'Tue/Thu', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const sortClasses = cl => [...cl].sort((a, b) => ((DAY_ORDER.indexOf(a.day_of_week) + 1 || 99) - (DAY_ORDER.indexOf(b.day_of_week) + 1 || 99)) || String(a.start_time).localeCompare(String(b.start_time)))
 const HOUSE_COL = { jet: '#2FB36B', dragon: '#E24B4A', ice: '#3B82F6', super: '#F28C28' }
 
 export default function AwardsPanel() {
@@ -67,7 +70,7 @@ export default function AwardsPanel() {
 
   async function startYear() {
     const rows = []; let sort = 0
-    awardGroupsFromClasses(classes.filter(c => setup.classIds.has(c.id))).forEach(g => CLASS_CATS.forEach(n => rows.push({ year: cur.year, grp: g.label, grp_kind: 'class', class_id: g.ids[0], class_ids: g.ids, name: n, sort: sort++ })))
+    awardGroupsFromClasses(sortClasses(classes.filter(c => setup.classIds.has(c.id)))).forEach(g => CLASS_CATS.forEach(n => rows.push({ year: cur.year, grp: g.label, grp_kind: 'class', class_id: g.ids[0], class_ids: g.ids, name: n, sort: sort++ })))
     ;['KR', 'KRBA'].forEach(sq => SQUAD_CATS.forEach(n => rows.push({ year: cur.year, grp: sq, grp_kind: 'squad', squad: sq, name: n, vote: VOTE_CATS.includes(n), sort: sort++ })))
     CLUB_CATS.forEach(n => rows.push({ year: cur.year, grp: 'Club awards', grp_kind: 'club', name: n, sort: sort++ }))
     setBusy(true)
@@ -180,17 +183,18 @@ export default function AwardsPanel() {
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set(classes.map(c => c.id)) })}>Tick all</button>
                 <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set() })}>Untick all</button>
-                <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--text-secondary)' }}>{setup.classIds.size} of {classes.length} classes</span>
+                <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--text-secondary)' }}>{awardGroupsFromClasses(sortClasses(classes)).filter(g => g.ids.every(id => setup.classIds.has(id))).length} of {awardGroupsFromClasses(sortClasses(classes)).length} classes</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 6, maxHeight: 420, overflowY: 'auto', marginBottom: 10 }}>
-                {classes.map(c => {
-                  const on = setup.classIds.has(c.id)
+                {/* shown the way the awards will be grouped: pairs as in Classes (Mon/Fri, Tue/Thu) and Wed + Sun together */}
+                {awardGroupsFromClasses(sortClasses(classes)).map(g => {
+                  const on = g.ids.every(id => setup.classIds.has(id))
                   return (
-                    <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 16, padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                    <label key={g.ids.join('-')} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 16, padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
                       border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7518' : 'transparent' }}>
                       <input type="checkbox" checked={on} style={{ width: 24, height: 24, flex: '0 0 24px', margin: 0 }}
-                        onChange={() => setSetup(s => { const n = new Set(s.classIds); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return { classIds: n } })} />
-                      <span><b>{String(c.day_of_week || '').slice(0, 3)} {String(c.start_time || '').slice(0, 5)}</b> {c.name}</span>
+                        onChange={() => setSetup(s => { const n = new Set(s.classIds); g.ids.forEach(id => on ? n.delete(id) : n.add(id)); return { classIds: n } })} />
+                      <span><b>{g.label.split(' ').slice(0, 2).join(' ')}</b> {g.label.split(' ').slice(2).join(' ')}</span>
                     </label>
                   )
                 })}
