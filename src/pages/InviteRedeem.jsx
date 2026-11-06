@@ -30,13 +30,17 @@ export default function InviteRedeem() {
   }
   async function submit(e) {
     e.preventDefault(); setBusy(true); setMsg('')
-    const fn = mode === 'signup'
-      ? supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.href } })
-      : supabase.auth.signInWithPassword({ email: email.trim(), password })
-    const { data, error } = await fn
+    if (mode === 'signup') {
+      // create the login already confirmed (no 'check your email' step), then sign in -- the invite links straight away
+      try {
+        const r = await fetch('/.netlify/functions/invite-signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, email: email.trim(), password }) })
+        const out = await r.json().catch(() => ({}))
+        if (!r.ok || out.error) { setBusy(false); return setMsg(out.error || 'Could not create the login.') }
+      } catch (err) { setBusy(false); return setMsg('Could not create the login: ' + (err.message || err)) }
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     setBusy(false)
-    if (error) return setMsg(error.message)
-    if (mode === 'signup' && !data.session) setMsg('Nearly there — check your email to confirm, then open this invite link again.')
+    if (error) return setMsg(/not confirmed/i.test(error.message) ? 'Your email still needs confirming -- ask your coach to resend the invite.' : error.message)
   }
 
   return (
