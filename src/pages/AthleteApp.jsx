@@ -1475,9 +1475,13 @@ export default function AthleteApp() {
     const sid = student?.id
     if (!sid) { setMonthHousePoints(null); return }
     const d = new Date(); const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
-    supabase.from('points_log').select('points_awarded').eq('student_id', sid)
-      .in('point_scope', ['both', 'house']).gte('awarded_at', monthStart)
-      .then(({ data, error }) => { if (!error) setMonthHousePoints((data || []).reduce((n, r) => n + (r.points_awarded || 0), 0)) })
+    // worked out in the database (doesn't depend on reading the points history); falls back to reading it
+    supabase.rpc('kc_my_month_points', { p_student: sid }).then(({ data, error }) => {
+      if (!error && data != null) { setMonthHousePoints(Number(data) || 0); return }
+      supabase.from('points_log').select('points_awarded').eq('student_id', sid)
+        .in('point_scope', ['both', 'house']).gte('awarded_at', monthStart)
+        .then(({ data: rows, error: e2 }) => { if (!e2 && rows?.length) setMonthHousePoints(rows.reduce((n, r) => n + (r.points_awarded || 0), 0)) })
+    }, () => {})
   }, [student?.id])
   const [recentPointsExpanded, setRecentPointsExpanded] = useState(false)
   const [myNotesLog, setMyNotesLog] = useState([])
