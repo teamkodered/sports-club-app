@@ -1,4 +1,4 @@
-import React, { useEffect, lazy, Suspense } from 'react'
+import React, { useEffect, useState, lazy, Suspense } from 'react'
 
 // Pages load when first opened (not all at start-up) -- the app used to download and start
 // every page (3.5 MB) before showing anything. If a new version was deployed while the app was
@@ -92,6 +92,33 @@ function ViewOnlyScope({ page, viewOnly, children }) {
   )
 }
 
+
+// Signed in but not linked yet (e.g. the invite was opened, then the email had to be confirmed first):
+// finish the invite automatically from this device, or paste the invite link here.
+function InviteLinker() {
+  const [link, setLink] = useState('')
+  const [msg, setMsg] = useState('')
+  const redeem = async token => {
+    if (!token) return
+    setMsg('Linking your account…')
+    const { data, error } = await supabase.rpc('kc_redeem_invite', { p_token: token })
+    if (error || data?.error) { setMsg(error?.message || data.error); return }
+    try { localStorage.removeItem('kc_pending_invite') } catch { /* */ }
+    window.location.href = data?.kind === 'parent' ? '/parent' : '/athlete-app'
+  }
+  useEffect(() => { let t = null; try { t = localStorage.getItem('kc_pending_invite') } catch { /* */ } if (t) redeem(t) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div style={{ maxWidth: 420, margin: '0 auto 16px', textAlign: 'left' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>Got an invite link from your coach? Paste it here to link your account:</p>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input value={link} onChange={e => setLink(e.target.value)} placeholder="https://klasschamp.netlify.app/invite/…" style={{ flex: 1, minWidth: 0 }} />
+        <button className="btn" onClick={() => redeem((link.match(/invite\/([a-z0-9]+)/i) || [])[1] || link.trim())}>Link</button>
+      </div>
+      {msg && <p style={{ fontSize: 13, marginTop: 8, color: /Linking/.test(msg) ? 'var(--text-secondary)' : '#E24B4A' }}>{msg}</p>}
+    </div>
+  )
+}
+
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false, excludeLeader = false, page = null }) {
   const { session, profile, profileError, isAdmin, isStaff, isLeader, loading, pageAccess } = useAuth()
   const location = useLocation()
@@ -109,6 +136,7 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false, exclud
           {profileError === 'no_member_record' ? ' This can happen if your account was created before your membership record, or the two haven\'t been linked up.' : ` (${profileError || 'unknown error'})`}
           {' '}Please contact your coach or club admin so they can link your account.
         </p>
+        <InviteLinker />
         <button className="btn btn-primary" onClick={() => { supabase.auth.signOut(); window.location.href = ATHLETE_ONLY_PATHS.includes(location.pathname) ? '/athlete-login' : '/login' }}>Sign out</button>
       </div>
     </div>
