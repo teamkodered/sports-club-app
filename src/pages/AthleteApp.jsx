@@ -847,10 +847,10 @@ function isDateOnHoliday(dateStr, holidays, classIdsForThatWeekday, studentId) {
   // at all" club-wide check, or it would incorrectly apply to everyone.
   const clubWide = holidays.some(h => !h.class_id && !h.student_id && h.start_date <= dateStr && h.end_date >= dateStr)
   if (clubWide) return true
-  if (studentId && holidays.some(h => h.student_id === studentId && h.start_date <= dateStr && h.end_date >= dateStr)) return true
+  if (studentId && holidays.some(h => h.student_id === studentId && !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)) return true
   if (!classIdsForThatWeekday || classIdsForThatWeekday.length === 0) return false
   return classIdsForThatWeekday.every(cid =>
-    holidays.some(h => h.class_id === cid && h.start_date <= dateStr && h.end_date >= dateStr)
+    holidays.some(h => h.class_id === cid && (!h.student_id || h.student_id === studentId) && h.start_date <= dateStr && h.end_date >= dateStr)
   )
 }
 

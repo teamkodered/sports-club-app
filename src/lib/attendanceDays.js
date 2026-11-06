@@ -11,9 +11,11 @@ export const DAY_TO_JS_DAYS = {
 // cover it.
 export function isDateOnHoliday(dateStr, holidays, classIds, studentId) {
   if (holidays.some(h => !h.class_id && !h.student_id && h.start_date <= dateStr && h.end_date >= dateStr)) return true
-  if (studentId && holidays.some(h => h.student_id === studentId && h.start_date <= dateStr && h.end_date >= dateStr)) return true
+  // the student's own holiday for all their sessions
+  if (studentId && holidays.some(h => h.student_id === studentId && !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)) return true
   if (!classIds || classIds.length === 0) return false
-  return classIds.every(cid => holidays.some(h => h.class_id === cid && h.start_date <= dateStr && h.end_date >= dateStr))
+  // every class due that day is off -- a class-wide holiday, or the student's own holiday for that class
+  return classIds.every(cid => holidays.some(h => h.class_id === cid && (!h.student_id || h.student_id === studentId) && h.start_date <= dateStr && h.end_date >= dateStr))
 }
 
 const pad = n => String(n).padStart(2, '0')

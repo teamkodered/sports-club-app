@@ -4,6 +4,7 @@ import { useBackableTab } from '../../hooks/useBackableTab.js'
 import { uploadMemberDoc, openMemberDoc } from '../../lib/memberDocs.js'
 import AppInviteButton from '../parent/AppInviteButton.jsx'
 import CreateLogin from '../shared/CreateLogin.jsx'
+import StudentHolidays from './StudentHolidays.jsx'
 import MembershipFormView from '../shared/MembershipFormView.jsx'
 import { printMembershipForm } from '../../lib/printForm.jsx'
 import { useAuth } from '../../hooks/useAuth.jsx'
@@ -564,6 +565,9 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                       </div>
                     )}
                   </div>
+                  {/* 🏖️ the student's own holidays -- all sessions or just some */}
+                  <StudentHolidays studentId={localStudent.id} canEdit={isAdmin}
+                    classes={assignedClasses.filter(a => !isPastAssignment(a) && a.classes).map(a => ({ id: a.class_id, ...a.classes }))} />
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
                       <button className="btn btn-sm" onClick={() => { setEditForm({ pka_belt: localStudent.pka_belt, krba_level: localStudent.krba_level, age_category: localStudent.age_category, competition_team: localStudent.competition_team, weight_kg: localStudent.weight_kg, weight_category: localStudent.weight_category, media_restriction: localStudent.media_restriction, media_notes: localStudent.media_notes, medical_conditions: localStudent.medical_conditions, medication: localStudent.medication, house_id: localStudent.members?.house_id || '', is_kr: localStudent.is_kr || false, is_pts: localStudent.is_pts || false, is_leader: localStudent.is_leader || false, is_coach: localStudent.is_coach || false, ...('app_access' in localStudent ? { app_access: !!localStudent.app_access } : {}), class_schedule: localStudent.class_schedule || '', class_time: localStudent.class_time || '', class_time_2: localStudent.class_time_2 || '', house_name: localStudent.house_name || '' }); setEditing(true) }}>Edit record</button>
