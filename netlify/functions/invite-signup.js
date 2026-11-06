@@ -24,10 +24,10 @@ exports.handler = async (event) => {
     const inv = (await (await fetch(`${url}/rest/v1/app_invites?token=eq.${encodeURIComponent(token)}&select=*`, { headers: S })).json())?.[0]
     if (!inv) return json(404, { error: 'This invite link isn\'t valid. Ask your coach for a new one.' })
     if (inv.expires_at && new Date(inv.expires_at) < new Date()) return json(410, { error: 'This invite has expired. Ask your coach for a new one.' })
-    if (inv.kind !== 'athlete') return json(400, { error: 'parent', parent: true })   // parent invites keep the normal flow
+    const isAthlete = inv.kind === 'athlete'   // parent invites: just the confirmed login -- the app links them after sign-in
     const st = (await (await fetch(`${url}/rest/v1/students?id=eq.${inv.student_id}&select=member_id`, { headers: S })).json())?.[0]
-    if (!st?.member_id) return json(404, { error: 'The athlete record for this invite wasn\'t found. Ask your coach.' })
-    const mem = (await (await fetch(`${url}/rest/v1/members?id=eq.${st.member_id}&select=id,auth_id,email`, { headers: S })).json())?.[0]
+    if (isAthlete && !st?.member_id) return json(404, { error: 'The athlete record for this invite wasn\'t found. Ask your coach.' })
+    const mem = isAthlete ? (await (await fetch(`${url}/rest/v1/members?id=eq.${st.member_id}&select=id,auth_id,email`, { headers: S })).json())?.[0] : null
 
     // create the login confirmed, or confirm an existing never-confirmed one
     let authId = null
@@ -39,12 +39,13 @@ exports.handler = async (event) => {
       const list = await (await fetch(`${url}/auth/v1/admin/users?per_page=1000`, { headers: S })).json()
       const u = (list.users || list || []).find(x => String(x.email || '').toLowerCase() === email)
       if (!u) return json(400, { error: 'That email already has a login -- use "Already have a login? Sign in".' })
-      if (u.email_confirmed_at && mem?.auth_id !== u.id) return json(409, { error: 'signin', signin: true })   // their own confirmed login: sign in instead
+      if (u.email_confirmed_at && mem?.auth_id !== u.id) return json(409, { error: 'That email already has a login -- tap "Already have a login? Sign in" and use its password; the invite links automatically.' })
       const r = await fetch(`${url}/auth/v1/admin/users/${u.id}`, { method: 'PUT', headers: S, body: JSON.stringify({ password, email_confirm: true }) })
       if (!r.ok) return json(400, { error: 'Could not set up the login: ' + await r.text() })
       authId = u.id
     }
-    if (mem?.auth_id && mem.auth_id !== authId) return json(409, { error: 'This athlete already has a login. Ask your coach for help.' })
+    if (isAthlete && mem?.auth_id && mem.auth_id !== authId) return json(409, { error: 'This athlete already has a login. Ask your coach for help.' })
+    if (!isAthlete) return json(200, { ok: true })
 
     // link + mark the invite used
     await fetch(`${url}/rest/v1/members?id=eq.${st.member_id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ auth_id: authId, ...(mem?.email ? {} : { email }) }) })
