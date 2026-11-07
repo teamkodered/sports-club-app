@@ -58,6 +58,8 @@ export default function GradingExpression() {
     session_class_id: '',
     contact_phone: '',
     student_notes: '',
+    bbbc_count: '',
+    bbbc_dates: '',
   })
 
   function set(field) {
@@ -150,6 +152,8 @@ export default function GradingExpression() {
           contact_phone: form.contact_phone,
           session_class_id: form.session_class_id || null,
           student_notes: form.student_notes,
+          // Brown / Black belt gradings: Brown Black Belt Courses done (2 needed)
+          ...(/brown|black/i.test(form.grading_for) ? { bbbc_count: form.bbbc_count === '' ? null : Number(form.bbbc_count), bbbc_dates: form.bbbc_dates || null } : {}),
           uniform_confirmed: true, // submitting the form is now the confirmation itself, not a separate checkbox
         }),
         coach_approved: false,
@@ -240,6 +244,22 @@ export default function GradingExpression() {
               </p>
             )}
 
+            {/brown|black/i.test(form.grading_for) && (
+              <div style={{ border: '1px solid #EF9F27', borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🥋 Brown / Black Belt Course (BBBC)</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>A minimum of <b>2 BBBC courses</b> is needed before grading for Brown or Black belt.</div>
+                <div className="field"><label>How many BBBC courses have you completed? <span className="required">*</span></label>
+                  <select value={form.bbbc_count} onChange={set('bbbc_count')} required>
+                    <option value="">Select…</option>
+                    {[0, 1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n === 6 ? '6 or more' : n}</option>)}
+                  </select>
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}><label>Dates of the courses (if known)</label>
+                  <input value={form.bbbc_dates} onChange={set('bbbc_dates')} placeholder="e.g. March 2026, July 2026" />
+                </div>
+              </div>
+            )}
+
             <div className="field">
               <label>Session attended</label>
               <select value={form.session_class_id} onChange={set('session_class_id')}>
@@ -269,7 +289,7 @@ export default function GradingExpression() {
             </p>
 
             <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
-              disabled={!form.name.trim() || !form.age || !form.grading_for || submitting}>
+              disabled={!form.name.trim() || !form.age || !form.grading_for || (/brown|black/i.test(form.grading_for) && form.bbbc_count === '') || submitting}>
               {submitting ? 'Submitting…' : 'Submit expression of interest'}
             </button>
           </div>

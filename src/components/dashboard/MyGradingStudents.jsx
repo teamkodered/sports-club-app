@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { beltStyle } from '../../lib/beltColours.js'
+import BbbcLine from '../shared/BbbcLine.jsx'
 
 // 🎽 Coaches: grading requests from the students in THEIR classes (shared automatically when submitted).
 // ✓ OK or ✗ Not ready (with a reason) -- the admin sees it in their list; their own approval + the
@@ -192,6 +193,7 @@ export default function MyGradingStudents() {
                     <span key={c.id || i}>{i > 0 ? ' | ' : ''}<span style={c.mine ? { color: 'var(--text)', fontWeight: 700 } : undefined}>{String(c.day_of_week || '').includes('/') ? c.day_of_week : String(c.day_of_week || '').slice(0, 3)} {String(c.start_time || '').slice(0, 5)} {c.name}</span></span>
                   ))}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: r.sessions >= 12 ? '#1D9E75' : r.sessions >= 6 ? '#EF9F27' : '#E24B4A' }}>🥋 {r.sessions} session{r.sessions === 1 ? '' : 's'} in the last 3 months</div>
+                  <BbbcLine r={r} />
                   {r.coach_not_ready && <div style={{ fontSize: 12, color: '#E24B4A', marginTop: 2 }}>✗ Not ready: {r.coach_note}</div>}
                 </div>
                 {r.students?.photo_url && <img src={r.students.photo_url} alt="" loading="lazy" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', border: '1px solid var(--border)', order: 9 }} />}

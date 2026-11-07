@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
+import BbbcLine from '../components/shared/BbbcLine.jsx'
 import { beltStyle } from '../lib/beltColours.js'
 import { saveSetting, saveErrorText } from '../lib/saveSetting.js'
 import PhoneText from '../components/shared/PhoneText.jsx'
@@ -5173,6 +5174,15 @@ export default function CRM() {
                               : '🧑‍🏫 With coach — waiting for their OK'}
                           </p>
                         )}
+                        <BbbcLine r={r} />
+                        <button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 7px', margin: '2px 0' }}
+                          onClick={async () => {
+                            const t = prompt('Note on this grading request (shown to you and the coach, e.g. "Needs a BBBC course first"):', r.admin_note || '')
+                            if (t == null) return
+                            const { error } = await supabase.from('grading_expressions').update({ admin_note: t.trim() || null }).eq('id', r.id)
+                            if (error) return alert('Could not save: ' + error.message + (/admin_note/.test(error.message) ? ' (run supabase_grading_bbbc.sql)' : ''))
+                            setGradingRequests(prev => prev.map(x => x.id === r.id ? { ...x, admin_note: t.trim() || null } : x))
+                          }}>📌 {r.admin_note ? 'Edit note' : 'Add note'}</button>
                         {r.trainClasses?.length > 0 && (
                           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0' }}>
                             🏫 {r.trainClasses.map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} · Class: ${c.name}${c.age_category ? ` (${c.age_category})` : ''}${c.instructor ? ` · Coach: ${c.instructor}` : ''}`).join('  |  ')}
