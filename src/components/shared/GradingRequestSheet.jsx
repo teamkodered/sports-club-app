@@ -13,6 +13,23 @@ export default function GradingRequestSheet({ r, name, isAdmin, byName, onClose,
   const [adminNote, setAdminNote] = useState(r.admin_note || '')
   const [approved, setApproved] = useState(!!r.coach_approved)
   const [busy, setBusy] = useState(false)
+  // 🥋 move between the Black belt grading list and the next normal grading
+  async function moveList(toBlack) {
+    setBusy(true)
+    let patch
+    if (toBlack) {
+      const { data } = await supabase.from('settings').select('value').eq('key', 'grading_black_date').maybeSingle()
+      const d = typeof data?.value === 'string' && data.value ? data.value : null
+      patch = { grading_list: 'Black belt grading', grading_date: d }
+    } else {
+      const { data } = await supabase.from('settings').select('value').eq('key', 'grading_next_date').maybeSingle()
+      patch = { grading_list: null, grading_date: typeof data?.value === 'string' && data.value ? data.value : null }
+    }
+    const { error } = await supabase.from('grading_expressions').update(patch).eq('id', r.id)
+    setBusy(false)
+    if (error) return alert('Could not move: ' + error.message + (/grading_list/.test(error.message) ? ' (run supabase_grading_black_list.sql)' : ''))
+    onSaved?.({ ...r, ...patch }); onClose()
+  }
 
   async function save() {
     const patch = { coach_note: coachNote.trim() || null }
@@ -67,7 +84,12 @@ export default function GradingRequestSheet({ r, name, isAdmin, byName, onClose,
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Approving here doesn't send a message -- use Approve &amp; message in the list for that.</div>
           </>
         )}
-        <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 14, padding: 12 }} disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
+        <div style={{ marginTop: 14 }}>
+          {r.grading_list === 'Black belt grading'
+            ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => moveList(false)}>↩ Move back to the next grading</button>
+            : <button type="button" className="btn btn-sm" disabled={busy} onClick={() => moveList(true)}>🥋 Move to Black belt list</button>}
+        </div>
+        <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 10, padding: 12 }} disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
       </div>
     </div>, document.body)
 }
