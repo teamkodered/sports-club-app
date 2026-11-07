@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
+import GradingRequestSheet from '../components/shared/GradingRequestSheet.jsx'
 import BbbcLine from '../components/shared/BbbcLine.jsx'
 import { beltStyle } from '../lib/beltColours.js'
 import { saveSetting, saveErrorText } from '../lib/saveSetting.js'
@@ -865,9 +866,12 @@ export default function CRM() {
   const [editGradingDate, setEditGradingDate] = useState(null)
   const [gradingQ, setGradingQ] = useState('')               // type to search (name) -- both views
   const [gradingOkF, setGradingOkF] = useState('all')        // 'all' | 'waiting' (not OK'd) | 'ok' (coach OK'd)
+  const [gradingApprF, setGradingApprF] = useState('all')    // 'all' | 'approved' | 'not' (admin approval)
+  const [gradingSheet, setGradingSheet] = useState(null)     // request opened by tapping it
   const gradingNameOf = r => (r.students?.members ? `${r.students.members.first_name} ${r.students.members.last_name}` : (r.student_name || r.name || '')).toLowerCase()
   const gradingPass = r => (!gradingQ.trim() || gradingNameOf(r).includes(gradingQ.trim().toLowerCase()))
     && (gradingOkF === 'all' || (gradingOkF === 'ok' ? !!r.coach_ok : !r.coach_ok))
+    && (gradingApprF === 'all' || (gradingApprF === 'approved' ? !!r.coach_approved : !r.coach_approved))
   const [openGradingGroups, setOpenGradingGroups] = useState({})   // requests grouped by grading date, closed until pressed
   function gradingDateGroups() {
     const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB')
@@ -5119,6 +5123,9 @@ export default function CRM() {
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
             <input value={gradingQ} onChange={e => setGradingQ(e.target.value)} placeholder="🔍 Type a name to search…" style={{ flex: '1 1 200px', maxWidth: 320 }} />
+            {[['approved', '✓ Approved'], ['not', 'Not approved']].map(([k, l]) => (
+              <button key={k} type="button" className={`btn btn-sm${gradingApprF === k ? ' btn-primary' : ''}`} onClick={() => setGradingApprF(f => f === k ? 'all' : k)}>{l} ({gradingRequests.filter(r => k === 'approved' ? r.coach_approved : !r.coach_approved).length})</button>
+            ))}
             {[['all', 'All'], ['waiting', 'Not OK\'d by coach'], ['ok', 'Coach OK\'d']].map(([k, l]) => (
               <button key={k} type="button" className={`btn btn-sm${gradingOkF === k ? ' btn-primary' : ''}`} onClick={() => setGradingOkF(f => f === k && k !== 'all' ? 'all' : k)}>{l}{k !== 'all' ? ` (${gradingRequests.filter(r => k === 'ok' ? r.coach_ok : !r.coach_ok).length})` : ''}</button>
             ))}
@@ -5153,6 +5160,10 @@ export default function CRM() {
                 <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setGradingSel(gradingRequests.filter(r => !r.coach_approved && gradingPass(r)).map(r => r.id))}>
                   Tick all waiting{gradingOkF !== 'all' || gradingQ.trim() ? ' (shown)' : ''}</button>
               </div>
+              {gradingSheet && <GradingRequestSheet r={gradingSheet} isAdmin={isAdmin}
+                name={gradingSheet.students?.members ? `${gradingSheet.students.members.first_name} ${gradingSheet.students.members.last_name}` : (gradingTypedName(gradingSheet) || 'Student')}
+                byName={[profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Admin'}
+                onClose={() => setGradingSheet(null)} onSaved={u => setGradingRequests(prev => prev.map(x => x.id === u.id ? { ...x, ...u } : x))} />}
               {gradingDateGroups().map(g => (
                 <div key={g.key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
                   <button type="button" onClick={() => setOpenGradingGroups(o => ({ ...o, [g.key]: !o[g.key] }))}
@@ -5178,7 +5189,9 @@ export default function CRM() {
                 const gradingForIdx = order.indexOf(r.grading_for)
                 const isDoubleGrade = r.discipline === 'PKA' && currentIdx >= 0 && gradingForIdx >= 0 && (gradingForIdx - currentIdx) > 1
                 return (
-                  <div key={r.id} className="card" style={{ padding: 14, background: isDoubleGrade ? '#EF9F2718' : r.coach_approved ? '#1D9E7512' : undefined, border: isDoubleGrade ? '1px solid #EF9F27' : undefined }}>
+                  <div key={r.id} className="card" title="Tap to change the status / add a note"
+                    onClick={e => { if (e.target.closest('button, input, select, textarea, a, label')) return; setGradingSheet(r) }}
+                    style={{ padding: 14, cursor: 'pointer', background: isDoubleGrade ? '#EF9F2718' : r.coach_approved ? '#1D9E7512' : undefined, border: isDoubleGrade ? '1px solid #EF9F27' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 700 }}>{m ? `${m.first_name} ${m.last_name}` : (gradingTypedName(r) || 'Unknown student')}

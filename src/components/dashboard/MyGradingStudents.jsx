@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { beltStyle } from '../../lib/beltColours.js'
 import BbbcLine from '../shared/BbbcLine.jsx'
+import GradingRequestSheet from '../shared/GradingRequestSheet.jsx'
 
 // 🎽 Coaches: grading requests from the students in THEIR classes (shared automatically when submitted).
 // ✓ OK or ✗ Not ready (with a reason) -- the admin sees it in their list; their own approval + the
@@ -18,7 +19,7 @@ export default function MyGradingStudents() {
   const [pickMine, setPickMine] = useState(false)
   const [mineSaved, setMineSaved] = useState(null)          // admin's chosen class ids (members.access.my_classes)
   const [reload, setReload] = useState(0)
-  const [q, setQ] = useState(''), [okF, setOkF] = useState('all')   // search + All / Not OK'd / OK'd
+  const [q, setQ] = useState(''), [okF, setOkF] = useState('all'), [apprF, setApprF] = useState('all'), [sheet, setSheet] = useState(null)   // search + All / Not OK'd / OK'd
   const [rows, setRows] = useState(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(null)
@@ -162,6 +163,9 @@ export default function MyGradingStudents() {
             </div>
           </div>
         </div>, document.body)}
+      {sheet && <GradingRequestSheet r={sheet} isAdmin={false} byName={by()}
+        name={sheet.students?.members ? `${sheet.students.members.first_name} ${sheet.students.members.last_name}` : (sheet.student_name || 'Student')}
+        onClose={() => setSheet(null)} onSaved={u => setRows(prev => prev.map(x => x.id === u.id ? { ...x, ...u } : x))} />}
       <div ref={cardRef} className="card" style={{ marginBottom: 16, border: '1px solid #8B5CF666' }}>
         <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
           <b style={{ fontSize: 15, flex: 1 }}>🎽 Gradings to confirm</b>
@@ -175,6 +179,9 @@ export default function MyGradingStudents() {
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 4px' }}>Students from your classes taking the grading. ✓ OK if they're ready, ✗ Not ready with a reason if not -- the admin sees it before approving.</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '4px 0 6px' }}>
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Type a name…" style={{ flex: '1 1 150px', fontSize: 13 }} />
+            {[['approved', '✓ Approved'], ['not', 'Not approved']].map(([k, l]) => (
+              <button key={k} type="button" className={`btn btn-sm${apprF === k ? ' btn-primary' : ''}`} onClick={() => setApprF(f => f === k ? 'all' : k)}>{l} ({rows.filter(r => k === 'approved' ? r.coach_approved : !r.coach_approved).length})</button>
+            ))}
             {[['all', 'All'], ['waiting', 'Not OK\'d'], ['ok', 'OK\'d']].map(([k, l]) => (
               <button key={k} type="button" className={`btn btn-sm${okF === k ? ' btn-primary' : ''}`} onClick={() => setOkF(f => f === k && k !== 'all' ? 'all' : k)}>{l}{k !== 'all' ? ` (${rows.filter(r => k === 'ok' ? r.coach_ok : !r.coach_ok).length})` : ''}</button>
             ))}
@@ -182,10 +189,12 @@ export default function MyGradingStudents() {
           {rows.filter(r => {
             const nm = `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''} ${r.student_name || ''}`.toLowerCase()
             return (!q.trim() || nm.includes(q.trim().toLowerCase())) && (okF === 'all' || (okF === 'ok' ? r.coach_ok : !r.coach_ok))
+              && (apprF === 'all' || (apprF === 'approved' ? r.coach_approved : !r.coach_approved))
           }).map(r => {
             const m = r.students?.members
             return (
-              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+              <div key={r.id} onClick={e => { if (e.target.closest('button, input, select, textarea, a')) return; setSheet(r) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)', flexWrap: 'wrap', cursor: 'pointer' }}>
                 <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{m ? `${m.first_name} ${m.last_name}` : (r.student_name || 'Student')}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b style={beltStyle(r.grading_for)}>{r.grading_for}</b>{r.grading_list ? ` · ${r.grading_list}${r.grading_date ? ` ${fmt(r.grading_date)}` : ' (date TBC)'}` : r.grading_date ? ` · grading ${fmt(r.grading_date)}` : ''}</div>
