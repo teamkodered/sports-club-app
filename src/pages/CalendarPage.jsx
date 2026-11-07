@@ -46,6 +46,7 @@ export default function CalendarPage() {
   const [gFeeds, setGFeeds] = useState([])
   const [gErrors, setGErrors] = useState([])
   const [show, setShow] = useState({ sessions: true, holidays: true, fixtures: true, courses: true })
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [hiddenFeeds, setHiddenFeeds] = useState(new Set())
 
   useEffect(() => { load() }, [])
@@ -313,7 +314,6 @@ export default function CalendarPage() {
           <h1>Calendar</h1>
           <p>Sessions, holidays, events and your Google calendars in one place</p>
         </div>
-        <a className="btn" href="/fight-finder" title="Find our athletes' bouts at a competition">🥊 Fight finder</a>
         <div className="cal-views">
           {[['month', 'Month'], ['week', 'Week'], ['list', 'List']].map(([k, l]) => <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}
         </div>
@@ -324,6 +324,18 @@ export default function CalendarPage() {
         )}
       </div>
 
+      {/* what's shown on the calendar: one pill, press to slide the options down */}
+      {(() => {
+        const total = 4 + gFeeds.length, on = Object.values(show).filter(Boolean).length + gFeeds.filter(f => !hiddenFeeds.has(f.id)).length
+        return (
+          <div className="cal-filters" style={{ marginBottom: filtersOpen ? 6 : undefined }}>
+            <button type="button" className="on" onClick={() => setFiltersOpen(o => !o)} style={{ borderColor: '#378ADD' }}>
+              🗂 Showing {on} of {total} {filtersOpen ? '▲' : '▼'}
+            </button>
+          </div>
+        )
+      })()}
+      <div className={`kc-slide${filtersOpen ? ' open' : ''}`}><div>
       <div className="cal-filters">
         {[['sessions', '● Sessions', '#378ADD'], ['holidays', '🏖 Closed', '#E24B4A'], ['fixtures', '🏆 Events', '#EF9F27'], ['courses', '🎓 Courses', '#8B5CF6']].map(([k, l, c]) => (
           <button key={k} type="button" className={show[k] ? 'on' : ''} style={show[k] ? { borderColor: c } : undefined} onClick={() => setShow(x => ({ ...x, [k]: !x[k] }))}>{l}</button>
@@ -335,6 +347,7 @@ export default function CalendarPage() {
           </button>
         ))}
       </div>
+      </div></div>
       {!loading && <EventsStrip fixtures={fixtures} canEdit={isAdmin} onChanged={load} />}
       {gErrors.length > 0 && <div style={{ fontSize: 12, color: '#B45309', margin: '0 0 8px' }}>⚠ Couldn't read: {gErrors.map(e => `${e.feed} (${e.error})`).join('; ')}</div>}
       {(() => {

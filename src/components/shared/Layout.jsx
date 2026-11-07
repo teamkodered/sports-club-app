@@ -108,6 +108,7 @@ export default function Layout() {
     { to: '/forms',          icon: '📝', label: 'Forms',              page: 'forms' },
     { to: '/classes',        icon: '🗓️', label: 'Classes',           page: 'classes' },
     { to: '/calendar',       icon: '📆', label: 'Calendar',          page: 'calendar' },
+    { to: '/fight-finder',   icon: '🥊', label: 'Fight finder',      page: 'calendar' },
     { to: '/crm',            icon: '💳', label: 'CRM',               page: 'crm' },
     { to: '/students',       icon: '🎽', label: 'Students',           page: 'students' },
     { to: '/athlete-app',    icon: '🎽', label: 'My app' },
