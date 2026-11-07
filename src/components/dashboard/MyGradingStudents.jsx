@@ -11,6 +11,7 @@ import GradingRequestSheet from '../shared/GradingRequestSheet.jsx'
 // messages to students are unchanged. "Please OK by" = a week before the grading date; a reminder
 // pops up once per login while there are requests waiting and the OK-by date hasn't passed.
 const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const ageOf = dob => { if (!dob) return null; const d = new Date(dob), n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n < new Date(n.getFullYear(), d.getMonth(), d.getDate())) a--; return a }
 const okByOf = gd => { if (!gd) return null; const x = new Date(gd + 'T12:00:00'); x.setDate(x.getDate() - 7); return x.toISOString().split('T')[0] }
 
 export default function MyGradingStudents() {
@@ -58,7 +59,7 @@ export default function MyGradingStudents() {
       if (!ids.length) { if (!cancelled) setRows([]); return }
       const since = new Date(); since.setMonth(since.getMonth() - 3)
       const { data } = await supabase.from('grading_expressions')
-        .select('*, students(*, members(first_name, last_name))').in('student_id', ids).not('sent_to_coach_at', 'is', null)
+        .select('*, students(*, members(first_name, last_name, date_of_birth))').in('student_id', ids).not('sent_to_coach_at', 'is', null)
         .gte('created_at', since.toISOString()).order('created_at', { ascending: false })
       if (cancelled) return
       // sessions done in the last 3 months (normal classes -- not the PT / Leader registers)
@@ -196,8 +197,8 @@ export default function MyGradingStudents() {
               <div key={r.id} onClick={e => { if (e.target.closest('button, input, select, textarea, a')) return; setSheet(r) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)', flexWrap: 'wrap', cursor: 'pointer' }}>
                 <div style={{ flex: '1 1 180px', minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{m ? `${m.first_name} ${m.last_name}` : (r.student_name || 'Student')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b style={beltStyle(r.grading_for)}>{r.grading_for}</b>{r.grading_list ? ` · ${r.grading_list}${r.grading_date ? ` ${fmt(r.grading_date)}` : ' (date TBC)'}` : r.grading_date ? ` · grading ${fmt(r.grading_date)}` : ''}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{m ? `${m.first_name} ${m.last_name}` : (r.student_name || 'Student')}{ageOf(m?.date_of_birth) != null && <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--text-secondary)', marginLeft: 8 }}>Age {ageOf(m.date_of_birth)}</span>}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b style={beltStyle(r.grading_for)}>{r.grading_for}</b></div>
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>🏫 {r.classes.map((c, i) => (
                     <span key={c.id || i}>{i > 0 ? ' | ' : ''}<span style={c.mine ? { color: 'var(--text)', fontWeight: 700 } : undefined}>{String(c.day_of_week || '').includes('/') ? c.day_of_week : String(c.day_of_week || '').slice(0, 3)} {String(c.start_time || '').slice(0, 5)} {c.name}</span></span>
                   ))}</div>

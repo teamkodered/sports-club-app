@@ -8,13 +8,14 @@ import GradingRequestSheet from '../shared/GradingRequestSheet.jsx'
 // 🥋 Black belt grading list (bottom of the Dashboard, closed until pressed): everyone waiting for the
 // Black belt grading, with BBBC, coach status and approval. Tap one to OK / add a note / move it back.
 const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+const ageOf = dob => { if (!dob) return null; const d = new Date(dob), n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n < new Date(n.getFullYear(), d.getMonth(), d.getDate())) a--; return a }
 export default function BlackBeltList() {
   const { profile, isAdmin } = useAuth()
   const [rows, setRows] = useState(null)
   const [open, setOpen] = useState(false)
   const [sheet, setSheet] = useState(null)
   function load() {
-    supabase.from('grading_expressions').select('*, students(*, members(first_name, last_name))')
+    supabase.from('grading_expressions').select('*, students(*, members(first_name, last_name, date_of_birth))')
       .eq('grading_list', 'Black belt grading').order('created_at', { ascending: false })
       .then(({ data, error }) => setRows(error ? [] : (data || [])))
   }
@@ -39,7 +40,7 @@ export default function BlackBeltList() {
         {rows.map(r => (
           <div key={r.id} onClick={() => setSheet(r)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{nm(r)}</div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{nm(r)}{ageOf(r.students?.members?.date_of_birth) != null && <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--text-secondary)', marginLeft: 8 }}>Age {ageOf(r.students.members.date_of_birth)}</span>}</div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.current_belt || '—'} → <span style={beltStyle(r.grading_for)}>{r.grading_for}</span></div>
               <BbbcLine r={r} />
               <div style={{ fontSize: 11, fontWeight: 600, color: r.coach_ok ? '#1D9E75' : r.coach_not_ready ? '#E24B4A' : 'var(--text-tertiary)' }}>
