@@ -69,7 +69,14 @@ export default function MyGradingStudents() {
         ;(att || []).filter(a => ['attended', 'full_kit'].includes(a.attendance_type) && !/register/i.test(a.classes?.name || ''))
           .forEach(a => { const k = `${a.student_id}:${a.session_date}`; if (!seen.has(k)) { seen.add(k); sessions[a.student_id] = (sessions[a.student_id] || 0) + 1 } })
       }
-      const list = (data || []).map(r => ({ ...r, classes: cls[r.student_id] || [], sessions: sessions[r.student_id] || 0 }))
+      // ALL their current classes (so coaches see if they also train elsewhere); mine are highlighted
+      const allCls = {}
+      if (sids.length) {
+        const { data: asg2 } = await supabase.from('student_class_assignments').select('*, classes(id, name, day_of_week, start_time)').in('student_id', sids)
+        ;(asg2 || []).filter(a => a.classes && (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today) && !/register/i.test(a.classes.name || ''))
+          .forEach(a => { const l = (allCls[a.student_id] ||= []); if (!l.some(x => x.id === a.classes.id)) l.push({ ...a.classes, mine: myIds.includes(a.class_id) }) })
+      }
+      const list = (data || []).map(r => ({ ...r, classes: allCls[r.student_id]?.length ? allCls[r.student_id] : (cls[r.student_id] || []).map(c => ({ ...c, mine: true })), sessions: sessions[r.student_id] || 0 }))
       setRows(list)
       // 🔔 reminder once per login while some are waiting and the OK-by date hasn't passed
       const due = list.filter(r => !r.coach_ok && !r.coach_not_ready && (!okByOf(r.grading_date) || okByOf(r.grading_date) >= today))
@@ -181,7 +188,9 @@ export default function MyGradingStudents() {
                 <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{m ? `${m.first_name} ${m.last_name}` : (r.student_name || 'Student')}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b style={beltStyle(r.grading_for)}>{r.grading_for}</b>{r.grading_date ? ` · grading ${fmt(r.grading_date)}` : ''}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>🏫 {r.classes.map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}`).join(' | ')}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>🏫 {r.classes.map((c, i) => (
+                    <span key={c.id || i}>{i > 0 ? ' | ' : ''}<span style={c.mine ? { color: 'var(--text)', fontWeight: 700 } : undefined}>{String(c.day_of_week || '').includes('/') ? c.day_of_week : String(c.day_of_week || '').slice(0, 3)} {String(c.start_time || '').slice(0, 5)} {c.name}</span></span>
+                  ))}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: r.sessions >= 12 ? '#1D9E75' : r.sessions >= 6 ? '#EF9F27' : '#E24B4A' }}>🥋 {r.sessions} session{r.sessions === 1 ? '' : 's'} in the last 3 months</div>
                   {r.coach_not_ready && <div style={{ fontSize: 12, color: '#E24B4A', marginTop: 2 }}>✗ Not ready: {r.coach_note}</div>}
                 </div>
