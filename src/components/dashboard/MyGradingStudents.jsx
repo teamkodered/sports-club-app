@@ -165,7 +165,7 @@ export default function MyGradingStudents() {
         </div>, document.body)}
       {sheet && <GradingRequestSheet r={sheet} isAdmin={false} byName={by()}
         name={sheet.students?.members ? `${sheet.students.members.first_name} ${sheet.students.members.last_name}` : (sheet.student_name || 'Student')}
-        onClose={() => setSheet(null)} onSaved={u => setRows(prev => prev.map(x => x.id === u.id ? { ...x, ...u } : x))} />}
+        onClose={() => setSheet(null)} onSaved={u => { setRows(prev => u.grading_list ? prev.filter(x => x.id !== u.id) : prev.map(x => x.id === u.id ? { ...x, ...u } : x)); if (u.grading_list) window.dispatchEvent(new Event('kc-blackbelt-changed')) }} />}
       <div ref={cardRef} className="card" style={{ marginBottom: 16, border: '1px solid #8B5CF666' }}>
         <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
           <b style={{ fontSize: 15, flex: 1 }}>🎽 Gradings to confirm</b>

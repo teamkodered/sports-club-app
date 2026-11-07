@@ -13,11 +13,17 @@ export default function BlackBeltList() {
   const [rows, setRows] = useState(null)
   const [open, setOpen] = useState(false)
   const [sheet, setSheet] = useState(null)
-  useEffect(() => {
+  function load() {
     supabase.from('grading_expressions').select('*, students(id, photo_url, members(first_name, last_name))')
       .eq('grading_list', 'Black belt grading').order('created_at', { ascending: false })
       .then(({ data, error }) => setRows(error ? [] : (data || [])))
-  }, [])
+  }
+  useEffect(() => {
+    load()
+    // someone moved onto the list from Gradings to confirm -> show them here straight away
+    window.addEventListener('kc-blackbelt-changed', load)
+    return () => window.removeEventListener('kc-blackbelt-changed', load)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   if (!rows || !rows.length) return null
   const date = rows.find(r => r.grading_date)?.grading_date
   const nm = r => r.students?.members ? `${r.students.members.first_name} ${r.students.members.last_name}` : (() => { try { return JSON.parse(r.notes || '{}').name || 'Student' } catch { return 'Student' } })()
