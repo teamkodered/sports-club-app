@@ -872,9 +872,36 @@ export default function CRM() {
   function gradingDateGroups() {
     const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB')
     const groups = {}
-    gradingRequests.filter(gradingPass).forEach(r => { const k = r.grading_date || 'none'; (groups[k] ||= []).push(r) })
-    return Object.entries(groups).sort(([a], [b]) => a === 'none' ? 1 : b === 'none' ? -1 : b.localeCompare(a))
-      .map(([k, rows]) => ({ key: k, rows, waiting: rows.filter(r => !r.coach_approved).length, label: k === 'none' ? 'No grading date' : `${fmt(k)} Grading` }))
+    // named lists (🥋 Black belt grading) first, then by date
+    gradingRequests.filter(gradingPass).forEach(r => { const k = r.grading_list ? `list:${r.grading_list}` : (r.grading_date || 'none'); (groups[k] ||= []).push(r) })
+    return Object.entries(groups).sort(([a], [b]) => a.startsWith('list:') ? -1 : b.startsWith('list:') ? 1 : a === 'none' ? 1 : b === 'none' ? -1 : b.localeCompare(a))
+      .map(([k, rows]) => {
+        const listName = k.startsWith('list:') ? k.slice(5) : null, d = listName ? rows.find(r => r.grading_date)?.grading_date : null
+        return { key: k, rows, listName, waiting: rows.filter(r => !r.coach_approved).length,
+          label: listName ? `🥋 ${listName} · ${d ? fmt(d) : 'date TBC'}` : k === 'none' ? 'No grading date' : `${fmt(k)} Grading` }
+      })
+  }
+  // move ticked requests to the Black belt list / back to the next normal grading
+  async function moveGradings(ids, toList) {
+    if (!ids.length) return alert('Tick the requests to move first.')
+    const patch = toList ? { grading_list: toList, grading_date: gradingRequests.find(r => r.grading_list === toList && r.grading_date)?.grading_date || null }
+      : { grading_list: null, grading_date: nextGradingDate || null }
+    const { error } = await supabase.from('grading_expressions').update(patch).in('id', ids)
+    if (error) return alert('Could not move: ' + error.message + (/grading_list/.test(error.message) ? ' (run supabase_grading_black_list.sql)' : ''))
+    setGradingRequests(prev => prev.map(r => ids.includes(r.id) ? { ...r, ...patch } : r))
+    setGradingSel([])
+  }
+  // set (or change) the date of a named list -- everyone on it, and new requests that join it
+  async function setListDate(listName) {
+    const cur = gradingRequests.find(r => r.grading_list === listName && r.grading_date)?.grading_date || ''
+    const d = prompt(`Date for the ${listName} (YYYY-MM-DD, blank = date TBC):`, cur)
+    if (d == null) return
+    if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d.trim())) return alert('Use the format YYYY-MM-DD, e.g. 2027-03-20')
+    const v = d.trim() || null
+    const { error } = await supabase.from('grading_expressions').update({ grading_date: v }).eq('grading_list', listName)
+    if (error) return alert('Could not save: ' + error.message)
+    await supabase.from('settings').upsert({ key: 'grading_black_date', value: v || '' }, { onConflict: 'key' })
+    setGradingRequests(prev => prev.map(r => r.grading_list === listName ? { ...r, grading_date: v } : r))
   }
   const [gradingDisciplineFilter, setGradingDisciplineFilter] = useState('all')
   const [gradingApprovedOnly, setGradingApprovedOnly] = useState(false)
@@ -999,7 +1026,8 @@ export default function CRM() {
       .filter(gradingPass)
       .filter(r => {
         const f = gradingCol, d = f.date === 'next' ? nextGradingDate : f.date
-        if (d && d !== 'all' && (r.grading_date || '') !== (d === 'none' ? '' : d)) return false
+        if (d === 'list:black') { if (r.grading_list !== 'Black belt grading') return false }
+        else if (d && d !== 'all') { if (r.grading_list || (r.grading_date || '') !== (d === 'none' ? '' : d)) return false }
         if (f.current && (r.current_belt || '—') !== f.current) return false
         if (f.gradingFor && r.grading_for !== f.gradingFor) return false
         if (f.cls && !r.clsLabel.split(', ').includes(f.cls)) return false
@@ -5118,6 +5146,8 @@ export default function CRM() {
                 {gradingSel.length > 0 && <>
                   <button className="btn btn-sm btn-primary" onClick={approveSelectedGradings}>✓ Approve &amp; message ({gradingSel.length})</button>
                   <button className="btn btn-sm" onClick={() => setGradingMsg(gradingRequests.filter(r => gradingSel.includes(r.id)).map(gradingRecipient))}>✉️ Message only ({gradingSel.length})</button>
+                  <button className="btn btn-sm" onClick={() => moveGradings(gradingSel, 'Black belt grading')}>🥋 Move to Black belt grading</button>
+                  <button className="btn btn-sm" onClick={() => moveGradings(gradingSel, null)}>↩ Move to next grading</button>
                   <button className="btn btn-sm" onClick={() => setGradingSel([])}>Clear</button>
                 </>}
                 <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setGradingSel(gradingRequests.filter(r => !r.coach_approved && gradingPass(r)).map(r => r.id))}>
@@ -5131,6 +5161,7 @@ export default function CRM() {
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{g.rows.length} request{g.rows.length === 1 ? '' : 's'}{g.waiting ? ` · ${g.waiting} waiting` : ''}</span>
                     <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{openGradingGroups[g.key] ? '▲' : '▼'}</span>
                   </button>
+                  {g.listName && <div style={{ padding: '0 14px 10px' }}><button type="button" className="btn btn-sm" onClick={() => setListDate(g.listName)}>📅 Set date</button></div>}
                   <div className={`kc-slide${openGradingGroups[g.key] ? ' open' : ''}`}><div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: openGradingGroups[g.key] ? '0 10px 10px' : 0 }}>
               {g.rows.map(r => {
                 const m = r.students?.members
@@ -5307,6 +5338,7 @@ export default function CRM() {
                       <option value="next">Next grading{nextGradingDate ? ` (${new Date(nextGradingDate + 'T12:00:00').toLocaleDateString('en-GB')})` : ''}</option>
                       {[...new Set(gradingRequests.map(r => r.grading_date).filter(Boolean))].sort().reverse().filter(d => d !== nextGradingDate)
                         .map(d => <option key={d} value={d}>{new Date(d + 'T12:00:00').toLocaleDateString('en-GB')}</option>)}
+                      <option value="list:black">🥋 Black belt grading</option>
                       <option value="none">No date</option>
                       <option value="all">All dates</option>
                     </select>

@@ -188,7 +188,7 @@ export default function MyGradingStudents() {
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
                 <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{m ? `${m.first_name} ${m.last_name}` : (r.student_name || 'Student')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b style={beltStyle(r.grading_for)}>{r.grading_for}</b>{r.grading_date ? ` · grading ${fmt(r.grading_date)}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.discipline} · {r.current_belt || '—'} → <b style={beltStyle(r.grading_for)}>{r.grading_for}</b>{r.grading_list ? ` · ${r.grading_list}${r.grading_date ? ` ${fmt(r.grading_date)}` : ' (date TBC)'}` : r.grading_date ? ` · grading ${fmt(r.grading_date)}` : ''}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>🏫 {r.classes.map((c, i) => (
                     <span key={c.id || i}>{i > 0 ? ' | ' : ''}<span style={c.mine ? { color: 'var(--text)', fontWeight: 700 } : undefined}>{String(c.day_of_week || '').includes('/') ? c.day_of_week : String(c.day_of_week || '').slice(0, 3)} {String(c.start_time || '').slice(0, 5)} {c.name}</span></span>
                   ))}</div>
