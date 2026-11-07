@@ -175,7 +175,7 @@ export default function MyGradingStudents() {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '4px 0 6px' }}>
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Type a name…" style={{ flex: '1 1 150px', fontSize: 13 }} />
             {[['all', 'All'], ['waiting', 'Not OK\'d'], ['ok', 'OK\'d']].map(([k, l]) => (
-              <button key={k} type="button" className={`btn btn-sm${okF === k ? ' btn-primary' : ''}`} onClick={() => setOkF(k)}>{l}{k !== 'all' ? ` (${rows.filter(r => k === 'ok' ? r.coach_ok : !r.coach_ok).length})` : ''}</button>
+              <button key={k} type="button" className={`btn btn-sm${okF === k ? ' btn-primary' : ''}`} onClick={() => setOkF(f => f === k && k !== 'all' ? 'all' : k)}>{l}{k !== 'all' ? ` (${rows.filter(r => k === 'ok' ? r.coach_ok : !r.coach_ok).length})` : ''}</button>
             ))}
           </div>
           {rows.filter(r => {

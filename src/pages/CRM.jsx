@@ -5091,7 +5091,7 @@ export default function CRM() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
             <input value={gradingQ} onChange={e => setGradingQ(e.target.value)} placeholder="🔍 Type a name to search…" style={{ flex: '1 1 200px', maxWidth: 320 }} />
             {[['all', 'All'], ['waiting', 'Not OK\'d by coach'], ['ok', 'Coach OK\'d']].map(([k, l]) => (
-              <button key={k} type="button" className={`btn btn-sm${gradingOkF === k ? ' btn-primary' : ''}`} onClick={() => setGradingOkF(k)}>{l}{k !== 'all' ? ` (${gradingRequests.filter(r => k === 'ok' ? r.coach_ok : !r.coach_ok).length})` : ''}</button>
+              <button key={k} type="button" className={`btn btn-sm${gradingOkF === k ? ' btn-primary' : ''}`} onClick={() => setGradingOkF(f => f === k && k !== 'all' ? 'all' : k)}>{l}{k !== 'all' ? ` (${gradingRequests.filter(r => k === 'ok' ? r.coach_ok : !r.coach_ok).length})` : ''}</button>
             ))}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(gradingRequests.map(r => ({
               Name: `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''}`.trim(),
@@ -5119,7 +5119,8 @@ export default function CRM() {
                   <button className="btn btn-sm" onClick={() => setGradingMsg(gradingRequests.filter(r => gradingSel.includes(r.id)).map(gradingRecipient))}>✉️ Message only ({gradingSel.length})</button>
                   <button className="btn btn-sm" onClick={() => setGradingSel([])}>Clear</button>
                 </>}
-                <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setGradingSel(gradingRequests.filter(r => !r.coach_approved).map(r => r.id))}>Tick all waiting</button>
+                <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setGradingSel(gradingRequests.filter(r => !r.coach_approved && gradingPass(r)).map(r => r.id))}>
+                  Tick all waiting{gradingOkF !== 'all' || gradingQ.trim() ? ' (shown)' : ''}</button>
               </div>
               {gradingDateGroups().map(g => (
                 <div key={g.key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
