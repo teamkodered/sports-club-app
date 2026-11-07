@@ -3,7 +3,10 @@
 export const needsBbbc = r => /brown|black/i.test(r?.grading_for || '')
 export function bbbcOf(r) {
   let n = {}; try { n = typeof r.notes === 'string' ? JSON.parse(r.notes || '{}') : (r.notes || {}) } catch { /* */ }
-  return { count: n.bbbc_count ?? (r.bbbc_count ?? null), dates: n.bbbc_dates || r.bbbc_dates || '' }
+  // the course record (from the BBBC sign-up sheet, on the student) and what they put on the form -- the higher count wins
+  const fromForm = n.bbbc_count ?? null, fromRecord = r.students?.bbbc_courses ?? null
+  const count = fromForm == null ? fromRecord : fromRecord == null ? fromForm : Math.max(fromForm, fromRecord)
+  return { count, dates: r.students?.bbbc_dates || n.bbbc_dates || '' }
 }
 export default function BbbcLine({ r }) {
   if (!needsBbbc(r) && !r?.admin_note) return null

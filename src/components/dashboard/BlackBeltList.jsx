@@ -14,7 +14,7 @@ export default function BlackBeltList() {
   const [open, setOpen] = useState(false)
   const [sheet, setSheet] = useState(null)
   function load() {
-    supabase.from('grading_expressions').select('*, students(id, photo_url, members(first_name, last_name))')
+    supabase.from('grading_expressions').select('*, students(*, members(first_name, last_name))')
       .eq('grading_list', 'Black belt grading').order('created_at', { ascending: false })
       .then(({ data, error }) => setRows(error ? [] : (data || [])))
   }

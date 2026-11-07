@@ -952,7 +952,7 @@ export default function CRM() {
     const [{ data, error }, { data: settingsRows }] = await Promise.all([
       supabase
         .from('grading_expressions')
-        .select('*, students(id, discipline, pka_belt, krba_level, guardian_name, guardian_phone, photo_url, members(first_name, last_name, date_of_birth, email, phone))')
+        .select('*, students(*, members(first_name, last_name, date_of_birth, email, phone))')
         .order('created_at', { ascending: false }),
       supabase.from('settings').select('key,value').in('key', ['krba_levels', 'grading_belt_size_rule', 'grading_belt_stock', 'grading_next_date']),
     ])

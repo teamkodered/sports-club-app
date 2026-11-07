@@ -58,7 +58,7 @@ export default function MyGradingStudents() {
       if (!ids.length) { if (!cancelled) setRows([]); return }
       const since = new Date(); since.setMonth(since.getMonth() - 3)
       const { data } = await supabase.from('grading_expressions')
-        .select('*, students(id, photo_url, members(first_name, last_name))').in('student_id', ids).not('sent_to_coach_at', 'is', null)
+        .select('*, students(*, members(first_name, last_name))').in('student_id', ids).not('sent_to_coach_at', 'is', null)
         .gte('created_at', since.toISOString()).order('created_at', { ascending: false })
       if (cancelled) return
       // sessions done in the last 3 months (normal classes -- not the PT / Leader registers)
