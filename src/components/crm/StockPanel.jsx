@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import FeesPanel, { FeesSales } from './FeesPanel.jsx'
 import { useAuth } from '../../hooks/useAuth.jsx'
 
 // CRM -> Stock: stock levels, selling (discounts + coach commission), sales history with refunds,
@@ -53,9 +54,17 @@ export default function StockPanel({ section = 'stock' }) {
   return (
     <div className="stk">
       {err && <div className="card" style={{ color: '#E24B4A', marginBottom: 12 }}>{err}</div>}
+      {section === 'sell' && (
+        <div className="stk-tabs">
+          {[['sell', '🥊 Kit'], ['fees', '🧾 Gradings, courses & Level Up']].map(([k, l]) => (
+            <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>
+          ))}
+        </div>
+      )}
+      {view === 'fees' && <FeesPanel />}
       {section !== 'sell' && (
         <div className="stk-tabs">
-          {(section === 'sales' ? [['sales', '🧾 Sales'], ['commission', '💷 Commission']] : [['stock', `📦 Stock levels${lowCount ? ` · ${lowCount} low` : ''}`], ['items', '⚙️ Items & discounts']]).map(([k, l]) => (
+          {(section === 'sales' ? [['sales', '🧾 Sales'], ['feesales', '🎽 Fees & bookings'], ['commission', '💷 Commission']] : [['stock', `📦 Stock levels${lowCount ? ` · ${lowCount} low` : ''}`], ['items', '⚙️ Items & discounts']]).map(([k, l]) => (
             <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>
           ))}
         </div>
@@ -64,6 +73,7 @@ export default function StockPanel({ section = 'stock' }) {
       {view === 'stock' && <StockLevels items={items} onChanged={load} supplier={supplier} onSupplierChanged={loadSupplier} isAdmin={isAdmin} />}
       {view === 'sell' && <SellForm items={items} coaches={coaches} discounts={discounts} defaultCoach={profile?.id} onSold={load} supplier={supplier} />}
       {view === 'sales' && <SalesList sales={sales} month={month} setMonth={setMonth} coachName={coachName} onChanged={load} />}
+      {view === 'feesales' && <><MonthPicker month={month} setMonth={setMonth} /><FeesSales month={month} /></>}
       {view === 'commission' && <Commission sales={sales} month={month} setMonth={setMonth} coachName={coachName} isAdmin={isAdmin} onChanged={load} />}
       {view === 'items' && <ItemsEditor items={items} discounts={discounts} isAdmin={isAdmin} onChanged={load} />}
     </div>

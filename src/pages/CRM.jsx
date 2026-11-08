@@ -867,11 +867,13 @@ export default function CRM() {
   const [gradingQ, setGradingQ] = useState('')               // type to search (name) -- both views
   const [gradingOkF, setGradingOkF] = useState('all')        // 'all' | 'waiting' (not OK'd) | 'ok' (coach OK'd)
   const [gradingApprF, setGradingApprF] = useState('all')    // 'all' | 'approved' | 'not' (admin approval)
+  const [gradingPaidF, setGradingPaidF] = useState('all')    // 'all' | 'paid' | 'unpaid' (grading fee)
   const [gradingSheet, setGradingSheet] = useState(null)     // request opened by tapping it
   const gradingNameOf = r => (r.students?.members ? `${r.students.members.first_name} ${r.students.members.last_name}` : (r.student_name || r.name || '')).toLowerCase()
   const gradingPass = r => (!gradingQ.trim() || gradingNameOf(r).includes(gradingQ.trim().toLowerCase()))
     && (gradingOkF === 'all' || (gradingOkF === 'ok' ? !!r.coach_ok : !r.coach_ok))
     && (gradingApprF === 'all' || (gradingApprF === 'approved' ? !!r.coach_approved : !r.coach_approved))
+    && (gradingPaidF === 'all' || (gradingPaidF === 'paid' ? !!(r.fee && r.fee.paid + 0.001 >= r.fee.price && r.fee.price > 0) : !(r.fee && r.fee.paid + 0.001 >= r.fee.price && r.fee.price > 0)))
   const [openGradingGroups, setOpenGradingGroups] = useState({})   // requests grouped by grading date, closed until pressed
   function gradingDateGroups() {
     const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB')
@@ -981,6 +983,13 @@ export default function CRM() {
         .forEach(a => { (byStudent[a.student_id] ||= []).push(a.classes) })
     }
     enriched.forEach(r => { r.trainClasses = byStudent[r.student_id] || [] })
+    // 💷 grading fee paid? (bookings taken in Sell -> Gradings, courses & Level Up)
+    const gids = enriched.map(r => r.id)
+    if (gids.length) {
+      const { data: fb } = await supabase.from('fee_bookings').select('id, price, grading_request_id, fee_payments(amount)').in('grading_request_id', gids)
+      const feeBy = Object.fromEntries((fb || []).map(b => [b.grading_request_id, { price: Number(b.price), paid: (b.fee_payments || []).reduce((n, p) => n + Number(p.amount || 0), 0) }]))
+      enriched.forEach(r => { r.fee = feeBy[r.id] || null })
+    }
     setGradingRequests(enriched)
     setGradingSelected(Object.fromEntries(enriched.map(r => [r.id, true])))
     setGradingLoaded(true)
@@ -5123,6 +5132,9 @@ export default function CRM() {
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
             <input value={gradingQ} onChange={e => setGradingQ(e.target.value)} placeholder="🔍 Type a name to search…" style={{ flex: '1 1 200px', maxWidth: 320 }} />
+            {[['paid', '💷 Paid'], ['unpaid', 'Not paid']].map(([k, l]) => (
+              <button key={k} type="button" className={`btn btn-sm${gradingPaidF === k ? ' btn-primary' : ''}`} onClick={() => setGradingPaidF(f => f === k ? 'all' : k)}>{l} ({gradingRequests.filter(r => { const p = r.fee && r.fee.paid + 0.001 >= r.fee.price && r.fee.price > 0; return k === 'paid' ? p : !p }).length})</button>
+            ))}
             {[['approved', '✓ Approved'], ['not', 'Not approved']].map(([k, l]) => (
               <button key={k} type="button" className={`btn btn-sm${gradingApprF === k ? ' btn-primary' : ''}`} onClick={() => setGradingApprF(f => f === k ? 'all' : k)}>{l} ({gradingRequests.filter(r => k === 'approved' ? r.coach_approved : !r.coach_approved).length})</button>
             ))}
@@ -5219,6 +5231,9 @@ export default function CRM() {
                           </p>
                         )}
                         <BbbcLine r={r} />
+                        <div style={{ fontSize: 12, fontWeight: 600, margin: '2px 0', color: !r.fee ? 'var(--text-tertiary)' : r.fee.paid + 0.001 >= r.fee.price ? '#1D9E75' : r.fee.paid > 0 ? '#EF9F27' : '#E24B4A' }}>
+                          💷 {!r.fee ? 'Grading fee: not booked' : r.fee.paid + 0.001 >= r.fee.price ? `Paid £${r.fee.price.toFixed(2)}` : r.fee.paid > 0 ? `Part paid £${r.fee.paid.toFixed(2)} of £${r.fee.price.toFixed(2)}` : `Booked -- owes £${r.fee.price.toFixed(2)}`}
+                        </div>
                         <button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 7px', margin: '2px 0' }}
                           onClick={async () => {
                             const t = prompt('Note on this grading request (shown to you and the coach, e.g. "Needs a BBBC course first"):', r.admin_note || '')

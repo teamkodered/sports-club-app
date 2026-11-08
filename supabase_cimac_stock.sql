@@ -11,7 +11,7 @@ create policy supplier_stock_admin on public.supplier_stock for all
   with check (exists (select 1 from members where auth_id = (select auth.uid()) and role = 'admin'));
 alter table public.stock_variants add column if not exists supplier_code text;
 
-insert into public.supplier_stock (code, description, in_stock, qty, updated_at) values
+insert into public.supplier_stock (code, description, in_stock, qty) values
   ('100-030-A', 'K/SUIT STUDENT WHITE SZ 120', true, 300),
   ('100-030-AA', 'K/SUIT STUDENT WHITE SZ 110', true, 99),
   ('100-030-B', 'K/SUIT STUDENT WHITE SZ 130', true, 80),
