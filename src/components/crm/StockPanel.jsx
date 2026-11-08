@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 
@@ -125,7 +125,8 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
   const [tier, setTier] = useState('member')   // member | instructor | non_member
   const [busy, setBusy] = useState(false)
   const tierPrice = (it, t) => !it ? '' : t === 'instructor' && it.instructor_price ? it.instructor_price : t === 'non_member' && it.non_member_price ? it.non_member_price : it.sell_price
-  useEffect(() => { setVariantId(item?.stock_variants?.[0]?.id || ''); setUnit(item ? String(tierPrice(item, tier)) : '') }, [itemId])
+  const pendingVariant = useRef(null)   // option picked from the search (e.g. "10oz · Black")
+  useEffect(() => { setVariantId(pendingVariant.current || item?.stock_variants?.[0]?.id || ''); pendingVariant.current = null; setUnit(item ? String(tierPrice(item, tier)) : '') }, [itemId])
   useEffect(() => { if (item) setUnit(String(tierPrice(item, tier))) }, [tier])
   useEffect(() => {
     if (studentId || customer.trim().length < 2) { setFound([]); return }
@@ -158,14 +159,30 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
       <div className="field"><label>Item</label>
         {/* type to search the items, then tap one (or pick from the full list below) */}
         <input value={itemQ} onChange={e => setItemQ(e.target.value)} placeholder="🔍 Type to search items…" style={{ marginBottom: 6 }} />
-        {itemQ.trim() && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-            {live.filter(i => i.name.toLowerCase().includes(itemQ.trim().toLowerCase())).slice(0, 12).map(i => (
-              <button key={i.id} type="button" className={`btn btn-sm${i.id === itemId ? ' btn-primary' : ''}`} onClick={() => { setItemId(i.id); setItemQ('') }}>{i.name}</button>
-            ))}
-            {!live.some(i => i.name.toLowerCase().includes(itemQ.trim().toLowerCase())) && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No items match</span>}
-          </div>
-        )}
+        {itemQ.trim() && (() => {
+          // search the item name, its category AND its sizes / colours -- every word typed must match
+          // ("10oz black" finds the gloves and picks the 10oz · Black option); best name matches first
+          const norm = t => String(t || '').toLowerCase().replace(/[·\-–/()]/g, ' ').replace(/\s+/g, ' ')
+          const words = norm(itemQ).trim().split(' ').filter(Boolean)
+          const hits = live.map(i => {
+            const nm = norm(i.name), all = `${nm} ${norm(i.category)} ${(i.stock_variants || []).map(v => norm(v.label)).join(' ')}`
+            if (!words.every(w => all.includes(w))) return null
+            const opt = (i.stock_variants || []).find(v => words.filter(w => !nm.includes(w)).every(w => norm(v.label).includes(w)) && words.some(w => !nm.includes(w)))
+            return { i, opt, score: words.filter(w => nm.includes(w)).length * 10 - nm.length / 100 }
+          }).filter(Boolean).sort((a, b) => b.score - a.score)
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6, maxHeight: 260, overflowY: 'auto' }}>
+              {hits.slice(0, 60).map(({ i, opt }) => (
+                <button key={i.id} type="button" className={`btn btn-sm${i.id === itemId ? ' btn-primary' : ''}`}
+                  onClick={() => { if (opt) { pendingVariant.current = opt.id; if (i.id === itemId) setVariantId(opt.id) } setItemId(i.id); setItemQ('') }}>
+                  {i.name}{opt ? <b style={{ marginLeft: 6, color: '#1D9E75' }}>· {opt.label}</b> : null}
+                </button>
+              ))}
+              {!hits.length && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No items match</span>}
+              {hits.length > 60 && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>+{hits.length - 60} more -- keep typing to narrow it down</span>}
+            </div>
+          )
+        })()}
         <select value={itemId} onChange={e => setItemId(e.target.value)}>{live.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
       {item && <div className="field"><label>Size / option</label>
         <div className="stk-vars">{item.stock_variants.map(v => (
