@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
-import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, buildFights, matchesSearch, athleteKey, fromMin, normTitle } from '../lib/fightFinder.js'
+import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, buildFights, matchesSearch, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
+import { fetchAll } from '../lib/fetchAll.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
 // (sportdata PDFs or saved pages), search a club / country, then see our athletes' bouts in tatami
@@ -19,11 +20,16 @@ export default function FightFinder() {
   const [busy, setBusy] = useState('')
   const [view, setView] = useState('ring')         // ring | time | coach:<id>
   const [msg, setMsg] = useState('')
+  const [memberNames, setMemberNames] = useState([])   // our athletes, as name-word lists
 
   useEffect(() => {
     supabase.from('fight_finders').select('id, title, fixture_id, updated_at').order('updated_at', { ascending: false }).limit(30)
       .then(({ data, error }) => setList(error ? (setMsg(/fight_finders/.test(error.message) ? 'Run supabase_fight_finder.sql to switch this on.' : error.message), []) : data || []))
     supabase.from('members').select('id, first_name, last_name, role').in('role', STAFF).order('first_name').then(({ data }) => setStaff(data || []))
+    fetchAll(() => supabase.from('students').select('id, members!inner(first_name, last_name, status)').order('id'))
+      .then(({ data }) => setMemberNames((data || []).filter(x => x.members?.status !== 'inactive')
+        .map(x => nameKey(`${x.members?.first_name || ''} ${x.members?.last_name || ''}`).split(' ').filter(Boolean)).filter(ws => ws.length > 1)))
+      .catch(() => {})
   }, [])
   useEffect(() => {
     const id = params.get('id'), ev = params.get('event')
@@ -53,16 +59,21 @@ export default function FightFinder() {
   // ── load files: schedule / draws (PDF or saved web page) ──
   async function loadFiles(files) {
     setBusy('Reading…'); setMsg('')
-    let schedule = [...(ff.data?.schedule || [])], draws = [...(ff.data?.draws || [])]
+    let schedule = [...(ff.data?.schedule || [])], draws = [...(ff.data?.draws || [])], bouts = [...(ff.data?.bouts || [])]
     const notes = []
     for (const f of files) {
       try {
         if (/\.pdf$/i.test(f.name)) {
           const pages = await pdfLines(f)
-          const sch = scheduleFromPdf(pages), drw = drawsFromPdf(pages)
+          const sch = scheduleFromPdf(pages), drw = drawsFromPdf(pages), bts = boutsFromDailySchedulePdf(pages)
           if (sch.length) { schedule = mergeBy(schedule, sch, s => `${s.date}|${normTitle(s.title)}`); notes.push(`${f.name}: ${sch.length} schedule rows`) }
           if (drw.length) { draws = mergeBy(draws, drw, d => normTitle(d.title)); notes.push(`${f.name}: ${drw.length} brackets`) }
-          if (!sch.length && !drw.length) notes.push(`${f.name}: nothing recognised`)
+          if (bts.length) { bouts = mergeBy(bouts, bts, b => b.id); notes.push(`${f.name}: ${bts.length} bouts`) }
+          if (!sch.length && !drw.length && !bts.length) {
+            const words = pages.flat().map(l => l.text).join(' ').trim().length
+            notes.push(words < 20 ? `${f.name}: no text in this PDF (a photo or scan?) -- use the PDF downloaded from the competition site`
+              : `${f.name}: layout not recognised -- send it to Claude to add`)
+          }
         } else {
           const text = await f.text()
           const sch = scheduleFromHtml(text)
@@ -73,8 +84,8 @@ export default function FightFinder() {
         }
       } catch (e) { notes.push(`${f.name}: couldn't read (${e.message})`) }
     }
-    await save({ data: { schedule, draws } })
-    setBusy(''); setMsg(notes.join(' · '))
+    await save({ data: { schedule, draws, bouts } })
+    setBusy(''); setMsg(notes.join(' · ') + (notes.some(n => /bouts|rows|brackets/.test(n)) ? ' -- press 🔍 Find fights' : ''))
   }
 
   if (!ff) return (
@@ -91,7 +102,7 @@ export default function FightFinder() {
     </div>
   )
 
-  return <FinderView ff={ff} staff={staff} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
+  return <FinderView ff={ff} staff={staff} memberNames={memberNames} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
     onFiles={loadFiles} setS={setS} save={save} onBack={() => { setFf(null); nav('/fight-finder', { replace: true }) }} />
 }
 
@@ -101,15 +112,22 @@ function mergeBy(oldList, newList, key) {
   return [...m.values()]
 }
 
-function FinderView({ ff, staff, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack }) {
+function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack }) {
   const s = ff.settings || {}
   const query = s.query ?? 'Kode Red', windowMin = Number(s.window ?? 10)
+  const useMembers = s.members !== false
+  const [draft, setDraft] = useState(query)
+  const loadedAt = JSON.stringify([(ff.data?.schedule || []).length, (ff.data?.draws || []).length, (ff.data?.bouts || []).length])
+  const [run, setRun] = useState(s.searched ? { query, loadedAt, members: useMembers } : null)   // the search shown; null = not run yet
+  const stale = run && (run.query !== draft || run.loadedAt !== loadedAt || run.members !== useMembers)
+  const find = () => { setRun({ query: draft, loadedAt, members: useMembers }); setS({ query: draft, searched: true }) }
   const coaches = staff.filter(m => (s.coaches || []).includes(m.id))
   const coachName = id => { const m = staff.find(x => x.id === id); return m ? `${m.first_name} ${m.last_name || ''}`.trim() : '' }
-  const fights = useMemo(() => buildFights({ schedule: ff.data?.schedule || [], draws: ff.data?.draws || [], results: s.results || {} }), [ff.data, s.results])
+  const fights = useMemo(() => buildFights({ schedule: ff.data?.schedule || [], draws: ff.data?.draws || [], bouts: ff.data?.bouts || [], results: s.results || {} }), [ff.data, s.results])
   const byId = useMemo(() => Object.fromEntries(fights.map(f => [f.id, f])), [fights])
-  const ours = s => s?.athlete && matchesSearch(s.athlete, query)
-  const sideTxt = sl => sl?.athlete ? `${sl.athlete.name} (${sl.athlete.club}${sl.athlete.country ? ', ' + sl.athlete.country : ''})` : sl?.winnerOf ? `⏳ winner of bout ${byId[sl.winnerOf]?.boutNo ?? '?'} (${['red', 'blue'].map(c => byId[sl.winnerOf]?.[c]).map(x => x?.athlete?.name?.split(' ')[0] || (x?.winnerOf ? 'TBC' : '—')).join(' v ')})` : '— empty —'
+  const ours = sl => !!run && !!sl?.athlete && matchesSearch(sl.athlete, run.query, run.members ? memberNames : null)
+  const noClubs = fights.length > 0 && !fights.some(f => f.red?.athlete?.club || f.blue?.athlete?.club)
+  const sideTxt = sl => sl?.athlete ? `${sl.athlete.name} (${[sl.athlete.club, sl.athlete.country].filter(Boolean).join(', ')})` : sl?.winnerOf ? `⏳ winner of bout ${byId[sl.winnerOf]?.boutNo ?? '?'} (${['red', 'blue'].map(c => byId[sl.winnerOf]?.[c]).map(x => x?.athlete?.name?.split(' ')[0] || (x?.winnerOf ? 'TBC' : '—')).join(' v ')})` : '— empty —'
 
   // rows: one per (our athlete, bout) -- confirmed bouts, plus "if they win" bouts further on
   const rows = useMemo(() => {
@@ -133,7 +151,7 @@ function FinderView({ ff, staff, isAdmin, busy, msg, view, setView, onFiles, set
       }
     }
     return out
-  }, [fights, query, s.results])
+  }, [fights, run, memberNames, s.results])
 
   // clashes: same coach (different athletes) or same athlete (different categories) within the window
   const clashes = useMemo(() => {
@@ -152,15 +170,17 @@ function FinderView({ ff, staff, isAdmin, busy, msg, view, setView, onFiles, set
   }, [rows, windowMin, s.assign])
   const clashKeys = new Set(clashes.flatMap(c => [`${c.A.f.id}|${athleteKey(c.A.a)}`, `${c.B.f.id}|${athleteKey(c.B.a)}`]))
 
+  const areaKey = a => a == null ? '~' : typeof a === 'number' ? `T${String(a).padStart(3, '0')}` : String(a).replace(/(\d+)/, d => d.padStart(3, '0'))
+  const areaTxt = a => a == null ? '?' : typeof a === 'number' ? `T${a}` : a
   const isCoachView = view.startsWith('coach:'), viewCoach = isCoachView ? view.slice(6) : null
   const shown = rows.filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
-    .sort((a, b) => view === 'ring' ? ((a.f.area ?? 99) - (b.f.area ?? 99) || (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9)) : ((a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9) || (a.f.area ?? 99) - (b.f.area ?? 99)))
+    .sort((a, b) => { const ar = areaKey(a.f.area).localeCompare(areaKey(b.f.area)), tm = (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9); return view === 'ring' ? ar || tm : tm || ar })
   const athletes = [...new Map(rows.map(r => [athleteKey(r.a), r.a])).values()]
 
   const setResult = (f, colour) => setS({ results: { ...(s.results || {}), [f.id]: s.results?.[f.id] === colour ? undefined : colour } })
   const shareText = cid => {
     const mine = rows.filter(r => s.assign?.[athleteKey(r.a)] === cid && !r.possible).sort((a, b) => (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9))
-    return `🥊 ${ff.title} — ${coachName(cid)}'s fights\n` + mine.map(r => `${r.f.area ? `Tatami ${r.f.area}` : ''} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'} · ${r.a.name} · ${r.f.title} · v ${sideTxt(r.opp)}`).join('\n')
+    return `🥊 ${ff.title} — ${coachName(cid)}'s fights\n` + mine.map(r => `${r.f.area != null ? areaTxt(r.f.area) : ''} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'} · ${r.a.name} · ${r.f.title} · v ${sideTxt(r.opp)}`).join('\n')
   }
 
   return (
@@ -173,15 +193,21 @@ function FinderView({ ff, staff, isAdmin, busy, msg, view, setView, onFiles, set
       {isAdmin && (
         <div className="card ffd-load">
           <b>1 · Load the competition</b>
-          <p className="ffd-muted">Upload the <b>schedule</b> (PDF or saved Match Schedule page) and the <b>draws</b> (PDF, or saved bracket pages). Add more later — new files update what's there.</p>
+          <p className="ffd-muted">Upload the <b>schedule</b> (PDF — incl. the WAKO <b>Daily Schedule</b> — or saved Match Schedule page) and the <b>draws</b> (PDF, or saved bracket pages). Add more later — new files update what's there.</p>
           <input type="file" multiple accept=".pdf,.html,.htm" onChange={e => e.target.files?.length && onFiles([...e.target.files])} />
-          <div className="ffd-muted">{busy || `${(ff.data?.schedule || []).length} schedule rows · ${(ff.data?.draws || []).length} brackets loaded`}</div>
+          <div className="ffd-muted">{busy || [`${(ff.data?.schedule || []).length} schedule rows`, `${(ff.data?.draws || []).length} brackets`, (ff.data?.bouts || []).length ? `${ff.data.bouts.length} bouts` : null].filter(Boolean).join(' · ') + ' loaded'}</div>
           {msg && <div className="ffd-muted">{msg}</div>}
         </div>
       )}
 
       <div className="card ffd-opts">
-        <label>Club / country <input value={query} onChange={e => setS({ query: e.target.value })} placeholder="Kode Red, GBR" /></label>
+        <div className="ffd-search">
+          <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
+          <button className="btn btn-primary ffd-find" onClick={find} disabled={!fights.length}>🔍 Find fights</button>
+        </div>
+        <label className="ffd-check"><input type="checkbox" checked={useMembers} onChange={e => setS({ members: e.target.checked })} /> Also find our athletes by name ({memberNames.length})</label>
+        {noClubs && <div className="ffd-muted">This schedule only lists countries, not clubs — our athletes are found by name, or search a country (GBR).</div>}
+        {stale && <div className="ffd-muted">Changed — press 🔍 Find fights to update.</div>}
         <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
         {isAdmin && (
           <details>
@@ -199,7 +225,7 @@ function FinderView({ ff, staff, isAdmin, busy, msg, view, setView, onFiles, set
           {clashes.map((c, i) => (
             <div key={i} className="ffd-clash-row">
               {c.type === 'coach' ? `👤 ${coachName(c.coach)}: ` : `🥊 ${c.A.a.name}: `}
-              {[c.A, c.B].map(r => `${r.a.name.split(' ')[0]} T${r.f.area ?? '?'} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'}`).join(' & ')}
+              {[c.A, c.B].map(r => `${r.a.name.split(' ')[0]} ${areaTxt(r.f.area)} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'}`).join(' & ')}
               {c.possible && <em> (if they win)</em>}
             </div>
           ))}
@@ -215,7 +241,7 @@ function FinderView({ ff, staff, isAdmin, busy, msg, view, setView, onFiles, set
       </div>
 
       {!rows.length ? (
-        <div className="card ffd-muted">{(ff.data?.draws || []).length ? `No bouts found for "${query}".` : 'Load the schedule and draws to find the fights.'}</div>
+        <div className="card ffd-muted">{!fights.length ? 'Load the schedule and draws to find the fights.' : !run ? `${fights.length} bouts loaded — press 🔍 Find fights.` : `No bouts found for "${run.query}"${run.members ? ' or our athletes\' names' : ''}.`}</div>
       ) : (
         <div className="ffd-table-wrap">
           <table className="ffd-table">
@@ -226,11 +252,11 @@ function FinderView({ ff, staff, isAdmin, busy, msg, view, setView, onFiles, set
                 const clash = clashKeys.has(`${r.f.id}|${k}`)
                 return (
                   <tr key={i} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''}`}>
-                    <td><b>{r.f.area ?? '?'}</b></td>
+                    <td><b>{areaTxt(r.f.area)}</b></td>
                     <td>{r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?'}{clash && ' ⚠'}</td>
-                    <td>{r.f.title}<div className="ffd-muted">R{r.f.round} · bout {r.f.boutNo}/{r.f.boutsInCat}{r.possible ? ' · if they win' : ''}</div></td>
-                    <td><b>{r.a.name}</b><div className="ffd-muted">{r.a.club}{r.a.country ? `, ${r.a.country}` : ''}</div></td>
-                    <td className={!r.opp?.athlete ? 'tbc' : ''}>{sideTxt(r.opp)}</td>
+                    <td>{r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''}</div></td>
+                    <td><b>{r.a.name}</b><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
+                    <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : sideTxt(r.opp)}</td>
                     <td>
                       {isAdmin && coaches.length ? (
                         <select value={s.assign?.[k] || ''} onChange={e => setS({ assign: { ...(s.assign || {}), [k]: e.target.value || undefined } })}>
@@ -251,7 +277,7 @@ function FinderView({ ff, staff, isAdmin, busy, msg, view, setView, onFiles, set
           </table>
         </div>
       )}
-      <p className="ffd-muted" style={{ marginTop: 8 }}>~ Times are estimates: each category's start-to-end time spread over its bouts, round by round. {athletes.length} athlete{athletes.length === 1 ? '' : 's'} found.</p>
+      <p className="ffd-muted" style={{ marginTop: 8 }}>~ Times are estimates: each category's (or session's) time spread over its bouts, in order. {athletes.length} athlete{athletes.length === 1 ? '' : 's'} found.</p>
     </div>
   )
 }

@@ -6,6 +6,8 @@
 //                     even grid, byes sit in the Round 2 column level with the pair they skip.
 // Bracket web page:   rounds as lists of slots, in order (empty slots included), with scores.
 // Schedule web page:  a grid -- one column per tatami, category blocks with "dur · start · end".
+// Daily Schedule PDF (WAKO / sportdata): one row per BOUT -- "SESSION 1 T1", "2026-11-09 10:00", then
+//                     "1 1101 R16 02 LC 128 S M -57 KG RED Schulte Lukas GER" / "BLUE Simondi Samuele ITA".
 
 const NAME = /^(.+?) \((.+),([A-Z]{3})\)$/
 export const normTitle = t => String(t || '').toUpperCase().replace(/[^A-Z0-9+]/g, '')
@@ -55,6 +57,36 @@ export function scheduleFromPdf(pages) {
   }
   return out
 }
+// ── Daily Schedule (one row per bout, countries only -- no clubs) ──
+const SIDE = t => {   // "Schulte Lukas GER" / "Ozgen Rabia 2 TUR" / "" -> athlete or null
+  const txt = String(t || '').trim()
+  if (!txt) return null
+  const m = txt.match(/^(.*?)(?:\s+(\d))?\s+([A-Z]{3})$/)
+  return m && m[1] ? { name: m[1].trim(), club: '', country: m[3], seed: m[2] ? Number(m[2]) : null } : { name: txt, club: '', country: '' }
+}
+export function boutsFromDailySchedulePdf(pages) {
+  const out = []
+  for (const lines of pages) {
+    const texts = lines.map(l => l.text)
+    if (!texts.some(t => /Daily Schedule/i.test(t))) continue
+    const ses = texts.map(t => t.match(/^SESSION\s+(\d+)\s+([A-Z]{1,3})\s*(\d+)$/i)).find(Boolean)
+    const dt = texts.map(t => t.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})$/)).find(Boolean)
+    if (!ses || !dt) continue
+    const area = `${ses[2].toUpperCase()}${ses[3]}`
+    for (let i = 0; i < texts.length; i++) {
+      const m = texts[i].match(/^(\d+)\s+(\d{3,5})\s+(\S+)\s+(.+?)\s+RED(?:\s+(.*))?$/)
+      if (!m) continue
+      const b = (texts[i + 1] || '').match(/^BLUE(?:\s+(.*))?$/)
+      const red = SIDE(m[5]), blue = b ? SIDE(b[1]) : null
+      out.push({ id: `BOUT-${m[2]}`, bout: Number(m[2]), order: Number(m[1]), phase: m[3], title: m[4].trim(),
+        area, session: Number(ses[1]), date: dt[1], sessionStart: dt[2].padStart(5, '0'),
+        red: red ? { athlete: red } : null, blue: blue ? { athlete: blue } : null })
+      if (b) i++
+    }
+  }
+  return out
+}
+
 export function scheduleFromHtml(text) {
   const doc = new DOMParser().parseFromString(text, 'text/html')
   const dm = (doc.body.textContent.match(/Date:\s*\w+\s+(\d{2})\.(\d{2})\.(\d{4})/) || [])
@@ -202,7 +234,9 @@ export function fallbackBoutMinutes(title, def = 5) {
 }
 
 // ── put it together: every bout with its tatami + estimated time ──
-export function buildFights({ schedule = [], draws = [], results = {} }) {
+export const nameKey = n => String(n || '').toUpperCase().replace(/[^A-Z\s-]/g, ' ').split(/[\s-]+/).filter(Boolean).sort().join(' ')
+const pairKey = (a, b) => [nameKey(a?.athlete?.name), nameKey(b?.athlete?.name)].sort().join('|')
+export function buildFights({ schedule = [], draws = [], bouts = [], results = {} }) {
   const byTitle = {}
   schedule.forEach(s => { byTitle[normTitle(s.title)] = s })
   const fights = []
@@ -221,14 +255,52 @@ export function buildFights({ schedule = [], draws = [], results = {} }) {
       catStart: sch?.start || null, catEnd: sch?.end || null, result: results[b.id] || null,
     }))
   }
+  if (bouts.length) addScheduledBouts(fights, bouts, results)
   return fights
 }
 
+// each session runs its bouts in order from the session's start time. A bout's length is a guess
+// (fallbackBoutMinutes, 3 min for a solo form); if the next session on that area starts sooner than
+// the guesses add up to, the session is squeezed to fit.
+function addScheduledBouts(fights, bouts, results) {
+  const groups = {}
+  bouts.forEach(b => { (groups[`${b.date}|${b.area}|${b.session}`] ||= []).push(b) })
+  const starts = Object.values(groups).map(g => ({ date: g[0].date, area: g[0].area, start: toMin(g[0].sessionStart) }))
+  const fromDraws = new Map(fights.map(f => [pairKey(f.red, f.blue), f]))
+  for (const g of Object.values(groups)) {
+    g.sort((a, b) => a.order - b.order)
+    const start = toMin(g[0].sessionStart)
+    const lens = g.map(b => (b.blue?.athlete ? fallbackBoutMinutes(b.title) : 3))
+    const total = lens.reduce((x, y) => x + y, 0)
+    const next = starts.filter(x => x.date === g[0].date && x.area === g[0].area && x.start > start).sort((a, b) => a.start - b.start)[0]
+    const k = next && next.start - start < total ? (next.start - start) / total : 1
+    let t = start
+    g.forEach((b, i) => {
+      const timing = { area: b.area, date: b.date, startMin: t, estimated: true, boutNo: b.bout, label: `${b.phase} · bout ${b.bout}`, sessionStart: b.sessionStart }
+      t += lens[i] * k
+      const drawn = b.red?.athlete && b.blue?.athlete ? fromDraws.get(pairKey(b.red, b.blue)) : null
+      if (drawn) { Object.assign(drawn, timing); return }   // the bracket has clubs + next rounds; take the schedule's tatami and time
+      fights.push({ ...timing, id: b.id, title: b.title, round: b.phase, red: b.red, blue: b.blue, solo: !b.blue?.athlete, result: results[b.id] || null })
+    })
+  }
+}
+
 // does an athlete match the search (club names, or a 3-letter country code like GBR)?
-export function matchesSearch(a, query) {
+// does an athlete match the search? A 3-letter code in capitals (GBR) = country; anything else matches a
+// club, or an athlete's name (every word typed, any order). memberNames: our athletes' names, as word
+// lists -- an athlete matches when all of a member's first + last name words are in their name.
+export function matchesSearch(a, query, memberNames = null) {
+  if (!a) return false
+  const words = nameKey(a.name).split(' ')
+  const home = !a.country || ['GBR', 'ENG', 'SCO', 'WAL', 'NIR'].includes(String(a.country).toUpperCase())
+  if (home && memberNames && memberNames.some(ws => ws.length > 1 && ws.every(w => words.includes(w)))) return true
   const terms = String(query || '').split(',').map(t => t.trim()).filter(Boolean)
-  if (!terms.length || !a) return false
   const club = String(a.club || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
-  return terms.some(t => /^[A-Za-z]{3}$/.test(t) && t === t.toUpperCase() ? String(a.country).toUpperCase() === t
-    : club.includes(t.toUpperCase().replace(/[^A-Z0-9]/g, '')))
+  return terms.some(t => {
+    if (/^[A-Z]{3}$/.test(t)) return String(a.country).toUpperCase() === t
+    const c = t.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (club && c && club.includes(c)) return true
+    const tw = nameKey(t).split(' ').filter(w => w.length > 1)
+    return tw.length > 0 && tw.every(w => words.includes(w))
+  })
 }
