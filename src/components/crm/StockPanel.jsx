@@ -20,7 +20,18 @@ export default function StockPanel({ section = 'stock' }) {
   const [month, setMonth] = useState(thisMonth())
   const [err, setErr] = useState('')
 
+  const [supplier, setSupplier] = useState({ map: {}, updated: null })   // Cimac's stock by code (from their stock list)
+  async function loadSupplier() {
+    const all = []
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('supplier_stock').select('code, in_stock, qty, updated_at').range(from, from + 999)
+      if (error || !data?.length) break
+      all.push(...data); if (data.length < 1000) break
+    }
+    setSupplier({ map: Object.fromEntries(all.map(r => [r.code, r])), updated: all.reduce((m, r) => (!m || r.updated_at > m ? r.updated_at : m), null) })
+  }
   async function load() {
+    loadSupplier()
     const [it, co, ds, sa] = await Promise.all([
       supabase.from('stock_items').select('*, stock_variants(*)').order('name'),
       supabase.from('members').select('id, first_name, last_name, role').in('role', STAFF).order('first_name'),
@@ -50,8 +61,8 @@ export default function StockPanel({ section = 'stock' }) {
         </div>
       )}
 
-      {view === 'stock' && <StockLevels items={items} onChanged={load} />}
-      {view === 'sell' && <SellForm items={items} coaches={coaches} discounts={discounts} defaultCoach={profile?.id} onSold={load} />}
+      {view === 'stock' && <StockLevels items={items} onChanged={load} supplier={supplier} onSupplierChanged={loadSupplier} isAdmin={isAdmin} />}
+      {view === 'sell' && <SellForm items={items} coaches={coaches} discounts={discounts} defaultCoach={profile?.id} onSold={load} supplier={supplier} />}
       {view === 'sales' && <SalesList sales={sales} month={month} setMonth={setMonth} coachName={coachName} onChanged={load} />}
       {view === 'commission' && <Commission sales={sales} month={month} setMonth={setMonth} coachName={coachName} isAdmin={isAdmin} onChanged={load} />}
       {view === 'items' && <ItemsEditor items={items} discounts={discounts} isAdmin={isAdmin} onChanged={load} />}
@@ -60,7 +71,7 @@ export default function StockPanel({ section = 'stock' }) {
 }
 
 // ── Stock levels: every item and size, low ones in red; + delivery / count correction ──
-function StockLevels({ items, onChanged }) {
+function StockLevels({ items, onChanged, supplier, onSupplierChanged, isAdmin }) {
   const [adj, setAdj] = useState(null)   // { item, variant, change, reason, note }
   async function save() {
     let change = parseInt(adj.change, 10)
@@ -75,13 +86,14 @@ function StockLevels({ items, onChanged }) {
   return (
     <>
       <div className="stk-note">Stock value at cost: <b>{money(value)}</b> · tap a size to add a delivery or correct the count</div>
+      {isAdmin && <SupplierUpload supplier={supplier} onDone={onSupplierChanged} />}
       {items.filter(i => i.active).map(i => (
         <div key={i.id} className="card stk-item">
           <div className="stk-item-head"><b>{i.name}</b><span>{i.category || ''} · sells {money(i.sell_price)}</span></div>
           <div className="stk-vars">
             {i.stock_variants.map(v => (
               <button key={v.id} type="button" className={`stk-var${v.qty <= i.low_stock ? ' low' : ''}`} onClick={() => setAdj({ item: i, variant: v, change: '', reason: 'delivery', note: '' })}>
-                <span>{v.label}</span><b>{v.qty}</b>
+                <span>{v.label}</span><b>{v.qty}</b><SupplierBadge v={v} supplier={supplier} />
               </button>
             ))}
           </div>
@@ -108,7 +120,7 @@ function StockLevels({ items, onChanged }) {
 }
 
 // ── Sell: item -> size -> qty -> discount -> coach -> customer -> record ──
-function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
+function SellForm({ items, coaches, discounts, defaultCoach, onSold, supplier }) {
   const live = items.filter(i => i.active)
   const [itemId, setItemId] = useState(live[0]?.id || '')
   const [itemQ, setItemQ] = useState('')   // type-to-search the items
@@ -187,7 +199,7 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
       {item && <div className="field"><label>Size / option</label>
         <div className="stk-vars">{item.stock_variants.map(v => (
           <button key={v.id} type="button" className={`stk-var stk-var-sell${variantId === v.id ? ' on' : ''}${v.qty <= 0 ? ' low' : ''}`} onClick={() => setVariantId(v.id)}>
-            <b>{v.label}</b><span>{v.qty <= 0 ? 'Out of stock' : v.qty <= item.low_stock ? 'Last few' : 'In stock'}</span>
+            <b>{v.label}</b><span>{v.qty <= 0 ? 'Out of stock' : v.qty <= item.low_stock ? 'Last few' : 'In stock'}</span><SupplierBadge v={v} supplier={supplier} />
           </button>
         ))}</div></div>}
       {item && (item.instructor_price || item.non_member_price) && (
@@ -390,5 +402,44 @@ function ItemsEditor({ items, discounts, isAdmin, onChanged }) {
         </div>
       )}
     </>
+  )
+}
+
+// 🏭 Cimac's own stock for this option (from their stock list) -- not ours; shown small under the option
+function SupplierBadge({ v, supplier }) {
+  const r = v.supplier_code ? supplier?.map?.[v.supplier_code] : null
+  if (!r) return null
+  const out = !r.in_stock || r.qty <= 0
+  return <small style={{ display: 'block', fontSize: 10, fontWeight: 600, color: out ? '#E24B4A' : 'var(--text-tertiary)' }}>{out ? 'Cimac: out' : `Cimac: ${r.qty > 99 ? '99+' : r.qty}`}</small>
+}
+
+// ⬆ Upload Cimac's stock list (their CSV: in stock 1/0, description, code, qty) -- refreshes the
+// "Cimac: n" figures; never changes OUR stock counts
+function SupplierUpload({ supplier, onDone }) {
+  const [busy, setBusy] = useState(false)
+  async function upload(file) {
+    const text = await file.text()
+    const rows = text.split(/\r?\n/).map(line => {
+      const m = line.match(/^\s*(\d)\s*,\s*"((?:[^"]|"")*)"\s*,\s*"([^"]*)"\s*,\s*([\d.]+)/)
+      return m ? { in_stock: m[1] === '1', description: m[2].replace(/""/g, '"').replace(/\*/g, '').replace(/\s+/g, ' ').trim(), code: m[3].trim(), qty: Math.round(parseFloat(m[4])) } : null
+    }).filter(Boolean)
+    if (!rows.length) return alert("That doesn't look like a Cimac stock list (in stock, description, code, quantity).")
+    setBusy(true)
+    const now = new Date().toISOString()
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await supabase.from('supplier_stock').upsert(rows.slice(i, i + 500).map(r => ({ ...r, updated_at: now })), { onConflict: 'code' })
+      if (error) { setBusy(false); return alert('Could not upload: ' + error.message) }
+    }
+    setBusy(false); onDone?.()
+    alert(`✓ Cimac stock updated -- ${rows.length} lines (${rows.filter(r => !r.in_stock || r.qty <= 0).length} out of stock at Cimac). Your own stock counts haven't changed.`)
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '6px 0 10px', fontSize: 12, color: 'var(--text-secondary)' }}>
+      <span>🏭 Cimac stock{supplier?.updated ? ` updated ${new Date(supplier.updated).toLocaleDateString('en-GB')}` : ''} (small grey / red figure under each size)</span>
+      <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+        {busy ? 'Uploading…' : '⬆ Upload new Cimac stock list (CSV)'}
+        <input type="file" accept=".csv,text/csv" style={{ display: 'none' }} disabled={busy} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload(f) }} />
+      </label>
+    </div>
   )
 }
