@@ -202,6 +202,13 @@ function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView,
     return list
   }, [rows, windowMin, s.assign])
   const clashKeys = new Set(clashes.flatMap(c => [`${c.A.f.id}|${athleteKey(c.A.a)}`, `${c.B.f.id}|${athleteKey(c.B.a)}`]))
+  // for each row: the other bouts it clashes with
+  const clashWith = useMemo(() => {
+    const m = {}
+    const add = (me, other, c) => { (m[`${me.f.id}|${athleteKey(me.a)}`] ||= []).push({ other, type: c.type, coach: c.coach }) }
+    clashes.forEach(c => { add(c.A, c.B, c); add(c.B, c.A, c) })
+    return m
+  }, [clashes])
 
   const areaKey = a => a == null ? '~' : typeof a === 'number' ? `T${String(a).padStart(3, '0')}` : String(a).replace(/(\d+)/, d => d.padStart(3, '0'))
   const areaTxt = a => a == null ? '?' : typeof a === 'number' ? `T${a}` : a
@@ -294,7 +301,7 @@ function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView,
       ) : (
         <div className="ffd-table-wrap">
           <table className="ffd-table">
-            <thead><tr><th>Tatami</th><th>~Time</th><th>Category · bout</th><th>Our athlete</th><th>Opponent</th><th>Coach</th><th>Result</th></tr></thead>
+            <thead><tr><th>Tatami</th><th>~Time</th><th>Category · bout</th><th>Our athlete</th><th>Opponent</th><th>Coach</th><th>Clashes with</th><th>Result</th></tr></thead>
             <tbody>
               {shown.map((r, i) => {
                 const k = athleteKey(r.a), res = s.results?.[r.f.id]
@@ -307,12 +314,23 @@ function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView,
                     <td><b>{r.a.name}</b><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
                     <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : sideTxt(r.opp)}</td>
                     <td>
-                      {isAdmin && coaches.length ? (
-                        <select value={s.assign?.[k] || ''} onChange={e => setS({ assign: { ...(s.assign || {}), [k]: e.target.value || undefined } })}>
-                          <option value="">—</option>{coaches.map(c => <option key={c.id} value={c.id}>{c.first_name}</option>)}
+                      {isAdmin ? (
+                        <select className="ffd-coach" value={s.assign?.[k] || ''} onChange={e => {
+                          const id = e.target.value || undefined
+                          const patch = { assign: { ...(s.assign || {}), [k]: id } }
+                          if (id && !(s.coaches || []).includes(id)) patch.coaches = [...(s.coaches || []), id]   // picked someone new -> they're at the event
+                          setS(patch)
+                        }}>
+                          <option value="">—</option>
+                          {coaches.length > 0 && <optgroup label="At this event">{coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}</optgroup>}
+                          <optgroup label={coaches.length ? 'Other coaches' : 'Coaches'}>{staff.filter(m => !(s.coaches || []).includes(m.id)).map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}</optgroup>
                         </select>
                       ) : coachName(s.assign?.[k]) || '—'}
                     </td>
+                    <td className="ffd-clashcell">{(clashWith[`${r.f.id}|${k}`] || []).map((c, j) => (
+                      <div key={j}>⚠ {c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}
+                        <span className="ffd-muted"> · {areaTxt(c.other.f.area)} ~{c.other.f.startMin != null ? fromMin(c.other.f.startMin) : '?'} · {c.other.f.label || c.other.f.title}</span></div>
+                    ))}</td>
                     <td>{!r.possible && r.opp?.athlete && isAdmin ? (
                       <span className="ffd-res">
                         <button className={res === r.colour ? 'won' : ''} onClick={() => setResult(r.f, r.colour)}>Won</button>

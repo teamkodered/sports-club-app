@@ -1882,3 +1882,7 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 .ffd-table tbody tr td:first-child { border-left: 5px solid var(--sty, transparent); }
 .ffd-sty { display: inline-block; min-width: 26px; text-align: center; padding: 1px 5px; border-radius: 5px; font-size: 11px; font-weight: 700; color: #fff; background: var(--sty, #94A3B8); margin-right: 4px; }
 @media print { .ffd-show { display: none !important; } .ffd-sty, .ffd-table tbody tr td:first-child { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+.ffd-coach { min-width: 64px; min-height: 36px; padding: 6px 8px; border-radius: 8px; border: 1px dashed var(--border-strong); background: transparent; color: var(--text); font-size: 14px; }
+.ffd-clashcell { min-width: 150px; font-size: 13px; color: #E24B4A; }
+.ffd-clashcell div + div { margin-top: 4px; }
