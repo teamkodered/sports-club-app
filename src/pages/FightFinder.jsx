@@ -28,6 +28,12 @@ export default function FightFinder() {
     hold.current.t = setTimeout(() => { hold.current.fired = true; navigator.vibrate?.(30); window.getSelection?.()?.removeAllRanges(); setMenu(x) }, 550) }
   const holdEnd = () => clearTimeout(hold.current.t)
 
+  // long-press anywhere in the fight finder (incl. the hold menu): no browser page menu (Samsung Internet / Chrome)
+  useEffect(() => {
+    const block = e => { if (e.target?.closest?.('.ffd, .ffd-sheet-bg') && !e.target.closest('input, textarea, select')) e.preventDefault() }
+    document.addEventListener('contextmenu', block, { capture: true })
+    return () => document.removeEventListener('contextmenu', block, { capture: true })
+  }, [])
   useEffect(() => {
     supabase.from('fight_finders').select('id, title, fixture_id, updated_at').order('updated_at', { ascending: false }).limit(30)
       .then(({ data, error }) => setList(error ? (setMsg(/fight_finders/.test(error.message) ? 'Run supabase_fight_finder.sql to switch this on.' : error.message), []) : data || []))
