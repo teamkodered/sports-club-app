@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
-import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, buildFights, matchesSearch, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
+import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, buildFights, matchesSearch, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
 import { fetchAll } from '../lib/fetchAll.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
@@ -206,7 +206,11 @@ function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView,
   const areaKey = a => a == null ? '~' : typeof a === 'number' ? `T${String(a).padStart(3, '0')}` : String(a).replace(/(\d+)/, d => d.padStart(3, '0'))
   const areaTxt = a => a == null ? '?' : typeof a === 'number' ? `T${a}` : a
   const isCoachView = view.startsWith('coach:'), viewCoach = isCoachView ? view.slice(6) : null
-  const shown = rows.filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
+  const show = { ring: true, tatami: true, forms: true, ...(s.show || {}) }
+  const [showOpen, setShowOpen] = useState(false)
+  const hidden = ['ring', 'tatami', 'forms'].filter(k => !show[k]).length
+  const stylesHere = [...new Map(rows.map(r => { const st = styleOf(r.f.title); return [st.name, st] })).values()]
+  const shown = rows.filter(r => show[kindOf(r.f)]).filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
     .sort((a, b) => { const ar = areaKey(a.f.area).localeCompare(areaKey(b.f.area)), tm = (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9); return view === 'ring' ? ar || tm : tm || ar })
   const athletes = [...new Map(rows.map(r => [athleteKey(r.a), r.a])).values()]
 
@@ -268,11 +272,24 @@ function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView,
         <button className={view === 'ring' ? 'on' : ''} onClick={() => setView('ring')}>Tatami order</button>
         <button className={view === 'time' ? 'on' : ''} onClick={() => setView('time')}>Time order</button>
         {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
+        <span className="ffd-show">
+          <button className={hidden ? 'on' : ''} onClick={() => setShowOpen(o => !o)}>👁 Show{hidden ? ` (${3 - hidden}/3)` : ''} ▾</button>
+          {showOpen && (
+            <div className="ffd-show-menu">
+              {[['ring', '🥊 Rings'], ['tatami', '🟦 Tatamis'], ['forms', '🎵 Forms']].map(([k, label]) => (
+                <label key={k}><input type="checkbox" checked={show[k]} onChange={e => setS({ show: { ...show, [k]: e.target.checked } })} /> {label}</label>
+              ))}
+              {stylesHere.length > 0 && <div className="ffd-legend">{stylesHere.map(st => <span key={st.name}><i style={{ background: st.color }} />{st.name}</span>)}</div>}
+            </div>
+          )}
+        </span>
         <button onClick={() => window.print()}>🖨 Print</button>
         {viewCoach && <a className="ffd-wa" href={`https://wa.me/?text=${encodeURIComponent(shareText(viewCoach))}`} target="_blank" rel="noreferrer">💬 Share</a>}
       </div>
 
-      {!rows.length ? (
+      {rows.length > 0 && !shown.length ? (
+        <div className="card ffd-muted">Nothing to show — tick more in 👁 Show.</div>
+      ) : !rows.length ? (
         <div className="card ffd-muted">{!fights.length ? 'Load the schedule and draws to find the fights.' : !run ? `${fights.length} bouts loaded — press 🔍 Find fights.` : `No bouts found for "${run.query}"${run.members ? ' or our athletes\' names' : ''}.`}</div>
       ) : (
         <div className="ffd-table-wrap">
@@ -283,10 +300,10 @@ function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView,
                 const k = athleteKey(r.a), res = s.results?.[r.f.id]
                 const clash = clashKeys.has(`${r.f.id}|${k}`)
                 return (
-                  <tr key={i} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''}`}>
+                  <tr key={i} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''}`} style={{ '--sty': styleOf(r.f.title).color }}>
                     <td><b>{areaTxt(r.f.area)}</b></td>
                     <td>{r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?'}{clash && ' ⚠'}</td>
-                    <td>{r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''}</div></td>
+                    <td><span className="ffd-sty" title={styleOf(r.f.title).name}>{styleOf(r.f.title).code}</span> {r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''}</div></td>
                     <td><b>{r.a.name}</b><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
                     <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : sideTxt(r.opp)}</td>
                     <td>

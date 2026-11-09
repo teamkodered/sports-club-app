@@ -304,3 +304,25 @@ export function matchesSearch(a, query, memberNames = null) {
     return tw.length > 0 && tw.every(w => words.includes(w))
   })
 }
+
+// ── style (discipline) of a category: "02 LC 128 S M -57 KG" -> LC; each gets its own colour ──
+export const STYLES = {
+  PF: { name: 'Point Fighting', color: '#3B82F6' },
+  LC: { name: 'Light Contact', color: '#22C55E' },
+  KL: { name: 'Kick Light', color: '#EAB308' },
+  FC: { name: 'Full Contact', color: '#EF4444' },
+  LK: { name: 'Low Kick', color: '#A855F7' },
+  K1: { name: 'K1', color: '#F97316' },
+  CF: { name: 'Forms', color: '#EC4899' },
+}
+const FORMS = ['CF', 'MF', 'AF', 'FM', 'KF']
+export function styleOf(title) {
+  const code = (String(title || '').toUpperCase().match(/^\s*\d{1,3}\s+([A-Z][A-Z0-9]{1,2})\b/) || [])[1] || ''
+  if (FORMS.includes(code)) return { code, ...STYLES.CF }
+  return STYLES[code] ? { code, ...STYLES[code] } : { code: code || '?', name: code || 'Other', color: '#94A3B8' }
+}
+// ring / tatami / forms -- forms first (they run on a tatami), then by the area's letter
+export function kindOf(f) {
+  if (f.solo || FORMS.includes(styleOf(f.title).code)) return 'forms'
+  return /^R/i.test(String(f.area ?? '')) ? 'ring' : 'tatami'
+}

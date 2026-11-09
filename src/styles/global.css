@@ -1870,3 +1870,15 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 .ffd-sheet { background: var(--bg-card, var(--bg-secondary)); color: var(--text); width: 100%; max-width: 480px; border-radius: 14px 14px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; }
 .ffd-sheet .btn { width: 100%; padding: 12px; font-size: 15px; }
 .ffd-sheet .ffd-del { color: #E24B4A; }
+
+/* Show dropdown + a colour per style */
+.ffd-show { position: relative; display: inline-block; }
+.ffd-show-menu { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 210px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-card, var(--bg-secondary)); box-shadow: 0 8px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.ffd-show-menu label { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.ffd-show-menu input { width: 18px; height: 18px; }
+.ffd-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; padding-top: 8px; border-top: 1px solid var(--border-strong); font-size: 12px; }
+.ffd-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.ffd-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.ffd-table tbody tr td:first-child { border-left: 5px solid var(--sty, transparent); }
+.ffd-sty { display: inline-block; min-width: 26px; text-align: center; padding: 1px 5px; border-radius: 5px; font-size: 11px; font-weight: 700; color: #fff; background: var(--sty, #94A3B8); margin-right: 4px; }
+@media print { .ffd-show { display: none !important; } .ffd-sty, .ffd-table tbody tr td:first-child { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
