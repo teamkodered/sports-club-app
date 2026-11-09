@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -21,6 +21,11 @@ export default function FightFinder() {
   const [view, setView] = useState('ring')         // ring | time | coach:<id>
   const [msg, setMsg] = useState('')
   const [memberNames, setMemberNames] = useState([])   // our athletes, as name-word lists
+  const [menu, setMenu] = useState(null)              // saved finder held down -> its options
+  const hold = useRef({ t: null, fired: false })
+  const holdStart = x => { if (!isAdmin) return; hold.current.fired = false; clearTimeout(hold.current.t)
+    hold.current.t = setTimeout(() => { hold.current.fired = true; navigator.vibrate?.(30); setMenu(x) }, 550) }
+  const holdEnd = () => clearTimeout(hold.current.t)
 
   useEffect(() => {
     supabase.from('fight_finders').select('id, title, fixture_id, updated_at').order('updated_at', { ascending: false }).limit(30)
@@ -55,6 +60,19 @@ export default function FightFinder() {
     if (error) setMsg('Could not save: ' + error.message)
   }
   const setS = patch => save({ settings: patch })
+  async function removeFinder(x) {
+    if (!confirm(`Delete "${x.title}"? Its loaded files, coach assignments and results go too.`)) return
+    const { error } = await supabase.from('fight_finders').delete().eq('id', x.id)
+    if (error) return alert('Could not delete: ' + error.message)
+    setList(l => l.filter(y => y.id !== x.id)); setMenu(null)
+  }
+  async function renameFinder(x) {
+    const title = prompt('Name', x.title)?.trim()
+    if (!title || title === x.title) return setMenu(null)
+    const { error } = await supabase.from('fight_finders').update({ title }).eq('id', x.id)
+    if (error) return alert('Could not rename: ' + error.message)
+    setList(l => l.map(y => (y.id === x.id ? { ...y, title } : y))); setMenu(null)
+  }
 
   // ── load files: schedule / draws (PDF or saved web page) ──
   async function loadFiles(files) {
@@ -96,9 +114,24 @@ export default function FightFinder() {
       <div className="card" style={{ marginTop: 12 }}>
         <b>Saved</b>
         {list === null ? <p>Loading…</p> : !list.length ? <p className="ffd-muted">None yet.</p> : list.map(x => (
-          <button key={x.id} className="ffd-saved" onClick={() => nav(`/fight-finder?id=${x.id}`)}>{x.title}<span>{new Date(x.updated_at).toLocaleDateString('en-GB')}</span></button>
+          <button key={x.id} className="ffd-saved" onClick={() => { if (!hold.current.fired) nav(`/fight-finder?id=${x.id}`) }}
+            onPointerDown={() => holdStart(x)} onPointerUp={holdEnd} onPointerLeave={holdEnd} onPointerCancel={holdEnd}
+            onContextMenu={e => { e.preventDefault(); if (isAdmin) { hold.current.fired = true; setMenu(x) } }}>
+            {x.title}<span>{new Date(x.updated_at).toLocaleDateString('en-GB')}</span></button>
         ))}
+        {isAdmin && list?.length > 0 && <p className="ffd-muted" style={{ marginTop: 6 }}>Hold one to rename or delete it.</p>}
       </div>
+      {menu && (
+        <div className="ffd-sheet-bg" onClick={() => setMenu(null)}>
+          <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
+            <b>{menu.title}</b>
+            <button className="btn" onClick={() => nav(`/fight-finder?id=${menu.id}`)}>Open</button>
+            <button className="btn" onClick={() => renameFinder(menu)}>✏️ Rename</button>
+            <button className="btn ffd-del" onClick={() => removeFinder(menu)}>🗑 Delete</button>
+            <button className="btn" onClick={() => setMenu(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -193,7 +226,6 @@ function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView,
       {isAdmin && (
         <div className="card ffd-load">
           <b>1 · Load the competition</b>
-          <p className="ffd-muted">Upload the <b>schedule</b> (PDF — incl. the WAKO <b>Daily Schedule</b> — or saved Match Schedule page) and the <b>draws</b> (PDF, or saved bracket pages). Add more later — new files update what's there.</p>
           <input type="file" multiple accept=".pdf,.html,.htm" onChange={e => e.target.files?.length && onFiles([...e.target.files])} />
           <div className="ffd-muted">{busy || [`${(ff.data?.schedule || []).length} schedule rows`, `${(ff.data?.draws || []).length} brackets`, (ff.data?.bouts || []).length ? `${ff.data.bouts.length} bouts` : null].filter(Boolean).join(' · ') + ' loaded'}</div>
           {msg && <div className="ffd-muted">{msg}</div>}
