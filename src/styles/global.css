@@ -1548,6 +1548,7 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .ffd { max-width: 1100px; }
 .ffd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .ffd-head h1 { font-size: 22px; margin: 0; }
+@media (max-width: 767px) { .ffd-head { margin-top: 58px; flex-wrap: wrap; } .ffd-head .ffd-title { flex: 1; min-width: 0; } }
 .ffd-title { font-size: 20px; font-weight: 700; flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
 .ffd-muted { font-size: 12px; color: var(--text-secondary); }
 .ffd-saved { display: flex; justify-content: space-between; width: 100%; padding: 10px 4px; border: none; border-bottom: 1px solid var(--border); background: none; color: var(--text); font-size: 14px; cursor: pointer; text-align: left; font-family: inherit; }
