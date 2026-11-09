@@ -21,6 +21,7 @@ export default function FightFinder() {
   const [view, setView] = useState('ring')         // ring | time | coach:<id>
   const [msg, setMsg] = useState('')
   const [memberNames, setMemberNames] = useState([])   // our athletes, as name-word lists
+  const [guests, setGuests] = useState([])            // coaches typed in (not app staff), from every finder
   const [menu, setMenu] = useState(null)              // saved finder held down -> its options
   const hold = useRef({ t: null, fired: false })
   const holdStart = x => { if (!isAdmin) return; hold.current.fired = false; clearTimeout(hold.current.t)
@@ -31,6 +32,7 @@ export default function FightFinder() {
     supabase.from('fight_finders').select('id, title, fixture_id, updated_at').order('updated_at', { ascending: false }).limit(30)
       .then(({ data, error }) => setList(error ? (setMsg(/fight_finders/.test(error.message) ? 'Run supabase_fight_finder.sql to switch this on.' : error.message), []) : data || []))
     supabase.from('members').select('id, first_name, last_name, role').in('role', STAFF).order('first_name').then(({ data }) => setStaff(data || []))
+    supabase.from('fight_finders').select('settings').limit(300).then(({ data }) => setGuests(mergeGuests([], (data || []).flatMap(x => x.settings?.guests || []))))
     fetchAll(() => supabase.from('students').select('id, members!inner(first_name, last_name, status)').order('id'))
       .then(({ data }) => setMemberNames((data || []).filter(x => x.members?.status !== 'inactive')
         .map(x => nameKey(`${x.members?.first_name || ''} ${x.members?.last_name || ''}`).split(' ').filter(Boolean)).filter(ws => ws.length > 1)))
@@ -60,6 +62,22 @@ export default function FightFinder() {
     if (error) setMsg('Could not save: ' + error.message)
   }
   const setS = patch => save({ settings: patch })
+  const [newCoach, setNewCoach] = useState('')
+  function addGuest() {
+    const name = newCoach.trim().replace(/\s+/g, ' ')
+    if (!name) return
+    const id = guestId(name), known = staff.find(m => m.id === id || `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === name.toLowerCase())
+    const cid = known ? known.id : id
+    const patch = { coaches: [...new Set([...(s.coaches || []), cid])] }
+    if (!known) { patch.guests = [...(s.guests || []), { id, name }]; setGuests(g => mergeGuests(g, [{ id, name }])) }
+    setS(patch); setNewCoach('')
+  }
+  function removeGuest(m) {
+    if (!confirm(`Remove ${m.name || m.first_name} from the coach list?`)) return
+    const assign = Object.fromEntries(Object.entries(s.assign || {}).filter(([, v]) => v !== m.id))
+    setS({ guests: (s.guests || []).filter(g => g.id !== m.id), coaches: (s.coaches || []).filter(x => x !== m.id), assign })
+    setGuests(g => g.filter(x => x.id !== m.id))
+  }
   async function removeFinder(x) {
     if (!confirm(`Delete "${x.title}"? Its loaded files, coach assignments and results go too.`)) return
     const { error } = await supabase.from('fight_finders').delete().eq('id', x.id)
@@ -135,7 +153,8 @@ export default function FightFinder() {
     </div>
   )
 
-  return <FinderView ff={ff} staff={staff} memberNames={memberNames} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
+  const allStaff = [...staff, ...mergeGuests(guests, ff.settings?.guests || [])].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
+  return <FinderView ff={ff} staff={allStaff} setGuests={setGuests} memberNames={memberNames} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
     onFiles={loadFiles} setS={setS} save={save} onBack={() => { setFf(null); nav('/fight-finder', { replace: true }) }} />
 }
 
@@ -145,7 +164,15 @@ function mergeBy(oldList, newList, key) {
   return [...m.values()]
 }
 
-function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack }) {
+// a typed-in coach: id from the name, so the same person matches across finders
+export const guestId = name => 'g:' + String(name).trim().toLowerCase().replace(/\s+/g, ' ')
+function mergeGuests(a, b) {
+  const m = new Map(a.map(g => [g.id, g]))
+  b.forEach(g => { if (g?.id && !m.has(g.id)) { const [first, ...rest] = String(g.name || '').trim().split(/\s+/); m.set(g.id, { id: g.id, name: g.name, first_name: first || g.name, last_name: rest.join(' '), guest: true }) } })
+  return [...m.values()]
+}
+
+function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack }) {
   const s = ff.settings || {}
   const query = s.query ?? 'Kode Red', windowMin = Number(s.window ?? 10)
   const useMembers = s.members !== false
@@ -249,15 +276,20 @@ function FinderView({ ff, staff, memberNames, isAdmin, busy, msg, view, setView,
           <button className="btn btn-primary ffd-find" onClick={find} disabled={!fights.length}>🔍 Find fights</button>
         </div>
         <label className="ffd-check"><input type="checkbox" checked={useMembers} onChange={e => setS({ members: e.target.checked })} /> Also find our athletes by name ({memberNames.length})</label>
-        {noClubs && <div className="ffd-muted">This schedule only lists countries, not clubs — our athletes are found by name, or search a country (GBR).</div>}
         {stale && <div className="ffd-muted">Changed — press 🔍 Find fights to update.</div>}
         <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
         {isAdmin && (
           <details>
             <summary>Coaches at this event ({coaches.length})</summary>
             <div className="ffd-coaches">{staff.map(m => (
-              <label key={m.id}><input type="checkbox" checked={(s.coaches || []).includes(m.id)} onChange={e => setS({ coaches: e.target.checked ? [...(s.coaches || []), m.id] : (s.coaches || []).filter(x => x !== m.id) })} /> {m.first_name} {m.last_name}</label>
+              <label key={m.id}><input type="checkbox" checked={(s.coaches || []).includes(m.id)} onChange={e => setS({ coaches: e.target.checked ? [...(s.coaches || []), m.id] : (s.coaches || []).filter(x => x !== m.id) })} />
+                <span>{m.first_name} {m.last_name}</span>
+                {m.guest && <button type="button" className="ffd-x" title="Remove" onClick={e => { e.preventDefault(); removeGuest(m) }}>✕</button>}</label>
             ))}</div>
+            <div className="ffd-addcoach">
+              <input value={newCoach} onChange={e => setNewCoach(e.target.value)} onKeyDown={e => e.key === 'Enter' && addGuest()} placeholder="Add a coach (name)" />
+              <button className="btn" onClick={addGuest} disabled={!newCoach.trim()}>+ Add</button>
+            </div>
           </details>
         )}
       </div>

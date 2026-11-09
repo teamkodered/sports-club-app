@@ -1563,7 +1563,12 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .ffd-find { font-size: 15px; padding: 10px 16px; white-space: nowrap; }
 .ffd-opts .ffd-check input { width: 18px; height: 18px; }
 @media (max-width: 600px) { .ffd-find { width: 100%; } }
-.ffd-coaches { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.ffd-coaches { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 4px 12px; margin-top: 8px; }
+.ffd-opts .ffd-coaches label { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 8px; padding: 6px 0; }
+.ffd-coaches label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ffd-x { background: none; border: none; color: var(--text-secondary, #999); font-size: 14px; padding: 2px 6px; cursor: pointer; }
+.ffd-addcoach { display: flex; gap: 8px; margin-top: 10px; }
+.ffd-addcoach input { flex: 1; min-width: 0; font-size: 15px; padding: 9px 10px; }
 .ffd-clash { border-left: 4px solid #E24B4A; font-size: 13px; }
 .ffd-clash-row { padding: 4px 0; border-top: 1px solid var(--border); }
 .ffd-clash-row em { color: var(--text-tertiary); }
