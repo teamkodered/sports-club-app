@@ -248,6 +248,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
   const isCoachView = view.startsWith('coach:'), viewCoach = isCoachView ? view.slice(6) : null
   const show = { ring: true, tatami: true, forms: true, ...(s.show || {}) }
   const [showOpen, setShowOpen] = useState(false)
+  const [vid, setVid] = useState(null)   // tapped athlete -> video search links
   const hidden = ['ring', 'tatami', 'forms'].filter(k => !show[k]).length
   const stylesHere = [...new Map(rows.map(r => { const st = styleOf(r.f.title); return [st.name, st] })).values()]
   const shown = rows.filter(r => show[kindOf(r.f)]).filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
@@ -349,8 +350,9 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
                     <td><b>{areaTxt(r.f.area)}</b></td>
                     <td>{r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?'}{clash && ' ⚠'}</td>
                     <td><span className="ffd-sty" title={styleOf(r.f.title).name}>{styleOf(r.f.title).code}</span> {r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''}</div></td>
-                    <td><b>{r.a.name}</b><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
-                    <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : sideTxt(r.opp)}</td>
+                    <td><button className="ffd-namebtn" onClick={() => setVid({ a: r.a, f: r.f })}><b>{r.a.name}</b> <span>🎥</span></button><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
+                    <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : r.opp?.athlete
+                      ? <button className="ffd-namebtn" onClick={() => setVid({ a: r.opp.athlete, f: r.f })}>{sideTxt(r.opp)} <span>🎥</span></button> : sideTxt(r.opp)}</td>
                     <td>
                       {isAdmin ? (
                         <select className="ffd-coach" value={s.assign?.[k] || ''} onChange={e => {
@@ -382,7 +384,37 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
           </table>
         </div>
       )}
+      {vid && <VideoSheet a={vid.a} f={vid.f} onClose={() => setVid(null)} />}
       <p className="ffd-muted" style={{ marginTop: 8 }}>~ Times are estimates: each category's (or session's) time spread over its bouts, in order. {athletes.length} athlete{athletes.length === 1 ? '' : 's'} found.</p>
+    </div>
+  )
+}
+
+// tap a fighter -> YouTube / Google video searches for their fights. Draw sheets write "Surname First",
+// so the search uses "First Surname" (last word moved to the front) and the name as written.
+function VideoSheet({ a, f, onClose }) {
+  const words = String(a.name || '').trim().split(/\s+/)
+  const flipped = words.length > 1 ? [words[words.length - 1], ...words.slice(0, -1)].join(' ') : a.name
+  const nice = flipped.toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase())
+  const style = styleOf(f?.title)
+  const yt = q => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+  const links = [
+    ['🎥', `${nice} ${style.name !== 'Other' ? style.name : ''} kickboxing`.replace(/\s+/g, ' '), yt(`"${nice}" ${style.name !== 'Other' ? style.name : ''} kickboxing`)],
+    ['🎥', `${nice} WAKO`, yt(`"${nice}" WAKO`)],
+    ['🎥', `${nice} fight`, yt(`"${nice}" fight`)],
+    ['🎥', `${a.name} (as listed)`, yt(`"${a.name}" kickboxing`)],
+    ['🔍', `Google videos: ${nice}`, `https://www.google.com/search?tbm=vid&q=${encodeURIComponent(`"${nice}" kickboxing`)}`],
+  ]
+  return (
+    <div className="ffd-sheet-bg" onClick={onClose}>
+      <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
+        <b>🎥 {nice}</b>
+        <div className="ffd-muted">{[a.club, a.country, style.name !== 'Other' ? style.name : null].filter(Boolean).join(' · ')}</div>
+        {links.map(([icon, label, href]) => (
+          <a key={href} className="btn ffd-vidlink" href={href} target="_blank" rel="noreferrer">{icon} {label}</a>
+        ))}
+        <button className="btn" onClick={onClose}>Close</button>
+      </div>
     </div>
   )
 }

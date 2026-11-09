@@ -1891,3 +1891,8 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 .ffd-coach { min-width: 64px; min-height: 36px; padding: 6px 8px; border-radius: 8px; border: 1px dashed var(--border-strong); background: transparent; color: var(--text); font-size: 14px; }
 .ffd-clashcell { min-width: 150px; font-size: 13px; color: #E24B4A; }
 .ffd-clashcell div + div { margin-top: 4px; }
+
+.ffd-namebtn { background: none; border: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ffd-namebtn span { font-size: 12px; opacity: .7; }
+.ffd-vidlink { display: block; text-align: left; text-decoration: none; padding: 12px; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media print { .ffd-namebtn span { display: none; } }
