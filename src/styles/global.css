@@ -1862,7 +1862,10 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 .ts-measure-btn { height: auto !important; min-height: 46px; padding-top: 8px !important; padding-bottom: 8px !important; line-height: 1.15 !important; white-space: normal !important; text-align: center; }
 .ts-measure-btn { padding-left: 12px !important; padding-right: 12px !important; overflow-wrap: anywhere; max-width: 100%; box-sizing: border-box; }
 
-.ffd-saved { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+/* no text selection / copy bubble on long-press anywhere in the fight finder (typing boxes still work) */
+.ffd, .ffd *, .ffd-sheet-bg, .ffd-sheet-bg * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.ffd input, .ffd textarea, .ffd select { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.ffd-saved { touch-action: manipulation; }
 .ffd-sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
 .ffd-sheet { background: var(--bg-card, var(--bg-secondary)); color: var(--text); width: 100%; max-width: 480px; border-radius: 14px 14px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; }
 .ffd-sheet .btn { width: 100%; padding: 12px; font-size: 15px; }

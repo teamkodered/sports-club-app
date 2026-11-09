@@ -24,7 +24,7 @@ export default function FightFinder() {
   const [menu, setMenu] = useState(null)              // saved finder held down -> its options
   const hold = useRef({ t: null, fired: false })
   const holdStart = x => { if (!isAdmin) return; hold.current.fired = false; clearTimeout(hold.current.t)
-    hold.current.t = setTimeout(() => { hold.current.fired = true; navigator.vibrate?.(30); setMenu(x) }, 550) }
+    hold.current.t = setTimeout(() => { hold.current.fired = true; navigator.vibrate?.(30); window.getSelection?.()?.removeAllRanges(); setMenu(x) }, 550) }
   const holdEnd = () => clearTimeout(hold.current.t)
 
   useEffect(() => {
@@ -116,7 +116,7 @@ export default function FightFinder() {
         {list === null ? <p>Loading…</p> : !list.length ? <p className="ffd-muted">None yet.</p> : list.map(x => (
           <button key={x.id} className="ffd-saved" onClick={() => { if (!hold.current.fired) nav(`/fight-finder?id=${x.id}`) }}
             onPointerDown={() => holdStart(x)} onPointerUp={holdEnd} onPointerLeave={holdEnd} onPointerCancel={holdEnd}
-            onContextMenu={e => { e.preventDefault(); if (isAdmin) { hold.current.fired = true; setMenu(x) } }}>
+            onContextMenu={e => { e.preventDefault(); window.getSelection?.()?.removeAllRanges(); if (isAdmin) { hold.current.fired = true; setMenu(x) } }}>
             {x.title}<span>{new Date(x.updated_at).toLocaleDateString('en-GB')}</span></button>
         ))}
         {isAdmin && list?.length > 0 && <p className="ffd-muted" style={{ marginTop: 6 }}>Hold one to rename or delete it.</p>}
@@ -125,7 +125,7 @@ export default function FightFinder() {
         <div className="ffd-sheet-bg" onClick={() => setMenu(null)}>
           <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
             <b>{menu.title}</b>
-            <button className="btn" onClick={() => nav(`/fight-finder?id=${menu.id}`)}>Open</button>
+            <button className="btn" onClick={() => { window.getSelection?.()?.removeAllRanges(); setMenu(null); nav(`/fight-finder?id=${menu.id}`) }}>Open</button>
             <button className="btn" onClick={() => renameFinder(menu)}>✏️ Rename</button>
             <button className="btn ffd-del" onClick={() => removeFinder(menu)}>🗑 Delete</button>
             <button className="btn" onClick={() => setMenu(null)}>Cancel</button>
