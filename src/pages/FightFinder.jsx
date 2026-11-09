@@ -62,22 +62,6 @@ export default function FightFinder() {
     if (error) setMsg('Could not save: ' + error.message)
   }
   const setS = patch => save({ settings: patch })
-  const [newCoach, setNewCoach] = useState('')
-  function addGuest() {
-    const name = newCoach.trim().replace(/\s+/g, ' ')
-    if (!name) return
-    const id = guestId(name), known = staff.find(m => m.id === id || `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === name.toLowerCase())
-    const cid = known ? known.id : id
-    const patch = { coaches: [...new Set([...(s.coaches || []), cid])] }
-    if (!known) { patch.guests = [...(s.guests || []), { id, name }]; setGuests(g => mergeGuests(g, [{ id, name }])) }
-    setS(patch); setNewCoach('')
-  }
-  function removeGuest(m) {
-    if (!confirm(`Remove ${m.name || m.first_name} from the coach list?`)) return
-    const assign = Object.fromEntries(Object.entries(s.assign || {}).filter(([, v]) => v !== m.id))
-    setS({ guests: (s.guests || []).filter(g => g.id !== m.id), coaches: (s.coaches || []).filter(x => x !== m.id), assign })
-    setGuests(g => g.filter(x => x.id !== m.id))
-  }
   async function removeFinder(x) {
     if (!confirm(`Delete "${x.title}"? Its loaded files, coach assignments and results go too.`)) return
     const { error } = await supabase.from('fight_finders').delete().eq('id', x.id)
@@ -174,6 +158,22 @@ function mergeGuests(a, b) {
 
 function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack }) {
   const s = ff.settings || {}
+  const [newCoach, setNewCoach] = useState('')
+  function addGuest() {
+    const name = newCoach.trim().replace(/\s+/g, ' ')
+    if (!name) return
+    const id = guestId(name), known = staff.find(m => m.id === id || `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === name.toLowerCase())
+    const cid = known ? known.id : id
+    const patch = { coaches: [...new Set([...(s.coaches || []), cid])] }
+    if (!known) { patch.guests = [...(s.guests || []), { id, name }]; setGuests(g => mergeGuests(g, [{ id, name }])) }
+    setS(patch); setNewCoach('')
+  }
+  function removeGuest(m) {
+    if (!confirm(`Remove ${m.name || m.first_name} from the coach list?`)) return
+    const assign = Object.fromEntries(Object.entries(s.assign || {}).filter(([, v]) => v !== m.id))
+    setS({ guests: (s.guests || []).filter(g => g.id !== m.id), coaches: (s.coaches || []).filter(x => x !== m.id), assign })
+    setGuests(g => g.filter(x => x.id !== m.id))
+  }
   const query = s.query ?? 'Kode Red', windowMin = Number(s.window ?? 10)
   const useMembers = s.members !== false
   const [draft, setDraft] = useState(query)
