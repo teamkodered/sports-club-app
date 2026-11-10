@@ -324,7 +324,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
         <button className={view === 'time' ? 'on' : ''} onClick={() => setView('time')}>Time order</button>
         {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
         <span className="ffd-show">
-          <button className={hidden ? 'on' : ''} onClick={() => setShowOpen(o => !o)}>👁 Show{hidden ? ` (${3 - hidden}/3)` : ''} ▾</button>
+          <button className={`ffd-showbtn ${hidden ? 'on' : ''}`} onClick={() => setShowOpen(o => !o)}><span>👁 Show{hidden ? ` (${3 - hidden}/3)` : ''} ▾</span>{rows.length > 0 && <small>{shownAthletes} athlete{shownAthletes === 1 ? '' : 's'}</small>}</button>
           {showOpen && (
             <div className="ffd-show-menu">
               {[['ring', '🥊 Rings'], ['tatami', '🟦 Tatamis'], ['forms', '🎵 Forms']].map(([k, label]) => (

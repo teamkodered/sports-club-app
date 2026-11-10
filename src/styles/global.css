@@ -1878,7 +1878,7 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 
 /* Show dropdown + a colour per style */
 .ffd-show { position: relative; display: inline-block; }
-.ffd-show-menu { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 210px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-card, var(--bg-secondary)); box-shadow: 0 8px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.ffd-show-menu { position: absolute; z-index: 50; top: calc(100% + 6px); right: 0; max-width: calc(100vw - 24px); min-width: 210px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-card, var(--bg-secondary)); box-shadow: 0 8px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
 .ffd-show-menu label { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .ffd-show-menu input { width: 18px; height: 18px; }
 .ffd-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; padding-top: 8px; border-top: 1px solid var(--border-strong); font-size: 12px; }
@@ -1903,3 +1903,6 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 .ffd-vidmain { text-align: center; padding: 14px; font-weight: 600; }
 .ffd-vidmore { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 6px; font-size: 14px; }
 .ffd-vidmore a { color: var(--text-secondary, #aaa); text-decoration: underline; }
+
+.ffd-showbtn { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.ffd-showbtn small { font-size: 11px; opacity: .75; font-weight: 500; }
