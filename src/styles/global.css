@@ -1899,3 +1899,7 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 
 .ffd-count { margin: 2px 0 8px; font-size: 13px; }
 .ffd-count b { color: var(--text); }
+
+.ffd-vidmain { text-align: center; padding: 14px; font-weight: 600; }
+.ffd-vidmore { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 6px; font-size: 14px; }
+.ffd-vidmore a { color: var(--text-secondary, #aaa); text-decoration: underline; }

@@ -404,21 +404,17 @@ function VideoSheet({ a, f, onClose }) {
   const nice = flipped.toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase())
   const style = styleOf(f?.title)
   const yt = q => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
-  const links = [
-    ['🎥', `${nice} ${style.name !== 'Other' ? style.name : ''} kickboxing`.replace(/\s+/g, ' '), yt(`"${nice}" ${style.name !== 'Other' ? style.name : ''} kickboxing`)],
-    ['🎥', `${nice} WAKO`, yt(`"${nice}" WAKO`)],
-    ['🎥', `${nice} fight`, yt(`"${nice}" fight`)],
-    ['🎥', `${a.name} (as listed)`, yt(`"${a.name}" kickboxing`)],
-    ['🔍', `Google videos: ${nice}`, `https://www.google.com/search?tbm=vid&q=${encodeURIComponent(`"${nice}" kickboxing`)}`],
-  ]
+  const listed = String(a.name || '').trim().toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase())
   return (
     <div className="ffd-sheet-bg" onClick={onClose}>
       <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
         <b>🎥 {nice}</b>
         <div className="ffd-muted">{[a.club, a.country, style.name !== 'Other' ? style.name : null].filter(Boolean).join(' · ')}</div>
-        {links.map(([icon, label, href]) => (
-          <a key={href} className="btn ffd-vidlink" href={href} target="_blank" rel="noreferrer">{icon} {label}</a>
-        ))}
+        <a className="btn btn-primary ffd-vidlink ffd-vidmain" href={yt(`"${nice}" kickboxing`)} target="_blank" rel="noreferrer">▶ Find {nice}'s fights on YouTube</a>
+        <div className="ffd-vidmore">
+          {listed !== nice && <a href={yt(`"${listed}" kickboxing`)} target="_blank" rel="noreferrer">Not finding it? Try “{listed}”</a>}
+          <a href={`https://www.google.com/search?tbm=vid&q=${encodeURIComponent(`"${nice}" kickboxing`)}`} target="_blank" rel="noreferrer">Google videos (Facebook, Instagram…)</a>
+        </div>
         <button className="btn" onClick={onClose}>Close</button>
       </div>
     </div>
