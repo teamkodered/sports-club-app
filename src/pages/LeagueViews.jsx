@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import PointsBreakdown from '../components/shared/PointsBreakdown.jsx'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import LeagueBoardSettings from '../components/shared/LeagueBoardSettings.jsx'
@@ -924,6 +925,7 @@ export default function LeagueViews() {
               })()}
 
               <div className="card" style={{ padding: 0 }}>
+                <PointsBreakdown rows={searchResults} />
                 <table>
                   <thead>
                     <tr>
