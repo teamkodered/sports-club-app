@@ -252,12 +252,12 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
   const hidden = ['ring', 'tatami', 'forms'].filter(k => !show[k]).length
   const stylesHere = [...new Map(rows.map(r => { const st = styleOf(r.f.title); return [st.name, st] })).values()]
   const shown = rows.filter(r => show[kindOf(r.f)]).filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
+    .sort((a, b) => { const ar = areaKey(a.f.area).localeCompare(areaKey(b.f.area)), tm = (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9); return view === 'ring' ? ar || tm : tm || ar })
   // athletes per ring / tatami / forms (in this tab), and in what's showing
   const inTab = rows.filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
   const countAthletes = list => new Set(list.map(r => athleteKey(r.a))).size
   const kindCount = k => countAthletes(inTab.filter(r => kindOf(r.f) === k))
   const shownAthletes = countAthletes(shown), shownBouts = shown.filter(r => !r.possible).length
-    .sort((a, b) => { const ar = areaKey(a.f.area).localeCompare(areaKey(b.f.area)), tm = (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9); return view === 'ring' ? ar || tm : tm || ar })
   const athletes = [...new Map(rows.map(r => [athleteKey(r.a), r.a])).values()]
 
   const setResult = (f, colour) => setS({ results: { ...(s.results || {}), [f.id]: s.results?.[f.id] === colour ? undefined : colour } })
