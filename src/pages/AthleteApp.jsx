@@ -8127,18 +8127,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 placeholder="Weight" style={{ flex: 1 }} />
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>kg</span>
             </div>
-            {scaleSupported() && (
-              <div style={{ marginTop: -4, marginBottom: 12 }}>
-                <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }} disabled={scaleBusy}
-                  onClick={async () => {
-                    setScaleBusy(true); setScaleMsg('Choose your scales…')
-                    try { const r = await readScale({ onStatus: setScaleMsg }); setWeightCheckValue(String(r.kg)); setScaleMsg(`⚖️ ${r.kg} kg from the scales`) }
-                    catch (e) { setScaleMsg(e?.name === 'NotFoundError' ? 'No scales picked' : (e?.message || 'Could not read the scales')) }
-                    setScaleBusy(false)
-                  }}>⚖️ Read from Bluetooth scales</button>
-                {scaleMsg && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>{scaleMsg}</div>}
-              </div>
-            )}
+            {/* ⚖️ Bluetooth scales button removed -- the gym scales aren't Bluetooth */}
             {showWeightCheckPrompt === 'in' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 13 }}>
                 <input type="checkbox" checked={fullKitChecked} onChange={e => setFullKitChecked(e.target.checked)} />
