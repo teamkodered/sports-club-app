@@ -252,6 +252,11 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
   const hidden = ['ring', 'tatami', 'forms'].filter(k => !show[k]).length
   const stylesHere = [...new Map(rows.map(r => { const st = styleOf(r.f.title); return [st.name, st] })).values()]
   const shown = rows.filter(r => show[kindOf(r.f)]).filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
+  // athletes per ring / tatami / forms (in this tab), and in what's showing
+  const inTab = rows.filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
+  const countAthletes = list => new Set(list.map(r => athleteKey(r.a))).size
+  const kindCount = k => countAthletes(inTab.filter(r => kindOf(r.f) === k))
+  const shownAthletes = countAthletes(shown), shownBouts = shown.filter(r => !r.possible).length
     .sort((a, b) => { const ar = areaKey(a.f.area).localeCompare(areaKey(b.f.area)), tm = (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9); return view === 'ring' ? ar || tm : tm || ar })
   const athletes = [...new Map(rows.map(r => [athleteKey(r.a), r.a])).values()]
 
@@ -323,7 +328,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
           {showOpen && (
             <div className="ffd-show-menu">
               {[['ring', '🥊 Rings'], ['tatami', '🟦 Tatamis'], ['forms', '🎵 Forms']].map(([k, label]) => (
-                <label key={k}><input type="checkbox" checked={show[k]} onChange={e => setS({ show: { ...show, [k]: e.target.checked } })} /> {label}</label>
+                <label key={k}><input type="checkbox" checked={show[k]} onChange={e => setS({ show: { ...show, [k]: e.target.checked } })} /> {label} <span className="ffd-muted">({kindCount(k)})</span></label>
               ))}
               {stylesHere.length > 0 && <div className="ffd-legend">{stylesHere.map(st => <span key={st.name}><i style={{ background: st.color }} />{st.name}</span>)}</div>}
             </div>
@@ -333,6 +338,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
         {viewCoach && <a className="ffd-wa" href={`https://wa.me/?text=${encodeURIComponent(shareText(viewCoach))}`} target="_blank" rel="noreferrer">💬 Share</a>}
       </div>
 
+      {rows.length > 0 && <div className="ffd-muted ffd-count">Showing <b>{shownAthletes}</b> athlete{shownAthletes === 1 ? '' : 's'} · {shownBouts} bout{shownBouts === 1 ? '' : 's'}{hidden ? ` (of ${countAthletes(inTab)} athletes)` : ''}</div>}
       {rows.length > 0 && !shown.length ? (
         <div className="card ffd-muted">Nothing to show — tick more in 👁 Show.</div>
       ) : !rows.length ? (

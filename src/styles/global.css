@@ -1896,3 +1896,6 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 .ffd-namebtn span { font-size: 12px; opacity: .7; }
 .ffd-vidlink { display: block; text-align: left; text-decoration: none; padding: 12px; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media print { .ffd-namebtn span { display: none; } }
+
+.ffd-count { margin: 2px 0 8px; font-size: 13px; }
+.ffd-count b { color: var(--text); }
