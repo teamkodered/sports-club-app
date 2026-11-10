@@ -5115,6 +5115,34 @@ export default function AthleteApp() {
     return { data: [], error: r.error }
   }
 
+  // ── 📷 Scan the scales: photo -> weight read by the AI reader (Netlify function), photo kept as proof ──
+  const scaleCamRef = useRef(null)
+  const [scalePhoto, setScalePhoto] = useState(null)   // { blob, preview, readKg }
+  async function scanScales(file) {
+    setScaleBusy(true); setScaleMsg('Reading the scales…')
+    try {
+      // shrink to ~1024px so it's quick to send (and cheap to read)
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file) })
+      const sc = Math.min(1, 1024 / Math.max(img.width, img.height)), c = document.createElement('canvas')
+      c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+      const dataUrl = c.toDataURL('image/jpeg', 0.8)
+      const blob = await (await fetch(dataUrl)).blob()
+      const r = await fetch('/.netlify/functions/read-scale', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: dataUrl.split(',')[1] }) })
+      const out = await r.json().catch(() => ({}))
+      setScalePhoto({ blob, preview: dataUrl, readKg: out.kg ?? null })
+      if (out.kg) { setWeightCheckValue(String(out.kg)); setScaleMsg(`⚖️ Read ${out.kg} kg -- check it matches, then Save.`) }
+      else setScaleMsg(out.error || 'Couldn\u2019t read the number -- try again a bit closer, or type it in (the photo is kept).')
+    } catch (e) { setScaleMsg('Could not read the photo -- try again.') }
+    setScaleBusy(false)
+  }
+  async function saveScalePhoto() {
+    const p = scalePhoto; if (!p || !student) return
+    const kind = showWeightCheckPrompt === 'out' ? 'out' : 'in', date = new Date().toISOString().split('T')[0]
+    const path = `${student.id}/${date}-${kind}-${Date.now()}.jpg`
+    const { error } = await supabase.storage.from('weigh-ins').upload(path, p.blob, { contentType: 'image/jpeg' })
+    if (!error) supabase.from('weigh_in_photos').insert({ student_id: student.id, session_date: date, kind, path, kg: parseFloat(weightCheckValue) || null, read_kg: p.readKg }).then(() => {}, () => {})
+    setScalePhoto(null); setScaleMsg('')
+  }
   async function submitWeightCheck(skip = false) {
     if (!activeCheckIn) { setShowWeightCheckPrompt(null); return }
     setCheckingIn(true)
@@ -8127,7 +8155,13 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 placeholder="Weight" style={{ flex: 1 }} />
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>kg</span>
             </div>
-            {/* ⚖️ Bluetooth scales button removed -- the gym scales aren't Bluetooth */}
+            {/* 📷 scan the scales (required): photo -> the weight is read off it and kept as proof */}
+            <input ref={scaleCamRef} type="file" accept="image/*" capture="environment" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) scanScales(f) }} />
+            <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: -4, marginBottom: 6 }} disabled={scaleBusy} onClick={() => scaleCamRef.current?.click()}>
+              {scaleBusy ? 'Reading the scales…' : scalePhoto ? '📷 Scan again' : '📷 Scan the scales'}
+            </button>
+            {scalePhoto && <img src={scalePhoto.preview} alt="Scales photo" style={{ width: '100%', maxHeight: 120, objectFit: 'contain', borderRadius: 8, marginBottom: 6, background: '#000' }} />}
+            {scaleMsg && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>{scaleMsg}</div>}
             {showWeightCheckPrompt === 'in' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 13 }}>
                 <input type="checkbox" checked={fullKitChecked} onChange={e => setFullKitChecked(e.target.checked)} />
@@ -8139,7 +8173,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 Cancel
               </button>
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(true)} disabled={checkingIn}>Skip</button>
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(false)} disabled={checkingIn}>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { if (!scalePhoto) { setScaleMsg('📷 Scan the scales first -- a photo is needed with every weigh-in.'); return } saveScalePhoto(); submitWeightCheck(false) }} disabled={checkingIn || !scalePhoto}>
                 {checkingIn ? 'Saving…' : 'Save'}
               </button>
             </div>
