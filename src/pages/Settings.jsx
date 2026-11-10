@@ -260,7 +260,7 @@ export default function Settings() {
   }
 
   function AthleteHousePointsEditor() {
-    const defaults = { f2f_question: 1, f2f_focus: 3, checkin: 2, checkout: 1, weigh_in: 2, weigh_out: 2, full_checkin: 3, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 }
+    const defaults = { f2f_question: 1, f2f_focus: 3, checkin: 0, checkout: 0, weigh_in: 3, weigh_out: 3, full_checkin: 0, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 5 }
     const stored = { ...defaults, ...(settings.athlete_house_points || {}) }
     const [local, setLocal] = useState(stored)
     const [ahpSaving, setAhpSaving] = useState(false)

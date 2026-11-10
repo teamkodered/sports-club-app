@@ -1127,7 +1127,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
   function awardAttendancePoints(student, type, classId) {
     const q = awardQueueRef.current
-    const run = (q[student.id] || Promise.resolve()).then(async () => { const r = await awardAttendancePointsNow(student, type, classId); /* weekly consistency bonus switched off (Nov 2026) */ return r })
+    const run = (q[student.id] || Promise.resolve()).then(async () => { const r = await awardAttendancePointsNow(student, type, classId); /* weekly consistency bonus switched off (Nov 2026) */
+      // weighing v register: only the higher counts each day -- show the real totals straight away
+      const { data: fresh } = await supabase.from('students').select('house_points, individual_points').eq('id', student.id).maybeSingle()
+      if (fresh) setStudents(prev => prev.map(x => x.id === student.id ? { ...x, house_points: fresh.house_points, individual_points: fresh.individual_points } : x))
+      return r })
     q[student.id] = run.catch(() => {})
     return run
   }

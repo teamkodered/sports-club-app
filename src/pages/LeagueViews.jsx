@@ -744,7 +744,8 @@ export default function LeagueViews() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
             {houseStandings.map(h => {
               const colour = HOUSE_COLOURS[h.name] || '#888'
-              const houseMembers = individualRankings.filter(s => s.house === h.name).slice(0, houseTopN)
+              // house top scorers rank on HOUSE points (register, coach awards, weighing) -- app extras are individual only
+              const houseMembers = individualRankings.filter(s => s.house === h.name && (s.housePoints || 0) !== 0).sort((a, b) => (b.housePoints || 0) - (a.housePoints || 0)).slice(0, houseTopN)
               return (
                 <div key={h.name} className="card" style={{ padding: '14px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 10px', borderBottom: '1px solid var(--border)' }}>
@@ -762,7 +763,7 @@ export default function LeagueViews() {
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)', width: 20, flexShrink: 0 }}>{i + 1}</span>
                         <HoldableName student={s} onHold={setProfilePopupFor} style={{ fontSize: 13, flex: 1, color: 'var(--text)', textDecoration: 'underline' }} />
                         {s.champCount > 0 && <span style={{ fontSize: 10, marginRight: 4 }}>🏆{s.champCount}</span>}
-                        <span onClick={() => openScoreHistoryFor(s.id)} style={{ fontSize: 13, fontWeight: 700, color: colour, cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.total}</span>
+                        <span onClick={() => openScoreHistoryFor(s.id)} style={{ fontSize: 13, fontWeight: 700, color: colour, cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.housePoints}</span>
                       </div>
                     ))
                   }
