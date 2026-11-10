@@ -1127,7 +1127,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
   function awardAttendancePoints(student, type, classId) {
     const q = awardQueueRef.current
-    const run = (q[student.id] || Promise.resolve()).then(async () => { const r = await awardAttendancePointsNow(student, type, classId); if (r > 0 && (type === 'attended' || type === 'full_kit')) await maybeWeeklyConsistency(student); return r })
+    const run = (q[student.id] || Promise.resolve()).then(async () => { const r = await awardAttendancePointsNow(student, type, classId); /* weekly consistency bonus switched off (Nov 2026) */ return r })
     q[student.id] = run.catch(() => {})
     return run
   }
