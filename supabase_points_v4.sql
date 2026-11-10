@@ -1,6 +1,7 @@
 -- ════════════════════════════════════════════════════════════════════════
 -- POINTS v4 (Nov 2026) -- weighing = checking in / out, and fairer houses
---   Weigh in 3 + weigh out 3 (= check in / out, counts for the HOUSE as well); plain check-in / out and
+--   ALL points (coach and app) count for the athlete AND their house.
+--   Weigh in 3 + weigh out 3 (= check in / out); plain check-in / out and
 --   the full check-in bonus = 0. Weekly target hit 5 per section (was 10).
 --   Each day: the higher of WEIGHING (in + out) or the REGISTER (attendance 3 / full kit 5) counts --
 --   never both (kickboxers and boxers alike). No weigh-in -> register points as normal.
@@ -105,20 +106,14 @@ begin
   end if;
   if p_reason = 'target_week' and exists (select 1 from points_log where student_id = v_student and point_type = v_label) then return 0; end if;
   -- individual points only (houses are coach-awarded points)
-  -- weighing in / out = checking in / out: counts for the HOUSE too (like a register mark); every other app point is individual
-  if p_reason in ('weigh_in', 'weigh_out') then
-    insert into points_log (student_id, point_type, points_awarded, point_scope, awarded_at)
-      values (v_student, v_label, v_amount, 'both', now());
-    update students set individual_points = coalesce(individual_points, 0) + v_amount, house_points = coalesce(house_points, 0) + v_amount where id = v_student;
-    update houses h set points = coalesce(h.points, 0) + v_amount
-      from students s join members m on m.id = s.member_id left join houses hh on hh.id = m.house_id
-      where s.id = v_student and h.name = coalesce(hh.name, s.house_name);
-    -- (the reconcile trigger then keeps only the higher of weighing / the register for that day)
-  else
-    insert into points_log (student_id, point_type, points_awarded, point_scope, awarded_at)
-      values (v_student, v_label, v_amount, 'individual', now());
-    update students set individual_points = coalesce(individual_points, 0) + v_amount where id = v_student;
-  end if;
+  -- every app point counts for the athlete AND their house (same as coach awards)
+  insert into points_log (student_id, point_type, points_awarded, point_scope, awarded_at)
+    values (v_student, v_label, v_amount, 'both', now());
+  update students set individual_points = coalesce(individual_points, 0) + v_amount, house_points = coalesce(house_points, 0) + v_amount where id = v_student;
+  update houses h set points = coalesce(h.points, 0) + v_amount
+    from students s join members m on m.id = s.member_id left join houses hh on hh.id = m.house_id
+    where s.id = v_student and h.name = coalesce(hh.name, s.house_name);
+  -- (for weigh in / out the reconcile trigger then keeps only the higher of weighing / the register that day)
   return v_amount;
 end $$;
 
@@ -129,7 +124,11 @@ create temp table kc_before on commit drop as
 select id, student_id, point_scope, points_awarded from points_log
 where awarded_at >= coalesce((select nullif(trim(both '"' from value::text), '')::date from settings where key = 'league_date_from'), date_trunc('month', now())::date);
 
--- weigh in / out = 3 each, counted for the house too; plain check-in / out / full check-in = 0; weekly target 5
+-- app points count for the house too this period (same as coach awards)
+update points_log set point_scope = 'both'
+where id in (select id from kc_before) and point_scope = 'individual'
+  and point_type ~ '^(F2F question|PDP|Self check|Weigh (in|out)|Full check-in|Weekly target|Test|Bleep|PB:|Monthly improvement)';
+-- weigh in / out = 3 each; plain check-in / out / full check-in = 0; weekly target 5
 update points_log set base_points = 3, points_awarded = 3, point_scope = 'both'
 where id in (select id from kc_before) and point_type ~ '^Weigh (in|out)';
 update points_log set points_awarded = 0, base_points = 0

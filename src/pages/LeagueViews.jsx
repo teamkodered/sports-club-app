@@ -744,7 +744,7 @@ export default function LeagueViews() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
             {houseStandings.map(h => {
               const colour = HOUSE_COLOURS[h.name] || '#888'
-              // house top scorers rank on HOUSE points (register, coach awards, weighing) -- app extras are individual only
+              // house top scorers rank on house points (all points count for the house -- coach and app)
               const houseMembers = individualRankings.filter(s => s.house === h.name && (s.housePoints || 0) !== 0).sort((a, b) => (b.housePoints || 0) - (a.housePoints || 0)).slice(0, houseTopN)
               return (
                 <div key={h.name} className="card" style={{ padding: '14px 0' }}>
