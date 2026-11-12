@@ -1934,3 +1934,6 @@ button.neon-chip { -webkit-appearance: none; appearance: none; padding: 0; }
 .ffd-suggestrow { display: flex; align-items: center; border-top: 1px solid var(--border-strong); }
 .ffd-suggestrow:first-child { border-top: none; }
 .ffd-suggestrow > button:first-child { flex: 1; text-align: left; background: none; border: none; color: var(--text); font-size: 15px; padding: 11px 12px; cursor: pointer; }
+
+.ffd-coachslots { display: flex; flex-direction: column; gap: 6px; }
+.ffd-coachslots .ffd-coach { width: 130px; max-width: 130px; }

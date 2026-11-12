@@ -164,6 +164,9 @@ function mergeGuests(a, b) {
 
 function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack, clearMsg }) {
   const s = ff.settings || {}
+  // coaches on an athlete: up to 3 (older finders stored one id as a string)
+  const coachIds = k => { const v = s.assign?.[k]; return Array.isArray(v) ? v.filter(Boolean) : v ? [v] : [] }
+  const withoutCoach = id => Object.fromEntries(Object.keys(s.assign || {}).map(k => [k, coachIds(k).filter(x => x !== id)]).filter(([, v]) => v.length))
   const [newCoach, setNewCoach] = useState('')
   function addGuest() {
     const name = newCoach.trim().replace(/\s+/g, ' ')
@@ -181,13 +184,13 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
   const exact = staff.some(m => `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === typed.replace(/\s+/g, ' '))
   function pickCoach(m) { setS({ coaches: [...new Set([...(s.coaches || []), m.id])] }); setNewCoach('') }
   function dropCoach(m) {
-    const n = Object.values(s.assign || {}).filter(v => v === m.id).length
+    const n = Object.keys(s.assign || {}).filter(k => coachIds(k).includes(m.id)).length
     if (n && !confirm(`Remove ${m.first_name} from this event? Their ${n} assigned athlete${n === 1 ? '' : 's'} will be unassigned.`)) return
-    setS({ coaches: (s.coaches || []).filter(x => x !== m.id), assign: Object.fromEntries(Object.entries(s.assign || {}).filter(([, v]) => v !== m.id)) })
+    setS({ coaches: (s.coaches || []).filter(x => x !== m.id), assign: withoutCoach(m.id) })
   }
   function removeGuest(m) {
     if (!confirm(`Remove ${m.name || m.first_name} from the coach list?`)) return
-    const assign = Object.fromEntries(Object.entries(s.assign || {}).filter(([, v]) => v !== m.id))
+    const assign = withoutCoach(m.id)
     setS({ guests: (s.guests || []).filter(g => g.id !== m.id), coaches: (s.coaches || []).filter(x => x !== m.id), assign })
     setGuests(g => g.filter(x => x.id !== m.id))
   }
@@ -239,9 +242,9 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
       if (A.f.date && B.f.date && A.f.date !== B.f.date) continue
       if (Math.abs(A.f.startMin - B.f.startMin) > windowMin || A.f.id === B.f.id) continue
       const ka = athleteKey(A.a), kb = athleteKey(B.a)
-      const ca = s.assign?.[ka], cb = s.assign?.[kb]
+      const ca = coachIds(ka), cb = coachIds(kb), both = [...new Set([...ca, ...cb])]
       if (ka === kb && normTitle(A.f.title) !== normTitle(B.f.title)) list.push({ type: 'athlete', A, B, possible: A.possible || B.possible })
-      else if (ka !== kb && ca && ca === cb) list.push({ type: 'coach', coach: ca, A, B, possible: A.possible || B.possible })
+      else if (ka !== kb && ca.length && cb.length && both.length === 1) list.push({ type: 'coach', coach: both[0], A, B, possible: A.possible || B.possible })   // nobody else to cover one of them
     }
     return list
   }, [rows, windowMin, s.assign])
@@ -262,10 +265,10 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
   const [vid, setVid] = useState(null)   // tapped athlete -> video search links
   const hidden = ['ring', 'tatami', 'forms'].filter(k => !show[k]).length
   const stylesHere = [...new Map(rows.map(r => { const st = styleOf(r.f.title); return [st.name, st] })).values()]
-  const shown = rows.filter(r => show[kindOf(r.f)]).filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
+  const shown = rows.filter(r => show[kindOf(r.f)]).filter(r => !viewCoach || coachIds(athleteKey(r.a)).includes(viewCoach))
     .sort((a, b) => { const ar = areaKey(a.f.area).localeCompare(areaKey(b.f.area)), tm = (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9); return view === 'ring' ? ar || tm : tm || ar })
   // athletes per ring / tatami / forms (in this tab), and in what's showing
-  const inTab = rows.filter(r => !viewCoach || s.assign?.[athleteKey(r.a)] === viewCoach)
+  const inTab = rows.filter(r => !viewCoach || coachIds(athleteKey(r.a)).includes(viewCoach))
   const countAthletes = list => new Set(list.map(r => athleteKey(r.a))).size
   const kindCount = k => countAthletes(inTab.filter(r => kindOf(r.f) === k))
   const shownAthletes = countAthletes(shown), shownBouts = shown.filter(r => !r.possible).length
@@ -273,7 +276,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
 
   const setResult = (f, colour) => setS({ results: { ...(s.results || {}), [f.id]: s.results?.[f.id] === colour ? undefined : colour } })
   const shareText = cid => {
-    const mine = rows.filter(r => s.assign?.[athleteKey(r.a)] === cid && !r.possible).sort((a, b) => (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9))
+    const mine = rows.filter(r => coachIds(athleteKey(r.a)).includes(cid) && !r.possible).sort((a, b) => (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9))
     return `🥊 ${ff.title} — ${coachName(cid)}'s fights\n` + mine.map(r => `${r.f.area != null ? areaTxt(r.f.area) : ''} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'} · ${r.a.name} · ${r.f.title} · v ${sideTxt(r.opp)}`).join('\n')
   }
 
@@ -382,18 +385,21 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
                     <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : r.opp?.athlete
                       ? <button className="ffd-namebtn" onClick={() => setVid({ a: r.opp.athlete, f: r.f })}>{sideTxt(r.opp)} <span>🎥</span></button> : sideTxt(r.opp)}</td>
                     <td>
-                      {isAdmin ? (
-                        <select className="ffd-coach" value={s.assign?.[k] || ''} onChange={e => {
-                          const id = e.target.value || undefined
-                          const patch = { assign: { ...(s.assign || {}), [k]: id } }
-                          if (id && !(s.coaches || []).includes(id)) patch.coaches = [...(s.coaches || []), id]   // picked someone new -> they're at the event
-                          setS(patch)
-                        }}>
-                          <option value="">—</option>
-                          {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}
-                          {!coaches.length && <option value="" disabled>Add coaches under “Coaches at this event”</option>}
-                        </select>
-                      ) : coachName(s.assign?.[k]) || '—'}
+                      {isAdmin ? (() => {
+                        const ids = coachIds(k)
+                        const setSlot = (i, id) => { const next = [...ids]; if (id) next[i] = id; else next.splice(i, 1); setS({ assign: { ...(s.assign || {}), [k]: next.filter(Boolean) } }) }
+                        return (
+                          <div className="ffd-coachslots">
+                            {[0, 1, 2].filter(i => i <= ids.length).map(i => (
+                              <select key={i} className="ffd-coach" value={ids[i] || ''} onChange={e => setSlot(i, e.target.value)}>
+                                <option value="">{i === 0 ? '—' : '+ coach'}</option>
+                                {coaches.filter(c => c.id === ids[i] || !ids.includes(c.id)).map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}
+                                {!coaches.length && <option value="" disabled>Add coaches to the event first</option>}
+                              </select>
+                            ))}
+                          </div>
+                        )
+                      })() : coachIds(k).map(coachName).filter(Boolean).join(', ') || '—'}
                     </td>
                     <td className="ffd-clashcell">{(clashWith[`${r.f.id}|${k}`] || []).map((c, j) => (
                       <div key={j}>⚠ {c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}
