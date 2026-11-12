@@ -1906,3 +1906,13 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 
 .ffd-showbtn { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; }
 .ffd-showbtn small { font-size: 11px; opacity: .75; font-weight: 500; }
+
+/* Name card, layout B: the name across the full width (shrinks to fit), then the short info line on the
+   left and the house on the right -- the same shape for every athlete, however long the name */
+.neon-header-row { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "meta house"; column-gap: 12px; row-gap: 4px; align-items: start; }
+.neon-header-row .neon-namebox { display: contents !important; }
+.neon-header-row .neon-namebox > :first-child { grid-area: name; min-width: 0; max-width: 100%; }
+.neon-header-row .neon-meta { grid-area: meta; align-self: start; padding-top: 6px; white-space: normal; }
+.neon-header-row .neon-housebox { grid-area: house; justify-self: end; text-align: right; }
+.neon-header-row .neon-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  font-size: clamp(18px, calc(min(92vw, 520px) / (var(--nl, 14) * 0.62)), 34px) !important; }

@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import { shortLevel, shortDivision } from '../lib/divisions.js'
 import HrrTestTool from '../components/shared/HrrTestTool.jsx'
 import { saveTestResults } from '../lib/testResults.js'
 import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
@@ -9467,7 +9468,7 @@ export default function AthleteProfiles() {
                             )}
                           </div>
                     <span className="neon-meta">
-                      {selected.discipline}{age ? ` · Age ${age}` : ''}{selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
+                      {selected.discipline}{age ? ` · ${age}` : ''}{selected.pka_belt || selected.krba_level ? ` · ${shortLevel(selected.pka_belt || selected.krba_level)}` : ''}{shortDivision(m?.date_of_birth, selected.discipline) ? ` · ${shortDivision(m?.date_of_birth, selected.discipline)}` : ''}
                       <span className="neon-caret">{profileInfoExpanded ? '▲' : '▼'}</span>
                     </span>
                   </div>

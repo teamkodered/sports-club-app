@@ -109,3 +109,16 @@ export function divMatch(text) {
   const p = parseDivision(text)
   return p ? [p.label, p.plus ? '+' : (/^\s*-/.test(p.label) ? '-' : ''), String(p.limit)] : null
 }
+
+// Name card info line: short level + age division, e.g. 'PRO', 'INT · OC'
+const LEVEL_SHORT = { professional: 'PRO', pro: 'PRO', elite: 'ELT', advanced: 'ADV', intermediate: 'INT', novice: 'NOV', beginner: 'BEG', development: 'DEV' }
+export function shortLevel(level) {
+  if (!level) return ''
+  const s = String(level).trim(), k = s.toLowerCase().replace(/[:\s]+\d+$/, '').trim()
+  return LEVEL_SHORT[k] ? LEVEL_SHORT[k] + (/\d+$/.test(s) ? ' ' + s.match(/\d+$/)[0] : '') : s
+}
+export function shortDivision(dob, discipline) {
+  const d = divisionsForAge(dob)
+  const div = discipline === 'KRBA' ? d.boxing : d.kickboxing
+  return div?.key || ''
+}

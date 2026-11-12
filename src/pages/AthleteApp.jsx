@@ -11,6 +11,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { shortLevel, shortDivision } from '../lib/divisions.js'
 import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
 import { divisionsForAge } from '../lib/divisions.js'
 import { AbsenceRequestAthlete } from '../components/shared/AbsenceRequests.jsx'
@@ -5446,7 +5447,7 @@ export default function AthleteApp() {
                 onClick={e => { e.stopPropagation(); setHeaderCardView(0); setHousePointsExpanded(false); setMyProfileExpanded(v => !v) }}>
                 <span className="neon-name" style={{ '--nl': `${m?.first_name || ''} ${m?.last_name || ''}`.length }}>{m?.first_name} {m?.last_name}</span>
                 <span className="neon-meta">
-                  {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
+                  {student.discipline}{age ? ` · ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${shortLevel(student.pka_belt || student.krba_level)}` : ''}{shortDivision(m?.date_of_birth, student.discipline) ? ` · ${shortDivision(m?.date_of_birth, student.discipline)}` : ''}
                   <span className="neon-caret">{myProfileExpanded ? '▲' : '▼'}</span>
                 </span>
               </button>
@@ -5477,7 +5478,7 @@ export default function AthleteApp() {
                     <div>
                       <div className="neon-name" style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
                       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
-                        {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
+                        {student.discipline}{age ? ` · ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${shortLevel(student.pka_belt || student.krba_level)}` : ''}{shortDivision(m?.date_of_birth, student.discipline) ? ` · ${shortDivision(m?.date_of_birth, student.discipline)}` : ''}
                       </div>
                     </div>
                     {(student.is_kr || student.discipline === 'KRBA') && (
