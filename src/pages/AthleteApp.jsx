@@ -3879,6 +3879,7 @@ export default function AthleteApp() {
       </div>
     )
   }
+  const [ptsAllTime, setPtsAllTime] = useState(false)   // name card: points chip shows this month or all time
   const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
   const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
   const PDP_COL_ORDER = [['work_on', 'Work on', '#EF9F27'], ['what_to_do', 'To do', '#E24B4A'], ['maintain', 'Maintain', '#1D9E75'], ['notes', 'Notes', '#9A9A9A']]
@@ -5427,9 +5428,12 @@ export default function AthleteApp() {
              (tap for profile details) and the house (tap for your points). */
           <div className="neon-header">
             <div className="neon-header-chips">
-              <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="House points earned this month">
-                    {monthHousePoints != null ? monthHousePoints.toLocaleString() : '—'}<span className="neon-chip-pts">PTS</span>
-                  </div>
+              <button type="button" className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour, cursor: 'pointer', border: 'none', font: 'inherit' }}
+                    title={ptsAllTime ? 'All-time points -- tap for this month' : 'Points this month -- tap for all time'} onClick={e => { e.stopPropagation(); setPtsAllTime(v => !v) }}>
+                    {/* this month's points (e.g. NOV 10 PTS) -- tap for all time */}
+                    <span className="neon-chip-pts" style={{ marginRight: 6 }}>{ptsAllTime ? 'ALL' : new Date().toLocaleDateString('en-GB', { month: 'short' }).toUpperCase()}</span>
+                    {ptsAllTime ? (student.individual_points ?? 0).toLocaleString() : monthHousePoints != null ? monthHousePoints.toLocaleString() : '—'}<span className="neon-chip-pts">PTS</span>
+                  </button>
               <span className="neon-hex neon-hex-centre" onClick={e => { e.stopPropagation(); setTab('home') }}>
                 {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" />}
                 {student.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" />}
