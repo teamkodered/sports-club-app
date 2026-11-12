@@ -260,6 +260,14 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
   }
   const realClashes = clashes.filter(c => c.type !== 'time'), sameTime = clashes.filter(c => c.type === 'time')
   const overlapKeys = new Set(sameTime.flatMap(c => [`${c.A.f.id}|${athleteKey(c.A.a)}`, `${c.B.f.id}|${athleteKey(c.B.a)}`]))
+  // tap a clash -> scroll to that bout's row and flash it
+  const rowId = r => 'ffr-' + `${r.f.id}|${athleteKey(r.a)}`.replace(/[^A-Za-z0-9_-]/g, '_')
+  const goTo = r => {
+    const el = document.getElementById(rowId(r))
+    if (!el) return alert(`${r.a.name}'s bout isn't showing here — check 👁 Show or the coach tab.`)
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.remove('ffd-flash'); void el.offsetWidth; el.classList.add('ffd-flash')
+  }
   const clashKeys = new Set(realClashes.flatMap(c => [`${c.A.f.id}|${athleteKey(c.A.a)}`, `${c.B.f.id}|${athleteKey(c.B.a)}`]))
   // for each row: the other bouts it clashes with
   const clashWith = useMemo(() => {
@@ -349,7 +357,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
           {realClashes.map((c, i) => (
             <div key={i} className="ffd-clash-row">
               {c.type === 'coach' ? `👤 ${coachName(c.coach)}: ` : `🥊 ${c.A.a.name}: `}
-              {[c.A, c.B].map(r => `${r.a.name.split(' ')[0]} ${areaTxt(r.f.area)} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'}`).join(' & ')}
+              {[c.A, c.B].map((r, n) => <span key={n}>{n ? ' & ' : ''}<button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name.split(' ')[0]} {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</button></span>)}
               {c.possible && <em> (if they win)</em>}
             </div>
           ))}
@@ -360,7 +368,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
           <summary><b>⏱ {sameTime.length} pair{sameTime.length === 1 ? '' : 's'} of bouts on at the same time</b> <span className="ffd-muted">— different areas, need separate coaches</span></summary>
           {sameTime.map((c, i) => (
             <div key={i} className="ffd-clash-row">
-              {[c.A, c.B].map(r => `${r.a.name} ${areaTxt(r.f.area)} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'}`).join('  &  ')}
+              {[c.A, c.B].map((r, n) => <span key={n}>{n ? '  &  ' : ''}<button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name} {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</button></span>)}
               {c.possible && <em> (if they win)</em>}
             </div>
           ))}
@@ -400,7 +408,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
                 const k = athleteKey(r.a), res = s.results?.[r.f.id]
                 const clash = clashKeys.has(`${r.f.id}|${k}`), overlap = !clash && overlapKeys.has(`${r.f.id}|${k}`)
                 return (
-                  <tr key={i} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''}`} style={{ '--sty': styleOf(r.f.title).color }}>
+                  <tr key={i} id={rowId(r)} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''}`} style={{ '--sty': styleOf(r.f.title).color }}>
                     <td><b>{areaTxt(r.f.area)}</b></td>
                     <td>{r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?'}{clash && ' ⚠'}</td>
                     <td><span className="ffd-sty" title={styleOf(r.f.title).name}>{styleOf(r.f.title).code}</span> {r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''}</div></td>
@@ -426,8 +434,8 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
                       })() : coachIds(k).map(coachName).filter(Boolean).join(', ') || '—'}
                     </td>
                     <td className="ffd-clashcell">{(clashWith[`${r.f.id}|${k}`] || []).map((c, j) => (
-                      <div key={j} className={c.type === 'time' ? 'ffd-sametime-txt' : ''}>{c.type === 'time' ? `⏱ Same time: ${c.other.a.name}` : `⚠ ${c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}`}
-                        <span className="ffd-muted"> · {areaTxt(c.other.f.area)} ~{c.other.f.startMin != null ? fromMin(c.other.f.startMin) : '?'} · {c.other.f.label || c.other.f.title}</span></div>
+                      <button key={j} type="button" className={`ffd-jump ${c.type === 'time' ? 'ffd-sametime-txt' : ''}`} onClick={() => goTo(c.other)}>{c.type === 'time' ? `⏱ Same time: ${c.other.a.name}` : `⚠ ${c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}`}
+                        <span className="ffd-muted"> · {areaTxt(c.other.f.area)} ~{c.other.f.startMin != null ? fromMin(c.other.f.startMin) : '?'} · {c.other.f.label || c.other.f.title} ↓</span></button>
                     ))}</td>
                     <td>{!r.possible && r.opp?.athlete && isAdmin ? (
                       <span className="ffd-res">

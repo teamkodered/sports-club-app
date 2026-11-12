@@ -1946,3 +1946,11 @@ button.neon-chip { -webkit-appearance: none; appearance: none; padding: 0; }
 .ffd-table tr.overlap td { background: rgba(234, 179, 8, .10); }
 .ffd-clashcell .ffd-sametime-txt { color: #D9A406; }
 @media print { .ffd-table tr.overlap td { background: #fff4cc !important; } }
+
+.ffd-jump { display: block; width: 100%; background: none; border: none; padding: 2px 0; margin: 0 0 4px; color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+.ffd-jump.inline { display: inline; width: auto; margin: 0; }
+.ffd-clashcell .ffd-jump { color: #E24B4A; }
+.ffd-clashcell .ffd-jump.ffd-sametime-txt { color: #D9A406; }
+@keyframes ffdFlash { 0%, 60% { box-shadow: inset 0 0 0 3px #3B82F6; background: rgba(59,130,246,.18); } 100% { box-shadow: none; } }
+.ffd-table tr.ffd-flash td { animation: ffdFlash 1.8s ease-out; }
+tr[id^="ffr-"] { scroll-margin-top: 90px; }
