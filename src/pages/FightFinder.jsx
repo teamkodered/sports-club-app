@@ -244,6 +244,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
       const ka = athleteKey(A.a), kb = athleteKey(B.a)
       const ca = coachIds(ka), cb = coachIds(kb), both = [...new Set([...ca, ...cb])]
       if (ka === kb && normTitle(A.f.title) !== normTitle(B.f.title)) list.push({ type: 'athlete', A, B, possible: A.possible || B.possible })
+      else if (kindOf(A.f) !== kindOf(B.f)) continue   // ring only with ring, tatami with tatami, forms with forms (own-bout clashes above still count)
       else if (ka !== kb && ca.length && cb.length && both.length === 1) list.push({ type: 'coach', coach: both[0], A, B, possible: A.possible || B.possible })   // nobody else to cover one of them
       else if (ka !== kb && String(A.f.area ?? '') !== String(B.f.area ?? '')) list.push({ type: 'time', A, B, possible: A.possible || B.possible })   // on at the same time on different areas
     }
@@ -254,7 +255,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
     if (r.f.startMin == null) return null
     const k = athleteKey(r.a)
     const o = rows.find(x => x.f.startMin != null && x.f.id !== r.f.id && athleteKey(x.a) !== k && coachIds(athleteKey(x.a)).includes(cid)
-      && !(x.f.date && r.f.date && x.f.date !== r.f.date) && Math.abs(x.f.startMin - r.f.startMin) <= windowMin)
+      && kindOf(x.f) === kindOf(r.f) && !(x.f.date && r.f.date && x.f.date !== r.f.date) && Math.abs(x.f.startMin - r.f.startMin) <= windowMin)
     return o ? `${areaTxt(o.f.area)} ~${fromMin(o.f.startMin)}` : null
   }
   const realClashes = clashes.filter(c => c.type !== 'time'), sameTime = clashes.filter(c => c.type === 'time')
