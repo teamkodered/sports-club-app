@@ -115,7 +115,7 @@ const LEVEL_SHORT = { professional: 'PRO', pro: 'PRO', elite: 'ELT', advanced: '
 export function shortLevel(level) {
   if (!level) return ''
   const s = String(level).trim(), k = s.toLowerCase().replace(/[:\s]+\d+$/, '').trim()
-  return LEVEL_SHORT[k] ? LEVEL_SHORT[k] + (/\d+$/.test(s) ? ' ' + s.match(/\d+$/)[0] : '') : s
+  return LEVEL_SHORT[k] || s   // level only -- a number after it (e.g. 'Elite: 3') isn't shown
 }
 export function shortDivision(dob, discipline, level) {
   const d = divisionsForAge(dob)
