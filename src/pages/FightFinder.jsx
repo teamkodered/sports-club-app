@@ -174,6 +174,17 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
     if (!known) { patch.guests = [...(s.guests || []), { id, name }]; setGuests(g => mergeGuests(g, [{ id, name }])) }
     setS(patch); setNewCoach('')
   }
+  // coach search: staff + typed-in coaches not already at this event, matching every word typed
+  const typed = newCoach.trim().toLowerCase()
+  const matches = !typed ? [] : staff.filter(m => !(s.coaches || []).includes(m.id))
+    .filter(m => typed.split(/\s+/).every(w => `${m.first_name} ${m.last_name || ''}`.toLowerCase().includes(w))).slice(0, 8)
+  const exact = staff.some(m => `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === typed.replace(/\s+/g, ' '))
+  function pickCoach(m) { setS({ coaches: [...new Set([...(s.coaches || []), m.id])] }); setNewCoach('') }
+  function dropCoach(m) {
+    const n = Object.values(s.assign || {}).filter(v => v === m.id).length
+    if (n && !confirm(`Remove ${m.first_name} from this event? Their ${n} assigned athlete${n === 1 ? '' : 's'} will be unassigned.`)) return
+    setS({ coaches: (s.coaches || []).filter(x => x !== m.id), assign: Object.fromEntries(Object.entries(s.assign || {}).filter(([, v]) => v !== m.id)) })
+  }
   function removeGuest(m) {
     if (!confirm(`Remove ${m.name || m.first_name} from the coach list?`)) return
     const assign = Object.fromEntries(Object.entries(s.assign || {}).filter(([, v]) => v !== m.id))
@@ -293,15 +304,26 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
         {isAdmin && (
           <details>
             <summary>Coaches at this event ({coaches.length})</summary>
-            <div className="ffd-coaches">{staff.map(m => (
-              <label key={m.id}><input type="checkbox" checked={(s.coaches || []).includes(m.id)} onChange={e => setS({ coaches: e.target.checked ? [...(s.coaches || []), m.id] : (s.coaches || []).filter(x => x !== m.id) })} />
-                <span>{m.first_name} {m.last_name}</span>
-                {m.guest && <button type="button" className="ffd-x" title="Remove" onClick={e => { e.preventDefault(); removeGuest(m) }}>✕</button>}</label>
+            <div className="ffd-coaches">{coaches.map(m => (
+              <div key={m.id} className="ffd-coachrow"><span>{m.first_name} {m.last_name}</span>
+                <button type="button" className="ffd-x" title="Remove from this event" onClick={() => dropCoach(m)}>✕</button></div>
             ))}</div>
+            {!coaches.length && <div className="ffd-muted">No coaches yet — type a name to add one.</div>}
             <div className="ffd-addcoach">
-              <input value={newCoach} onChange={e => setNewCoach(e.target.value)} onKeyDown={e => e.key === 'Enter' && addGuest()} placeholder="Add a coach (name)" />
-              <button className="btn" onClick={addGuest} disabled={!newCoach.trim()}>+ Add</button>
+              <input value={newCoach} onChange={e => setNewCoach(e.target.value)} placeholder="Type a coach's name…"
+                onKeyDown={e => { if (e.key === 'Enter') { if (matches.length === 1) pickCoach(matches[0]); else addGuest() } }} />
             </div>
+            {newCoach.trim() && (
+              <div className="ffd-suggest">
+                {matches.map(m => (
+                  <div key={m.id} className="ffd-suggestrow">
+                    <button type="button" onClick={() => pickCoach(m)}>+ {m.first_name} {m.last_name}{m.guest ? <span className="ffd-muted"> (added before)</span> : null}</button>
+                    {m.guest && <button type="button" className="ffd-x" title="Forget this name" onClick={() => removeGuest(m)}>🗑</button>}
+                  </div>
+                ))}
+                {!exact && <div className="ffd-suggestrow"><button type="button" onClick={addGuest}>+ Add “{newCoach.trim()}” as a new coach</button></div>}
+              </div>
+            )}
           </details>
         )}
       </div>

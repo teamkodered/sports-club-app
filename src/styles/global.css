@@ -1928,3 +1928,9 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 button.neon-chip { -webkit-appearance: none; appearance: none; padding: 0; }
 .neon-chip-stack { display: flex; flex-direction: column; align-items: center; line-height: 1; }
 .neon-chip-when { font-family: 'Orbitron', sans-serif; font-style: normal; font-weight: 700; font-size: 7px; letter-spacing: 1.5px; opacity: 0.75; margin-top: 2px; }
+
+.ffd-coachrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--bg-secondary); }
+.ffd-suggest { display: flex; flex-direction: column; margin-top: 6px; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+.ffd-suggestrow { display: flex; align-items: center; border-top: 1px solid var(--border-strong); }
+.ffd-suggestrow:first-child { border-top: none; }
+.ffd-suggestrow > button:first-child { flex: 1; text-align: left; background: none; border: none; color: var(--text); font-size: 15px; padding: 11px 12px; cursor: pointer; }
