@@ -5444,8 +5444,10 @@ export default function AthleteApp() {
               <button type="button" className="neon-chip neon-chip-right" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}
                 onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
                 title={showOverallPos ? 'Overall position — tap for position in house' : 'Position in house — tap for overall position'}>
-                #{positionInHouse || '—'}
-                <span className="neon-chip-sub" title="Overall position">#{overallPosition || '—'}</span>
+                <span className="neon-chip-stack">
+                  <span>#{(showOverallPos ? overallPosition : positionInHouse) || '—'}</span>
+                  <span className="neon-chip-when">{showOverallPos ? 'OVERALL' : 'IN HOUSE'}</span>
+                </span>
               </button>
             </div>
             <div className="neon-header-row">
