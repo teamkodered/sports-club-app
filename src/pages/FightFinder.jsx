@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, buildFights, matchesSearch, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
-import { fetchAll } from '../lib/fetchAll.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
 // (sportdata PDFs or saved pages), search a club / country, then see our athletes' bouts in tatami
@@ -20,7 +19,6 @@ export default function FightFinder() {
   const [busy, setBusy] = useState('')
   const [view, setView] = useState('ring')         // ring | time | coach:<id>
   const [msg, setMsg] = useState('')
-  const [memberNames, setMemberNames] = useState([])   // our athletes, as name-word lists
   const [guests, setGuests] = useState([])            // coaches typed in (not app staff), from every finder
   const [menu, setMenu] = useState(null)              // saved finder held down -> its options
   const hold = useRef({ t: null, fired: false })
@@ -39,10 +37,6 @@ export default function FightFinder() {
       .then(({ data, error }) => setList(error ? (setMsg(/fight_finders/.test(error.message) ? 'Run supabase_fight_finder.sql to switch this on.' : error.message), []) : data || []))
     supabase.from('members').select('id, first_name, last_name, role').in('role', STAFF).order('first_name').then(({ data }) => setStaff(data || []))
     supabase.from('fight_finders').select('settings').limit(300).then(({ data }) => setGuests(mergeGuests([], (data || []).flatMap(x => x.settings?.guests || []))))
-    fetchAll(() => supabase.from('students').select('id, members!inner(first_name, last_name, status)').order('id'))
-      .then(({ data }) => setMemberNames((data || []).filter(x => x.members?.status !== 'inactive')
-        .map(x => nameKey(`${x.members?.first_name || ''} ${x.members?.last_name || ''}`).split(' ').filter(Boolean)).filter(ws => ws.length > 1)))
-      .catch(() => {})
   }, [])
   useEffect(() => {
     const id = params.get('id'), ev = params.get('event')
@@ -144,7 +138,7 @@ export default function FightFinder() {
   )
 
   const allStaff = [...staff, ...mergeGuests(guests, ff.settings?.guests || [])].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
-  return <FinderView ff={ff} staff={allStaff} setGuests={setGuests} memberNames={memberNames} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
+  return <FinderView ff={ff} staff={allStaff} setGuests={setGuests} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
     onFiles={loadFiles} setS={setS} save={save} clearMsg={() => setMsg('')} onBack={() => { setFf(null); setMsg(''); nav('/fight-finder', { replace: true }) }} />
 }
 
@@ -162,7 +156,7 @@ function mergeGuests(a, b) {
   return [...m.values()]
 }
 
-function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack, clearMsg }) {
+function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack, clearMsg }) {
   const s = ff.settings || {}
   // coaches on an athlete: up to 3 (older finders stored one id as a string)
   const coachIds = k => { const v = s.assign?.[k]; return Array.isArray(v) ? v.filter(Boolean) : v ? [v] : [] }
@@ -195,17 +189,16 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
     setGuests(g => g.filter(x => x.id !== m.id))
   }
   const query = s.query ?? 'Kode Red', windowMin = Number(s.window ?? 10)
-  const useMembers = s.members !== false
   const [draft, setDraft] = useState(query)
   const loadedAt = JSON.stringify([(ff.data?.schedule || []).length, (ff.data?.draws || []).length, (ff.data?.bouts || []).length])
-  const [run, setRun] = useState(s.searched ? { query, loadedAt, members: useMembers } : null)   // the search shown; null = not run yet
-  const stale = run && (run.query !== draft || run.loadedAt !== loadedAt || run.members !== useMembers)
-  const find = () => { setRun({ query: draft, loadedAt, members: useMembers }); setS({ query: draft, searched: true }); clearMsg?.() }
+  const [run, setRun] = useState(s.searched ? { query, loadedAt } : null)   // the search shown; null = not run yet
+  const stale = run && (run.query !== draft || run.loadedAt !== loadedAt)
+  const find = () => { setRun({ query: draft, loadedAt }); setS({ query: draft, searched: true }); clearMsg?.() }
   const coaches = staff.filter(m => (s.coaches || []).includes(m.id))
   const coachName = id => { const m = staff.find(x => x.id === id); return m ? `${m.first_name} ${m.last_name || ''}`.trim() : '' }
   const fights = useMemo(() => buildFights({ schedule: ff.data?.schedule || [], draws: ff.data?.draws || [], bouts: ff.data?.bouts || [], results: s.results || {} }), [ff.data, s.results])
   const byId = useMemo(() => Object.fromEntries(fights.map(f => [f.id, f])), [fights])
-  const ours = sl => !!run && !!sl?.athlete && matchesSearch(sl.athlete, run.query, run.members ? memberNames : null)
+  const ours = sl => !!run && !!sl?.athlete && matchesSearch(sl.athlete, run.query)
   const noClubs = fights.length > 0 && !fights.some(f => f.red?.athlete?.club || f.blue?.athlete?.club)
   const sideTxt = sl => sl?.athlete ? `${sl.athlete.name} (${[sl.athlete.club, sl.athlete.country].filter(Boolean).join(', ')})` : sl?.winnerOf ? `⏳ winner of bout ${byId[sl.winnerOf]?.boutNo ?? '?'} (${['red', 'blue'].map(c => byId[sl.winnerOf]?.[c]).map(x => x?.athlete?.name?.split(' ')[0] || (x?.winnerOf ? 'TBC' : '—')).join(' v ')})` : '— empty —'
 
@@ -231,7 +224,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
       }
     }
     return out
-  }, [fights, run, memberNames, s.results])
+  }, [fights, run, s.results])
 
   // clashes: same coach (different athletes) or same athlete (different categories) within the window
   const clashes = useMemo(() => {
@@ -321,7 +314,6 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
           <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
           <button className="btn btn-primary ffd-find" onClick={find} disabled={!fights.length}>🔍 Find fights</button>
         </div>
-        <label className="ffd-check"><input type="checkbox" checked={useMembers} onChange={e => setS({ members: e.target.checked })} /> Also find our athletes by name ({memberNames.length})</label>
         {stale && <div className="ffd-muted">Changed — press 🔍 Find fights to update.</div>}
         <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
         {isAdmin && (
@@ -398,7 +390,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
       {rows.length > 0 && !shown.length ? (
         <div className="card ffd-muted">Nothing to show — tick more in 👁 Show.</div>
       ) : !rows.length ? (
-        <div className="card ffd-muted">{!fights.length ? 'Load the schedule and draws to find the fights.' : !run ? `${fights.length} bouts loaded — press 🔍 Find fights.` : `No bouts found for "${run.query}"${run.members ? ' or our athletes\' names' : ''}.`}</div>
+        <div className="card ffd-muted">{!fights.length ? 'Load the schedule and draws to find the fights.' : !run ? `${fights.length} bouts loaded — press 🔍 Find fights.` : `No bouts found for "${run.query}".`}</div>
       ) : (
         <div className="ffd-table-wrap">
           <table className="ffd-table">
