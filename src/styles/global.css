@@ -1937,3 +1937,5 @@ button.neon-chip { -webkit-appearance: none; appearance: none; padding: 0; }
 
 .ffd-coachslots { display: flex; flex-direction: column; gap: 6px; }
 .ffd-coachslots .ffd-coach { width: 130px; max-width: 130px; }
+
+.ffd-coach.busy { color: #E24B4A; border-color: #E24B4A; border-style: solid; }

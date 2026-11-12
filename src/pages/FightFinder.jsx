@@ -248,6 +248,14 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
     }
     return list
   }, [rows, windowMin, s.assign])
+  // a coach is busy for a bout when they're on another athlete fighting within the clash window
+  const busyAt = (r, cid) => {
+    if (r.f.startMin == null) return null
+    const k = athleteKey(r.a)
+    const o = rows.find(x => x.f.startMin != null && x.f.id !== r.f.id && athleteKey(x.a) !== k && coachIds(athleteKey(x.a)).includes(cid)
+      && !(x.f.date && r.f.date && x.f.date !== r.f.date) && Math.abs(x.f.startMin - r.f.startMin) <= windowMin)
+    return o ? `${areaTxt(o.f.area)} ~${fromMin(o.f.startMin)}` : null
+  }
   const clashKeys = new Set(clashes.flatMap(c => [`${c.A.f.id}|${athleteKey(c.A.a)}`, `${c.B.f.id}|${athleteKey(c.B.a)}`]))
   // for each row: the other bouts it clashes with
   const clashWith = useMemo(() => {
@@ -391,9 +399,10 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
                         return (
                           <div className="ffd-coachslots">
                             {[0, 1, 2].filter(i => i <= ids.length).map(i => (
-                              <select key={i} className="ffd-coach" value={ids[i] || ''} onChange={e => setSlot(i, e.target.value)}>
+                              <select key={i} className={`ffd-coach ${ids[i] && busyAt(r, ids[i]) ? 'busy' : ''}`} value={ids[i] || ''} onChange={e => setSlot(i, e.target.value)}>
                                 <option value="">{i === 0 ? '—' : '+ coach'}</option>
-                                {coaches.filter(c => c.id === ids[i] || !ids.includes(c.id)).map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}
+                                {coaches.filter(c => c.id === ids[i] || !ids.includes(c.id)).map(c => { const b = busyAt(r, c.id)
+                                  return <option key={c.id} value={c.id} style={b ? { color: '#E24B4A' } : undefined}>{b ? '🔴 ' : ''}{c.first_name} {c.last_name || ''}{b ? ` (busy ${b})` : ''}</option> })}
                                 {!coaches.length && <option value="" disabled>Add coaches to the event first</option>}
                               </select>
                             ))}
