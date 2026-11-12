@@ -122,6 +122,6 @@ export function shortDivision(dob, discipline, level) {
   // an Elite boxer aged 19-40 is in the Elite division, not Senior Development
   if (discipline === 'KRBA' && /^elite/i.test(String(level || '')) && d.age >= 19 && d.age <= 40) return 'ELT'
   const div = discipline === 'KRBA' ? d.boxing : d.kickboxing
-  const SHOW = { J: 'JNR', JUN: 'JNR', S: 'SNR' }   // name card: Junior / Senior written as JNR / SNR
+  const SHOW = { J: 'JNR', JUN: 'JNR', S: 'SNR', SDV: 'DEV' }   // name card: Junior / Senior / Senior Development written as JNR / SNR / DEV
   return SHOW[div?.key] || div?.key || ''
 }
