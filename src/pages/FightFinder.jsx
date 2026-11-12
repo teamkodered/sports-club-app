@@ -390,8 +390,8 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
                           setS(patch)
                         }}>
                           <option value="">—</option>
-                          {coaches.length > 0 && <optgroup label="At this event">{coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}</optgroup>}
-                          <optgroup label={coaches.length ? 'Other coaches' : 'Coaches'}>{staff.filter(m => !(s.coaches || []).includes(m.id)).map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}</optgroup>
+                          {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}
+                          {!coaches.length && <option value="" disabled>Add coaches under “Coaches at this event”</option>}
                         </select>
                       ) : coachName(s.assign?.[k]) || '—'}
                     </td>
