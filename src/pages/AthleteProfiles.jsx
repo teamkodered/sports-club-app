@@ -9468,7 +9468,7 @@ export default function AthleteProfiles() {
                             )}
                           </div>
                     <span className="neon-meta">
-                      {selected.discipline}{age ? ` · ${age}` : ''}{selected.pka_belt || selected.krba_level ? ` · ${shortLevel(selected.pka_belt || selected.krba_level)}` : ''}{shortDivision(m?.date_of_birth, selected.discipline) ? ` · ${shortDivision(m?.date_of_birth, selected.discipline)}` : ''}
+                      {/* club shows in the centre badge, so the line starts with the age */}{[age ? `Age ${age}` : null, selected.pka_belt || selected.krba_level ? shortLevel(selected.pka_belt || selected.krba_level) : null, shortDivision(m?.date_of_birth, selected.discipline) || null].filter(Boolean).join(' · ')}
                       <span className="neon-caret">{profileInfoExpanded ? '▲' : '▼'}</span>
                     </span>
                   </div>
