@@ -263,9 +263,13 @@ try {
     // the screen's width in the CURRENT orientation -- many Android phones report screen.width as
     // the portrait width even when held sideways, so opening the app in landscape used to look like
     // "laid out at computer width" and zoomed everything ~2x (oversized player controls)
-    const landscape = window.matchMedia('(orientation: landscape)').matches
-    const sw = landscape ? Math.max(window.screen.width, window.screen.height) : Math.min(window.screen.width, window.screen.height)
-    const ratio = window.innerWidth / sw
+    const screenW = () => window.matchMedia('(orientation: landscape)').matches
+      ? Math.max(window.screen.width, window.screen.height) : Math.min(window.screen.width, window.screen.height)
+    // the browser's own innerWidth (the layout width it chose) -- kept before it's answered for the phone below
+    const iwDesc = Object.getOwnPropertyDescriptor(window, 'innerWidth') || Object.getOwnPropertyDescriptor(Window.prototype, 'innerWidth')
+    const realIW = () => (iwDesc?.get ? iwDesc.get.call(window) : document.documentElement.clientWidth)
+    let sw = screenW()
+    const ratio = realIW() / sw
     if (ratio < 1.3) return   // already laid out for the phone
     document.documentElement.classList.add('is-phone', 'forced-phone')
     document.documentElement.style.zoom = String(ratio)
@@ -274,15 +278,35 @@ try {
     const widthOk = q => q.replace(/\((max|min)-width:\s*(\d+(?:\.\d+)?)px\)/g, (_, k, n) => (k === 'max' ? sw <= +n : sw >= +n) ? '(min-width: 0px)' : '(max-width: 0px)')
     window.matchMedia = q => origMM(widthOk(String(q)))
     Object.defineProperty(window, 'innerWidth', { configurable: true, get: () => sw })
-    // width rules in the stylesheets
+    // width rules in the stylesheets (original text kept, so they can be re-worked after a rotation)
+    const origText = new WeakMap()
     const fix = () => {
       for (const sheet of Array.from(document.styleSheets)) {
         let rules; try { rules = sheet.cssRules } catch { continue }
-        const walk = list => { for (const r of Array.from(list || [])) { if (r.media && r.cssRules) { const t = r.media.mediaText; if (/width/.test(t) && !t.includes('/*kc*/')) { try { r.media.mediaText = widthOk(t) } catch { /* */ } } walk(r.cssRules) } } }
+        const walk = list => { for (const r of Array.from(list || [])) { if (r.media && r.cssRules) {
+          if (!origText.has(r)) origText.set(r, r.media.mediaText)
+          const t = origText.get(r)
+          if (/width/.test(t) && !t.includes('/*kc*/')) { try { r.media.mediaText = widthOk(t) } catch { /* */ } }
+          walk(r.cssRules)
+        } } }
         walk(rules)
       }
     }
     fix(); window.addEventListener('load', fix); setTimeout(fix, 1500)
+    // Turning the phone: the screen gets wider / narrower but the browser keeps its computer-width
+    // layout -- recalculate the zoom (it used to stay at the portrait value, so landscape was ~2x
+    // too big, e.g. the video player's controls), the reported width and the stylesheet rules.
+    const refit = () => {
+      const w = screenW()
+      if (!w) return
+      sw = w
+      document.documentElement.style.zoom = String(Math.max(1, realIW() / sw))
+      fix()
+      window.dispatchEvent(new Event('kc-refit')) // anything sized from --kc-vh updates
+    }
+    window.addEventListener('orientationchange', () => setTimeout(refit, 250))
+    window.screen.orientation?.addEventListener?.('change', () => setTimeout(refit, 250))
+    window.addEventListener('resize', () => { if (Math.abs(screenW() - sw) > 20) refit() })
   } catch { /* ignore */ }
 })()
 // The visible screen size in the page's own units (the 'safety net' above zooms the page, which
@@ -292,7 +316,7 @@ try {
     const z = parseFloat(document.documentElement.style.zoom) || 1
     document.documentElement.style.setProperty('--kc-vh', `${window.innerHeight / z / 100}px`)
   }
-  set(); window.addEventListener('resize', set); window.visualViewport?.addEventListener('resize', set)
+  set(); window.addEventListener('resize', set); window.visualViewport?.addEventListener('resize', set); window.addEventListener('kc-refit', set)
 })()
 // keep the browser's "install this app" prompt so the 📲 Install button can use it
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__kcInstallPrompt = e; window.dispatchEvent(new Event('kc-install-ready')) })
