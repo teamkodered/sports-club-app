@@ -1939,3 +1939,10 @@ button.neon-chip { -webkit-appearance: none; appearance: none; padding: 0; }
 .ffd-coachslots .ffd-coach { width: 130px; max-width: 130px; }
 
 .ffd-coach.busy { color: #E24B4A; border-color: #E24B4A; border-style: solid; }
+
+.ffd-sametime { margin-bottom: 10px; border-left: 4px solid #EAB308; font-size: 14px; }
+.ffd-sametime summary { cursor: pointer; }
+.ffd-sametime .ffd-clash-row { padding: 6px 0; border-top: 1px solid var(--border-strong); }
+.ffd-table tr.overlap td { background: rgba(234, 179, 8, .10); }
+.ffd-clashcell .ffd-sametime-txt { color: #D9A406; }
+@media print { .ffd-table tr.overlap td { background: #fff4cc !important; } }

@@ -245,6 +245,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
       const ca = coachIds(ka), cb = coachIds(kb), both = [...new Set([...ca, ...cb])]
       if (ka === kb && normTitle(A.f.title) !== normTitle(B.f.title)) list.push({ type: 'athlete', A, B, possible: A.possible || B.possible })
       else if (ka !== kb && ca.length && cb.length && both.length === 1) list.push({ type: 'coach', coach: both[0], A, B, possible: A.possible || B.possible })   // nobody else to cover one of them
+      else if (ka !== kb && String(A.f.area ?? '') !== String(B.f.area ?? '')) list.push({ type: 'time', A, B, possible: A.possible || B.possible })   // on at the same time on different areas
     }
     return list
   }, [rows, windowMin, s.assign])
@@ -256,7 +257,9 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
       && !(x.f.date && r.f.date && x.f.date !== r.f.date) && Math.abs(x.f.startMin - r.f.startMin) <= windowMin)
     return o ? `${areaTxt(o.f.area)} ~${fromMin(o.f.startMin)}` : null
   }
-  const clashKeys = new Set(clashes.flatMap(c => [`${c.A.f.id}|${athleteKey(c.A.a)}`, `${c.B.f.id}|${athleteKey(c.B.a)}`]))
+  const realClashes = clashes.filter(c => c.type !== 'time'), sameTime = clashes.filter(c => c.type === 'time')
+  const overlapKeys = new Set(sameTime.flatMap(c => [`${c.A.f.id}|${athleteKey(c.A.a)}`, `${c.B.f.id}|${athleteKey(c.B.a)}`]))
+  const clashKeys = new Set(realClashes.flatMap(c => [`${c.A.f.id}|${athleteKey(c.A.a)}`, `${c.B.f.id}|${athleteKey(c.B.a)}`]))
   // for each row: the other bouts it clashes with
   const clashWith = useMemo(() => {
     const m = {}
@@ -339,10 +342,10 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
         )}
       </div>
 
-      {clashes.length > 0 && (
+      {realClashes.length > 0 && (
         <div className="card ffd-clash">
-          <b>⚠ {clashes.length} possible clash{clashes.length === 1 ? '' : 'es'}</b> — {clashes.filter(c => c.type === 'coach').length} coach, {clashes.filter(c => c.type === 'athlete').length} athlete
-          {clashes.map((c, i) => (
+          <b>⚠ {realClashes.length} possible clash{realClashes.length === 1 ? '' : 'es'}</b> — {realClashes.filter(c => c.type === 'coach').length} coach, {realClashes.filter(c => c.type === 'athlete').length} athlete
+          {realClashes.map((c, i) => (
             <div key={i} className="ffd-clash-row">
               {c.type === 'coach' ? `👤 ${coachName(c.coach)}: ` : `🥊 ${c.A.a.name}: `}
               {[c.A, c.B].map(r => `${r.a.name.split(' ')[0]} ${areaTxt(r.f.area)} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'}`).join(' & ')}
@@ -350,6 +353,17 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
             </div>
           ))}
         </div>
+      )}
+      {sameTime.length > 0 && (
+        <details className="card ffd-sametime">
+          <summary><b>⏱ {sameTime.length} pair{sameTime.length === 1 ? '' : 's'} of bouts on at the same time</b> <span className="ffd-muted">— different areas, need separate coaches</span></summary>
+          {sameTime.map((c, i) => (
+            <div key={i} className="ffd-clash-row">
+              {[c.A, c.B].map(r => `${r.a.name} ${areaTxt(r.f.area)} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'}`).join('  &  ')}
+              {c.possible && <em> (if they win)</em>}
+            </div>
+          ))}
+        </details>
       )}
 
       <div className="ffd-tabs">
@@ -383,9 +397,9 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
             <tbody>
               {shown.map((r, i) => {
                 const k = athleteKey(r.a), res = s.results?.[r.f.id]
-                const clash = clashKeys.has(`${r.f.id}|${k}`)
+                const clash = clashKeys.has(`${r.f.id}|${k}`), overlap = !clash && overlapKeys.has(`${r.f.id}|${k}`)
                 return (
-                  <tr key={i} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''}`} style={{ '--sty': styleOf(r.f.title).color }}>
+                  <tr key={i} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''}`} style={{ '--sty': styleOf(r.f.title).color }}>
                     <td><b>{areaTxt(r.f.area)}</b></td>
                     <td>{r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?'}{clash && ' ⚠'}</td>
                     <td><span className="ffd-sty" title={styleOf(r.f.title).name}>{styleOf(r.f.title).code}</span> {r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''}</div></td>
@@ -411,7 +425,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
                       })() : coachIds(k).map(coachName).filter(Boolean).join(', ') || '—'}
                     </td>
                     <td className="ffd-clashcell">{(clashWith[`${r.f.id}|${k}`] || []).map((c, j) => (
-                      <div key={j}>⚠ {c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}
+                      <div key={j} className={c.type === 'time' ? 'ffd-sametime-txt' : ''}>{c.type === 'time' ? `⏱ Same time: ${c.other.a.name}` : `⚠ ${c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}`}
                         <span className="ffd-muted"> · {areaTxt(c.other.f.area)} ~{c.other.f.startMin != null ? fromMin(c.other.f.startMin) : '?'} · {c.other.f.label || c.other.f.title}</span></div>
                     ))}</td>
                     <td>{!r.possible && r.opp?.athlete && isAdmin ? (
