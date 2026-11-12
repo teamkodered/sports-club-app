@@ -9427,11 +9427,13 @@ export default function AthleteProfiles() {
                   details), and the house with its position/points and this athlete's points. */}
               <div className="neon-header">
                 <div className="neon-header-chips">
-                  <button type="button" className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour, cursor: 'pointer', border: 'none', font: 'inherit' }}
+                  <button type="button" className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour, cursor: 'pointer' }}
                     title={ptsAllTime ? 'All-time points -- tap for this month' : 'Points this month -- tap for all time'} onClick={e => { e.stopPropagation(); setPtsAllTime(v => !v) }}>
                     {/* this month's points (e.g. NOV 10 PTS) -- tap for all time */}
-                    <span className="neon-chip-pts" style={{ marginRight: 6 }}>{ptsAllTime ? 'ALL' : new Date().toLocaleDateString('en-GB', { month: 'short' }).toUpperCase()}</span>
-                    {ptsAllTime ? (selected.individual_points ?? 0).toLocaleString() : monthHousePoints != null ? monthHousePoints.toLocaleString() : '—'}<span className="neon-chip-pts">PTS</span>
+                    <span className="neon-chip-stack">
+                      <span>{ptsAllTime ? (selected.individual_points ?? 0).toLocaleString() : monthHousePoints != null ? monthHousePoints.toLocaleString() : '—'}<span className="neon-chip-pts">PTS</span></span>
+                      <span className="neon-chip-when">{ptsAllTime ? 'ALL TIME' : new Date().toLocaleDateString('en-GB', { month: 'short' }).toUpperCase()}</span>
+                    </span>
                   </button>
                   <span className="neon-hex neon-hex-centre">
                     {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" />}

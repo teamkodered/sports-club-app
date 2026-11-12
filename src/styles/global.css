@@ -1923,3 +1923,8 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 .neon-header-row .neon-housebox { align-self: start; }
 .neon-header-row .neon-name { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; line-height: 1.05;
   font-size: clamp(18px, calc(min(52vw, 320px) / (var(--nw, 8) * 0.62)), 30px) !important; }
+
+/* points chip: big number + small PTS, the month (or ALL TIME) small underneath -- inside the box */
+button.neon-chip { -webkit-appearance: none; appearance: none; padding: 0; }
+.neon-chip-stack { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.neon-chip-when { font-family: 'Orbitron', sans-serif; font-style: normal; font-weight: 700; font-size: 7px; letter-spacing: 1.5px; opacity: 0.75; margin-top: 2px; }
