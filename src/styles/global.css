@@ -1916,3 +1916,10 @@ html.forced-phone .stk-sheet, html.forced-phone .ct-sheet { max-height: calc(var
 .neon-header-row .neon-housebox { grid-area: house; justify-self: end; text-align: right; }
 .neon-header-row .neon-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
   font-size: clamp(18px, calc(min(92vw, 520px) / (var(--nl, 14) * 0.62)), 34px) !important; }
+
+/* Name card v2: house level with the name on the right; a long name wraps so the surname goes under
+   the first name (sized by its longest word), info line under the name */
+.neon-header-row { grid-template-columns: minmax(0, 1fr) auto !important; grid-template-areas: "name house" "meta house" !important; }
+.neon-header-row .neon-housebox { align-self: start; }
+.neon-header-row .neon-name { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; line-height: 1.05;
+  font-size: clamp(18px, calc(min(52vw, 320px) / (var(--nw, 8) * 0.62)), 30px) !important; }

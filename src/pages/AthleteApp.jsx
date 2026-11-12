@@ -5445,7 +5445,7 @@ export default function AthleteApp() {
             <div className="neon-header-row">
               <button type="button" className="neon-namebox"
                 onClick={e => { e.stopPropagation(); setHeaderCardView(0); setHousePointsExpanded(false); setMyProfileExpanded(v => !v) }}>
-                <span className="neon-name" style={{ '--nl': `${m?.first_name || ''} ${m?.last_name || ''}`.length }}>{m?.first_name} {m?.last_name}</span>
+                <span className="neon-name" style={{ '--nw': Math.max(...`${m?.first_name || ''} ${m?.last_name || ''}`.split(/\s+/).map(w => w.length), 4), '--nl': `${m?.first_name || ''} ${m?.last_name || ''}`.length }}>{m?.first_name} {m?.last_name}</span>
                 <span className="neon-meta">
                   {student.discipline}{age ? ` · ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${shortLevel(student.pka_belt || student.krba_level)}` : ''}{shortDivision(m?.date_of_birth, student.discipline) ? ` · ${shortDivision(m?.date_of_birth, student.discipline)}` : ''}
                   <span className="neon-caret">{myProfileExpanded ? '▲' : '▼'}</span>

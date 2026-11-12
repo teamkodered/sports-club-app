@@ -9445,7 +9445,7 @@ export default function AthleteProfiles() {
                   <div className="neon-namebox">
                           <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
                             <button className="neon-name" onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
-                              style={{ '--nl': `${m?.first_name || ''} ${m?.last_name || ''}`.length + 2, fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              style={{ '--nw': Math.max(...`${m?.first_name || ''} ${m?.last_name || ''}`.split(/\s+/).map(w => w.length), 4), '--nl': `${m?.first_name || ''} ${m?.last_name || ''}`.length + 2, fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                               {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
                             </button>
                             {showNameDropdown && (
