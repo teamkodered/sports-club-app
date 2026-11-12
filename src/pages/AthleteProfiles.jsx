@@ -9488,12 +9488,7 @@ export default function AthleteProfiles() {
                     <span className="neon-house-stats">
                       {houseRank > 0 ? <b>{`${houseRank}${[, 'st', 'nd', 'rd'][houseRank % 100 >> 3 ^ 1 && houseRank % 10] || 'th'}`}</b> : null}{houseRank > 0 && houseTotalPoints != null ? ' · ' : ''}{houseTotalPoints != null ? <><b>{Number(houseTotalPoints).toLocaleString()}</b> PTS</> : null}
                     </span>
-                    {selected.house_points != null && (
-                      <button type="button" className="neon-house-mine" onClick={e => { e.stopPropagation(); setShowContribution(v => !v) }}
-                        title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing points — click to show % contribution'}>
-                        {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${selected.house_points} pts`}
-                      </button>
-                    )}
+                    {/* ⭐ points pill removed -- the points chip (top left) shows month / all-time points */}
                   </div>
                 </div>
               </div>
