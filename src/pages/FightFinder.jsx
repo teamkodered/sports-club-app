@@ -293,6 +293,39 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
     return `🥊 ${ff.title} — ${coachName(cid)}'s fights\n` + mine.map(r => `${r.f.area != null ? areaTxt(r.f.area) : ''} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'} · ${r.a.name} · ${r.f.title} · v ${sideTxt(r.opp)}`).join('\n')
   }
 
+  // cells shared by the table and the grid's pop-up
+  const coachCell = (r, k) => (isAdmin ? (() => {
+                        const ids = coachIds(k)
+                        const setSlot = (i, id) => { const next = [...ids]; if (id) next[i] = id; else next.splice(i, 1); setS({ assign: { ...(s.assign || {}), [k]: next.filter(Boolean) } }) }
+                        return (
+                          <div className="ffd-coachslots">
+                            {[0, 1, 2].filter(i => i <= ids.length).map(i => (
+                              <select key={i} className={`ffd-coach ${ids[i] && busyAt(r, ids[i]) ? 'busy' : ''}`} value={ids[i] || ''} onChange={e => setSlot(i, e.target.value)}>
+                                <option value="">{i === 0 ? '—' : '+ coach'}</option>
+                                {coaches.filter(c => c.id === ids[i] || !ids.includes(c.id)).map(c => { const b = busyAt(r, c.id)
+                                  return <option key={c.id} value={c.id} style={b ? { color: '#E24B4A' } : undefined}>{b ? '🔴 ' : ''}{c.first_name} {c.last_name || ''}{b ? ` (busy ${b})` : ''}</option> })}
+                                {!coaches.length && <option value="" disabled>Add coaches to the event first</option>}
+                              </select>
+                            ))}
+                          </div>
+                        )
+                      })() : coachIds(k).map(coachName).filter(Boolean).join(', ') || '—')
+  const clashCell = (r, k, onJump) => (clashWith[`${r.f.id}|${k}`] || []).map((c, j) => (
+    <button key={j} type="button" className={`ffd-jump ${c.type === 'time' ? 'ffd-sametime-txt' : ''}`} onClick={() => onJump(c.other)}>{c.type === 'time' ? `⏱ Same time: ${c.other.a.name}` : `⚠ ${c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}`}
+      <span className="ffd-muted"> · {areaTxt(c.other.f.area)} ~{c.other.f.startMin != null ? fromMin(c.other.f.startMin) : '?'} · {c.other.f.label || c.other.f.title} ↓</span></button>
+  ))
+  const resultCell = r => { const res = s.results?.[r.f.id]
+    return !r.possible && r.opp?.athlete && isAdmin ? (
+      <span className="ffd-res">
+        <button className={res === r.colour ? 'won' : ''} onClick={() => setResult(r.f, r.colour)}>Won</button>
+        <button className={res && res !== r.colour ? 'lost' : ''} onClick={() => setResult(r.f, r.colour === 'red' ? 'blue' : 'red')}>Lost</button>
+      </span>
+    ) : res ? (res === r.colour ? '✓ Won' : '✗ Lost') : '' }
+  // grid view: one column per area, one row per exact estimated time
+  const [cell, setCell] = useState(null)
+  const weightOf = t => (String(t || '').match(/([+-]\s?\d+(?:[.,]\d+)?)\s*KG/i) || [])[1]?.replace(/\s/g, '').replace(',', '.') || ''
+  const gridAreas = [...new Set(shown.map(r => r.f.area ?? null))].sort((a, b) => areaKey(a).localeCompare(areaKey(b)))
+  const gridTimes = [...new Set(shown.map(r => r.f.startMin != null ? Math.round(r.f.startMin) : null))].sort((a, b) => (a ?? 9e9) - (b ?? 9e9))
   return (
     <div className="ffd">
       <div className="ffd-head">
@@ -370,6 +403,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       <div className="ffd-tabs">
         <button className={view === 'ring' ? 'on' : ''} onClick={() => setView('ring')}>Tatami order</button>
         <button className={view === 'time' ? 'on' : ''} onClick={() => setView('time')}>Time order</button>
+        <button className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')}>Grid</button>
         {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
         <span className="ffd-show">
           <button className={`ffd-showbtn ${hidden ? 'on' : ''}`} onClick={() => setShowOpen(o => !o)}><span>👁 Show{hidden ? ` (${3 - hidden}/3)` : ''} ▾</span>{rows.length > 0 && <small>{shownAthletes} athlete{shownAthletes === 1 ? '' : 's'}</small>}</button>
@@ -392,12 +426,35 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       ) : !rows.length ? (
         <div className="card ffd-muted">{!fights.length ? 'Load the schedule and draws to find the fights.' : !run ? `${fights.length} bouts loaded — press 🔍 Find fights.` : `No bouts found for "${run.query}".`}</div>
       ) : (
+        view === 'grid' ? (
+          <div className="ffd-gridwrap">
+            <div className="ffd-grid" style={{ gridTemplateColumns: `46px repeat(${gridAreas.length}, minmax(70px, 1fr))` }}>
+              <div className="ffd-gh ffd-gt" />
+              {gridAreas.map(a => <div key={String(a)} className="ffd-gh">{areaTxt(a)}</div>)}
+              {gridTimes.map(t => [
+                <div key={`t${t}`} className="ffd-gt">{t != null ? fromMin(t) : '?'}</div>,
+                ...gridAreas.map(a => (
+                  <div key={`${t}|${a}`} className="ffd-gc">
+                    {shown.filter(r => (r.f.area ?? null) === a && (r.f.startMin != null ? Math.round(r.f.startMin) : null) === t).map((r, n) => {
+                      const k = athleteKey(r.a), clash = clashKeys.has(`${r.f.id}|${k}`), overlap = !clash && overlapKeys.has(`${r.f.id}|${k}`), st = styleOf(r.f.title)
+                      return (
+                        <button key={n} type="button" className={`ffd-gb ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''} ${r.possible ? 'possible' : ''}`} style={{ '--sty': st.color }} onClick={() => setCell(r)}>
+                          <b>{String(r.a.name).split(/\s+/)[0]}</b><i>{st.code} {weightOf(r.f.title)}</i>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )),
+              ])}
+            </div>
+          </div>
+        ) : (
         <div className="ffd-table-wrap">
           <table className="ffd-table">
             <thead><tr><th>Tatami</th><th>~Time</th><th>Category · bout</th><th>Our athlete</th><th>Opponent</th><th>Coach</th><th>Clashes with</th><th>Result</th></tr></thead>
             <tbody>
               {shown.map((r, i) => {
-                const k = athleteKey(r.a), res = s.results?.[r.f.id]
+                const k = athleteKey(r.a)
                 const clash = clashKeys.has(`${r.f.id}|${k}`), overlap = !clash && overlapKeys.has(`${r.f.id}|${k}`)
                 return (
                   <tr key={i} id={rowId(r)} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''}`} style={{ '--sty': styleOf(r.f.title).color }}>
@@ -407,41 +464,34 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
                     <td><button className="ffd-namebtn" onClick={() => setVid({ a: r.a, f: r.f })}><b>{r.a.name}</b> <span>🎥</span></button><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
                     <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : r.opp?.athlete
                       ? <button className="ffd-namebtn" onClick={() => setVid({ a: r.opp.athlete, f: r.f })}>{sideTxt(r.opp)} <span>🎥</span></button> : sideTxt(r.opp)}</td>
-                    <td>
-                      {isAdmin ? (() => {
-                        const ids = coachIds(k)
-                        const setSlot = (i, id) => { const next = [...ids]; if (id) next[i] = id; else next.splice(i, 1); setS({ assign: { ...(s.assign || {}), [k]: next.filter(Boolean) } }) }
-                        return (
-                          <div className="ffd-coachslots">
-                            {[0, 1, 2].filter(i => i <= ids.length).map(i => (
-                              <select key={i} className={`ffd-coach ${ids[i] && busyAt(r, ids[i]) ? 'busy' : ''}`} value={ids[i] || ''} onChange={e => setSlot(i, e.target.value)}>
-                                <option value="">{i === 0 ? '—' : '+ coach'}</option>
-                                {coaches.filter(c => c.id === ids[i] || !ids.includes(c.id)).map(c => { const b = busyAt(r, c.id)
-                                  return <option key={c.id} value={c.id} style={b ? { color: '#E24B4A' } : undefined}>{b ? '🔴 ' : ''}{c.first_name} {c.last_name || ''}{b ? ` (busy ${b})` : ''}</option> })}
-                                {!coaches.length && <option value="" disabled>Add coaches to the event first</option>}
-                              </select>
-                            ))}
-                          </div>
-                        )
-                      })() : coachIds(k).map(coachName).filter(Boolean).join(', ') || '—'}
-                    </td>
-                    <td className="ffd-clashcell">{(clashWith[`${r.f.id}|${k}`] || []).map((c, j) => (
-                      <button key={j} type="button" className={`ffd-jump ${c.type === 'time' ? 'ffd-sametime-txt' : ''}`} onClick={() => goTo(c.other)}>{c.type === 'time' ? `⏱ Same time: ${c.other.a.name}` : `⚠ ${c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}`}
-                        <span className="ffd-muted"> · {areaTxt(c.other.f.area)} ~{c.other.f.startMin != null ? fromMin(c.other.f.startMin) : '?'} · {c.other.f.label || c.other.f.title} ↓</span></button>
-                    ))}</td>
-                    <td>{!r.possible && r.opp?.athlete && isAdmin ? (
-                      <span className="ffd-res">
-                        <button className={res === r.colour ? 'won' : ''} onClick={() => setResult(r.f, r.colour)}>Won</button>
-                        <button className={res && res !== r.colour ? 'lost' : ''} onClick={() => setResult(r.f, r.colour === 'red' ? 'blue' : 'red')}>Lost</button>
-                      </span>
-                    ) : res ? (res === r.colour ? '✓ Won' : '✗ Lost') : ''}</td>
+                    <td>{coachCell(r, k)}</td>
+                    <td className="ffd-clashcell">{clashCell(r, k, goTo)}</td>
+                    <td>{resultCell(r)}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
         </div>
+        )
       )}
+      {cell && (() => { const r = cell, k = athleteKey(r.a), st = styleOf(r.f.title)
+        return (
+          <div className="ffd-sheet-bg" onClick={() => setCell(null)}>
+            <div className="ffd-sheet ffd-cellsheet" onClick={e => e.stopPropagation()} style={{ '--sty': st.color }}>
+              <div className="ffd-cellhead"><b>{r.a.name}</b><span className="ffd-muted">{areaTxt(r.f.area)} · ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</span></div>
+              <div><span className="ffd-sty">{st.code}</span> {r.f.title}</div>
+              <div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''} · {[r.a.club, r.a.country].filter(Boolean).join(', ')}</div>
+              <div>v {r.f.solo ? 'solo (forms)' : sideTxt(r.opp)}</div>
+              {(clashWith[`${r.f.id}|${k}`] || []).length > 0 && <div className="ffd-clashcell">{clashCell(r, k, o => setCell(o))}</div>}
+              <div className="ffd-cellrow"><span className="ffd-muted">Coach</span>{coachCell(r, k)}</div>
+              <div className="ffd-cellrow">{resultCell(r)}
+                <button className="btn" onClick={() => setVid({ a: r.a, f: r.f })}>🎥 {String(r.a.name).split(/\s+/)[0]}</button>
+                {r.opp?.athlete && <button className="btn" onClick={() => setVid({ a: r.opp.athlete, f: r.f })}>🎥 {String(r.opp.athlete.name).split(/\s+/)[0]}</button>}</div>
+              <button className="btn" onClick={() => setCell(null)}>Close</button>
+            </div>
+          </div>
+        ) })()}
       {vid && <VideoSheet a={vid.a} f={vid.f} onClose={() => setVid(null)} />}
       <p className="ffd-muted" style={{ marginTop: 8 }}>~ Times are estimates: each category's (or session's) time spread over its bouts, in order. {athletes.length} athlete{athletes.length === 1 ? '' : 's'} found.</p>
     </div>
