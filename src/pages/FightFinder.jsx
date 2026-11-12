@@ -145,7 +145,7 @@ export default function FightFinder() {
 
   const allStaff = [...staff, ...mergeGuests(guests, ff.settings?.guests || [])].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
   return <FinderView ff={ff} staff={allStaff} setGuests={setGuests} memberNames={memberNames} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
-    onFiles={loadFiles} setS={setS} save={save} onBack={() => { setFf(null); nav('/fight-finder', { replace: true }) }} />
+    onFiles={loadFiles} setS={setS} save={save} clearMsg={() => setMsg('')} onBack={() => { setFf(null); setMsg(''); nav('/fight-finder', { replace: true }) }} />
 }
 
 function mergeBy(oldList, newList, key) {
@@ -162,7 +162,7 @@ function mergeGuests(a, b) {
   return [...m.values()]
 }
 
-function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack }) {
+function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack, clearMsg }) {
   const s = ff.settings || {}
   const [newCoach, setNewCoach] = useState('')
   function addGuest() {
@@ -186,7 +186,7 @@ function FinderView({ ff, staff, setGuests, memberNames, isAdmin, busy, msg, vie
   const loadedAt = JSON.stringify([(ff.data?.schedule || []).length, (ff.data?.draws || []).length, (ff.data?.bouts || []).length])
   const [run, setRun] = useState(s.searched ? { query, loadedAt, members: useMembers } : null)   // the search shown; null = not run yet
   const stale = run && (run.query !== draft || run.loadedAt !== loadedAt || run.members !== useMembers)
-  const find = () => { setRun({ query: draft, loadedAt, members: useMembers }); setS({ query: draft, searched: true }) }
+  const find = () => { setRun({ query: draft, loadedAt, members: useMembers }); setS({ query: draft, searched: true }); clearMsg?.() }
   const coaches = staff.filter(m => (s.coaches || []).includes(m.id))
   const coachName = id => { const m = staff.find(x => x.id === id); return m ? `${m.first_name} ${m.last_name || ''}`.trim() : '' }
   const fights = useMemo(() => buildFights({ schedule: ff.data?.schedule || [], draws: ff.data?.draws || [], bouts: ff.data?.bouts || [], results: s.results || {} }), [ff.data, s.results])
