@@ -117,8 +117,10 @@ export function shortLevel(level) {
   const s = String(level).trim(), k = s.toLowerCase().replace(/[:\s]+\d+$/, '').trim()
   return LEVEL_SHORT[k] ? LEVEL_SHORT[k] + (/\d+$/.test(s) ? ' ' + s.match(/\d+$/)[0] : '') : s
 }
-export function shortDivision(dob, discipline) {
+export function shortDivision(dob, discipline, level) {
   const d = divisionsForAge(dob)
+  // an Elite boxer aged 19-40 is in the Elite division, not Senior Development
+  if (discipline === 'KRBA' && /^elite/i.test(String(level || '')) && d.age >= 19 && d.age <= 40) return 'ELT'
   const div = discipline === 'KRBA' ? d.boxing : d.kickboxing
   return div?.key || ''
 }

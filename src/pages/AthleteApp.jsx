@@ -5455,8 +5455,8 @@ export default function AthleteApp() {
                 onClick={e => { e.stopPropagation(); setHeaderCardView(0); setHousePointsExpanded(false); setMyProfileExpanded(v => !v) }}>
                 <span className="neon-name" style={{ '--nw': Math.max(...`${m?.first_name || ''} ${m?.last_name || ''}`.split(/\s+/).map(w => w.length), 4), '--nl': `${m?.first_name || ''} ${m?.last_name || ''}`.length }}>{m?.first_name} {m?.last_name}</span>
                 <span className="neon-meta">
-                  {/* club shows in the centre badge, so the line starts with the age */}{[age ? `Age ${age}` : null, student.pka_belt || student.krba_level ? shortLevel(student.pka_belt || student.krba_level) : null, shortDivision(m?.date_of_birth, student.discipline) || null].filter(Boolean).join(' · ')}
-                  <span className="neon-caret">{myProfileExpanded ? '▲' : '▼'}</span>
+                  {/* club shows in the centre badge, so the line starts with the age */}{[age ? `Age ${age}` : null, student.pka_belt || student.krba_level ? shortLevel(student.pka_belt || student.krba_level) : null, shortDivision(m?.date_of_birth, student.discipline, student.krba_level) || null].filter((x, i, arr) => x && arr.indexOf(x) === i).join(' · ')}
+                  
                 </span>
               </button>
               <button type="button" className="neon-housebox" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}
@@ -5486,7 +5486,7 @@ export default function AthleteApp() {
                     <div>
                       <div className="neon-name" style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
                       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
-                        {/* club shows in the centre badge, so the line starts with the age */}{[age ? `Age ${age}` : null, student.pka_belt || student.krba_level ? shortLevel(student.pka_belt || student.krba_level) : null, shortDivision(m?.date_of_birth, student.discipline) || null].filter(Boolean).join(' · ')}
+                        {/* club shows in the centre badge, so the line starts with the age */}{[age ? `Age ${age}` : null, student.pka_belt || student.krba_level ? shortLevel(student.pka_belt || student.krba_level) : null, shortDivision(m?.date_of_birth, student.discipline, student.krba_level) || null].filter((x, i, arr) => x && arr.indexOf(x) === i).join(' · ')}
                       </div>
                     </div>
                     {(student.is_kr || student.discipline === 'KRBA') && (

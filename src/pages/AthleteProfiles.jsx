@@ -9420,7 +9420,7 @@ export default function AthleteProfiles() {
                 if (Math.abs(delta) > 50) { setHeaderCardView(v => delta < 0 ? 1 : 0); headerWasSwipe.current = true }
                 headerSwipeStartX.current = null
               }}
-              onClick={() => { if (headerWasSwipe.current) { headerWasSwipe.current = false; return } setProfileInfoExpanded(v => !v) }}>
+              onClick={() => { headerWasSwipe.current = false /* pressing the card no longer opens the profile -- use the Profile bar's ▼ */ }}>
               {/* Neon header (mockup layout): house-points chip · gold hex with group logo ·
                   rank chip (tap to switch position in house / overall); then the name
                   (tap to switch athlete) with club · age · grade (tap the card for profile
@@ -9476,8 +9476,8 @@ export default function AthleteProfiles() {
                             )}
                           </div>
                     <span className="neon-meta">
-                      {/* club shows in the centre badge, so the line starts with the age */}{[age ? `Age ${age}` : null, selected.pka_belt || selected.krba_level ? shortLevel(selected.pka_belt || selected.krba_level) : null, shortDivision(m?.date_of_birth, selected.discipline) || null].filter(Boolean).join(' · ')}
-                      <span className="neon-caret">{profileInfoExpanded ? '▲' : '▼'}</span>
+                      {/* club shows in the centre badge, so the line starts with the age */}{[age ? `Age ${age}` : null, selected.pka_belt || selected.krba_level ? shortLevel(selected.pka_belt || selected.krba_level) : null, shortDivision(m?.date_of_birth, selected.discipline, selected.krba_level) || null].filter((x, i, arr) => x && arr.indexOf(x) === i).join(' · ')}
+                      
                     </span>
                   </div>
                   <div className="neon-housebox" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}>
