@@ -598,7 +598,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       )}
 
       <div className="ffd-tabs">
-        {(() => { const V = [['ring', '🏷 Tatami order'], ['time', '🕒 Time order'], ['grid', '▦ Grid']], i = V.findIndex(([v]) => v === view)
+        {(() => { const V = [['ring', '🏷 Tatami order'], ['time', '🕒 Time order'], ['grid', '▦ Grid'], ['coaches', '👤 Coaches']], i = V.findIndex(([v]) => v === view)
           return <button className={`ffd-viewbtn ${i >= 0 ? 'on' : ''}`} title="Tap to change view" onClick={() => setView(V[(i + 1) % V.length][0])}>{i >= 0 ? V[i][1] : '🏷 Tatami order'} <span>⇄</span></button> })()}
         {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
         <span className="ffd-show" ref={showRef}>
@@ -622,7 +622,30 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       ) : !rows.length ? (
         <div className="card ffd-muted">{!fights.length ? 'Load the schedule / bout list to find the fights.' : !run ? <>{fights.length} bouts loaded — <button className="btn btn-primary ffd-go" onClick={find}>Go</button></> : `No bouts found for ${[run.query && `"${run.query}"`, run.team && 'the team list'].filter(Boolean).join(' or ')}.`}</div>
       ) : (
-        view === 'grid' ? (
+        view === 'coaches' ? (
+          <div className="ffd-coachview">
+            {[...coaches.map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name || ''}`.trim(), rows: shown.filter(r => coachIds(athleteKey(r.a)).includes(c.id)) })),
+              { id: '', name: 'No coach yet', rows: shown.filter(r => !coachIds(athleteKey(r.a)).length) }]
+              .filter(g => g.id || g.rows.length).map(g => {
+                const n = new Set(g.rows.map(r => athleteKey(r.a))).size
+                return (
+                  <div key={g.id || 'none'} className={`card ffd-coachcard ${g.id ? '' : 'none'}`}>
+                    <div className="ffd-coachcardhead"><b>{g.id ? '👤 ' : ''}{g.name}</b><span className="ffd-muted">{n} athlete{n === 1 ? '' : 's'} · {g.rows.filter(r => !r.possible).length} bouts</span></div>
+                    {!g.rows.length && <div className="ffd-muted">No athletes assigned.</div>}
+                    {g.rows.map((r, i) => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`, st = styleOf(r.f.title)
+                      const cls = clashKeys.has(key) ? 'clash' : overlapKeys.has(key) ? 'overlap' : ''
+                      return (
+                        <button key={i} type="button" className={`ffd-coachline ${cls} ${r.possible ? 'possible' : ''}`} style={{ '--sty': st.color }} onClick={() => setCell(r)}>
+                          <span className="ffd-cl-time">~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}<i>{areaTxt(r.f.area)}</i></span>
+                          <span className="ffd-cl-main"><b>{r.a.name}</b><i>{st.code} {weightOf(r.f.title)} · v {r.f.solo ? 'solo' : (r.opp?.athlete?.name || 'TBC')}{r.possible ? ' · if they win' : ''}</i></span>
+                          {cls && <span className="ffd-cl-flag">{cls === 'clash' ? '⚠' : '⏱'}</span>}
+                        </button>
+                      ) })}
+                  </div>
+                ) })}
+            {!coaches.length && <div className="card ffd-muted">Add coaches under 👥 Team → Coaches at this event, then give athletes a coach.</div>}
+          </div>
+        ) : view === 'grid' ? (
           <div className="ffd-gridwrap">
             <div className="ffd-grid" style={{ gridTemplateColumns: `46px repeat(${gridAreas.length}, minmax(70px, 1fr))` }}>
               <div className="ffd-gh ffd-gt" />
