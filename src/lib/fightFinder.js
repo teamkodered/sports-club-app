@@ -38,7 +38,7 @@ export async function pdfLines(file) {
       const parts = r.parts.sort((a, b) => a.x - b.x)
       let text = '', end = null
       for (const p of parts) { text += (end != null && p.x - end > 1 && !text.endsWith(' ') && !p.s.startsWith(' ') ? ' ' : '') + p.s; end = p.x + p.w }
-      return { x: parts[0].x, y: r.y, text: text.replace(/\s+/g, ' ').trim() }
+      return { x: parts[0].x, y: r.y, text: text.replace(/\s+/g, ' ').trim(), parts }   // parts (with x) are needed for column layouts like team sheets
     })
     pages.push(lines)
   }
@@ -343,7 +343,7 @@ export function teamFromPdf(pages) {
   for (const lines of pages) {
     let cols = [], prefix = {}, prefixY = -99
     for (const l of lines) {
-      const parts = l.parts.map(p => ({ x: p.x, s: String(p.s).trim() })).filter(p => p.s)
+      const parts = (l.parts || [{ x: l.x, s: l.text }]).map(p => ({ x: p.x, s: String(p.s).trim() })).filter(p => p.s)
       const styles = parts.filter(p => styleIn(p.s) && !WEIGHT.test(p.s))
       if (styles.length && !parts.some(p => WEIGHT.test(p.s))) {
         // a header row: each style word + the label to its left starts a column
