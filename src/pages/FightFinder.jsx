@@ -170,7 +170,7 @@ export default function FightFinder() {
       <div className="card" style={{ marginTop: 12 }}>
         <b>Saved</b>
         {list === null ? <p>Loading…</p> : !list.length ? <p className="ffd-muted">None yet.</p> : groups.map(g => (
-          <details key={g.event || '-'} className="ffd-event" open>
+          <details key={g.event || '-'} className="ffd-event">
             <summary>{g.event || 'No event'} <span className="ffd-muted">({g.days.length})</span></summary>
             {g.days.map(x => (
           <button key={x.id} className="ffd-saved" onClick={() => { if (!hold.current.fired) nav(`/fight-finder?id=${x.id}`) }}
