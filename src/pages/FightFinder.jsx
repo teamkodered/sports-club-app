@@ -598,9 +598,8 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       )}
 
       <div className="ffd-tabs">
-        <button className={view === 'ring' ? 'on' : ''} onClick={() => setView('ring')}>Tatami order</button>
-        <button className={view === 'time' ? 'on' : ''} onClick={() => setView('time')}>Time order</button>
-        <button className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')}>Grid</button>
+        {(() => { const V = [['ring', '🏷 Tatami order'], ['time', '🕒 Time order'], ['grid', '▦ Grid']], i = V.findIndex(([v]) => v === view)
+          return <button className={`ffd-viewbtn ${i >= 0 ? 'on' : ''}`} title="Tap to change view" onClick={() => setView(V[(i + 1) % V.length][0])}>{i >= 0 ? V[i][1] : '🏷 Tatami order'} <span>⇄</span></button> })()}
         {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
         <span className="ffd-show" ref={showRef}>
           <button className={`ffd-showbtn ${hidden ? 'on' : ''}`} onClick={toggleShow}><span>👁 Show{hidden ? ` (${3 - hidden}/3)` : ''} ▾</span>{rows.length > 0 && <small>{shownAthletes} athlete{shownAthletes === 1 ? '' : 's'}</small>}</button>

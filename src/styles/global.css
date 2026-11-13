@@ -2014,3 +2014,5 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-team .ffd-teamsearch { flex-wrap: nowrap; align-items: flex-end; }
 .ffd-team .ffd-teamsearch label { flex: 1 1 auto; min-width: 0; }
 .ffd-go { flex: 0 0 auto; padding: 9px 18px; font-size: 15px; font-weight: 600; }
+
+.ffd-viewbtn span { opacity: .6; margin-left: 4px; }
