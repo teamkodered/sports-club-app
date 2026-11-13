@@ -487,9 +487,38 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         {isAdmin ? <input className="ffd-title" value={ff.title} onChange={e => save({ title: e.target.value })} /> : <h1>{ff.title}</h1>}
       </div>
       {s.event && <div className="ffd-muted ffd-evname">📁 {s.event}</div>}
-      {(isAdmin || teamAthletes.length > 0) && (
+      {(
         <details className="card ffd-team">
           <summary><b>👥 Team</b> <span className="ffd-muted">{teamAthletes.length ? `${teamAthletes.length} athletes · ${teamEntries.length} entries · ${teamFound.size} on this day` : 'none yet'}</span></summary>
+          <div className="ffd-search ffd-teamsearch">
+            <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
+          </div>
+          <div className="ffd-muted">Finds these as well as everyone on the team list.</div>
+        {isAdmin && (
+          <details className="ffd-teamcoaches">
+            <summary>Coaches at this event ({coaches.length})</summary>
+            <div className="ffd-coaches">{coaches.map(m => (
+              <div key={m.id} className="ffd-coachrow"><span>{m.first_name} {m.last_name}</span>
+                <button type="button" className="ffd-x" title="Remove from this event" onClick={() => dropCoach(m)}>✕</button></div>
+            ))}</div>
+            {!coaches.length && <div className="ffd-muted">No coaches yet — type a name to add one.</div>}
+            <div className="ffd-addcoach">
+              <input value={newCoach} onChange={e => setNewCoach(e.target.value)} placeholder="Type a coach's name…"
+                onKeyDown={e => { if (e.key === 'Enter') { if (matches.length === 1) pickCoach(matches[0]); else addGuest() } }} />
+            </div>
+            {newCoach.trim() && (
+              <div className="ffd-suggest">
+                {matches.map(m => (
+                  <div key={m.id} className="ffd-suggestrow">
+                    <button type="button" onClick={() => pickCoach(m)}>+ {m.first_name} {m.last_name}{m.guest ? <span className="ffd-muted"> (added before)</span> : null}</button>
+                    {m.guest && <button type="button" className="ffd-x" title="Forget this name" onClick={() => removeGuest(m)}>🗑</button>}
+                  </div>
+                ))}
+                {!exact && <div className="ffd-suggestrow"><button type="button" onClick={addGuest}>+ Add “{newCoach.trim()}” as a new coach</button></div>}
+              </div>
+            )}
+          </details>
+        )}
           {isAdmin && (
             <div className="ffd-teamload">
               <label className="btn">{teamBusy || '📄 Upload team sheet'}<input type="file" accept=".pdf,.csv,.txt" hidden onChange={e => { teamFile(e.target.files?.[0]); e.target.value = '' }} /></label>
@@ -536,36 +565,10 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
 
       <div className="card ffd-opts">
         <div className="ffd-search">
-          <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
           <button className="btn btn-primary ffd-find" onClick={find} disabled={!fights.length}>🔍 Find fights</button>
         </div>
         {stale && <div className="ffd-muted">Changed — press 🔍 Find fights to update.</div>}
         <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
-        {isAdmin && (
-          <details>
-            <summary>Coaches at this event ({coaches.length})</summary>
-            <div className="ffd-coaches">{coaches.map(m => (
-              <div key={m.id} className="ffd-coachrow"><span>{m.first_name} {m.last_name}</span>
-                <button type="button" className="ffd-x" title="Remove from this event" onClick={() => dropCoach(m)}>✕</button></div>
-            ))}</div>
-            {!coaches.length && <div className="ffd-muted">No coaches yet — type a name to add one.</div>}
-            <div className="ffd-addcoach">
-              <input value={newCoach} onChange={e => setNewCoach(e.target.value)} placeholder="Type a coach's name…"
-                onKeyDown={e => { if (e.key === 'Enter') { if (matches.length === 1) pickCoach(matches[0]); else addGuest() } }} />
-            </div>
-            {newCoach.trim() && (
-              <div className="ffd-suggest">
-                {matches.map(m => (
-                  <div key={m.id} className="ffd-suggestrow">
-                    <button type="button" onClick={() => pickCoach(m)}>+ {m.first_name} {m.last_name}{m.guest ? <span className="ffd-muted"> (added before)</span> : null}</button>
-                    {m.guest && <button type="button" className="ffd-x" title="Forget this name" onClick={() => removeGuest(m)}>🗑</button>}
-                  </div>
-                ))}
-                {!exact && <div className="ffd-suggestrow"><button type="button" onClick={addGuest}>+ Add “{newCoach.trim()}” as a new coach</button></div>}
-              </div>
-            )}
-          </details>
-        )}
       </div>
 
 

@@ -2004,3 +2004,9 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 
 .ffd-team .ffd-addcoach { align-items: flex-start; }
 .ffd-team .ffd-addcoach textarea { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); resize: vertical; -webkit-user-select: text; user-select: text; }
+
+.ffd-team .ffd-teamsearch { margin-top: 10px; }
+.ffd-team .ffd-teamsearch label { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; flex-wrap: wrap; }
+.ffd-team .ffd-teamsearch input { flex: 1; min-width: 0; font-size: 15px; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); }
+.ffd-team .ffd-teamcoaches { margin-top: 10px; }
+.ffd-team .ffd-teamcoaches summary { cursor: pointer; }
