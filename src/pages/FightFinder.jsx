@@ -302,7 +302,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const query = s.query ?? 'Kode Red', windowMin = Number(s.window ?? 10)
   const [draft, setDraft] = useState(query)
   const loadedAt = JSON.stringify([(ff.data?.schedule || []).length, (ff.data?.draws || []).length, (ff.data?.bouts || []).length])
-  const useTeam = teamAthletes.length > 0 && s.useTeam !== false
+  const useTeam = teamAthletes.length > 0   // the team list is always found, as well as the search box
   const [run, setRun] = useState(s.searched ? { query, loadedAt, team: useTeam } : null)   // the search shown; null = not run yet
   const stale = run && (run.query !== draft || run.loadedAt !== loadedAt || run.team !== useTeam)
   const find = () => { setRun({ query: draft, loadedAt, team: useTeam }); setS({ query: draft, searched: true }); clearMsg?.() }
@@ -539,7 +539,6 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
           <button className="btn btn-primary ffd-find" onClick={find} disabled={!fights.length}>🔍 Find fights</button>
         </div>
-        {teamAthletes.length > 0 && <label className="ffd-check"><input type="checkbox" checked={useTeam} onChange={e => setS({ useTeam: e.target.checked })} /> 👥 Also find the team list ({teamAthletes.length} athletes)</label>}
         {stale && <div className="ffd-muted">Changed — press 🔍 Find fights to update.</div>}
         <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
         {isAdmin && (
