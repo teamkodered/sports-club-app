@@ -422,10 +422,6 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const athletes = [...new Map(rows.map(r => [athleteKey(r.a), r.a])).values()]
 
   const setResult = (f, colour) => setS({ results: { ...(s.results || {}), [f.id]: s.results?.[f.id] === colour ? undefined : colour } })
-  const shareText = cid => {
-    const mine = rows.filter(r => coachIds(athleteKey(r.a)).includes(cid) && !r.possible).sort((a, b) => (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9))
-    return `🥊 ${ff.title} — ${coachName(cid)}'s fights\n` + mine.map(r => `${r.f.area != null ? areaTxt(r.f.area) : ''} ~${r.f.startMin != null ? fromMin(r.f.startMin) : '?'} · ${r.a.name} · ${r.f.title} · v ${sideTxt(r.opp)}`).join('\n')
-  }
 
   // cells shared by the table and the grid's pop-up
   const coachCell = (r, k) => (isAdmin ? (() => {
@@ -625,7 +621,6 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         </span>
         <button className="ffd-sharebtn" title="Share" aria-label="Share" onClick={() => setShareOpen(true)} disabled={!shown.length}>📤</button>
         </span>
-        {viewCoach && <a className="ffd-wa" href={`https://wa.me/?text=${encodeURIComponent(shareText(viewCoach))}`} target="_blank" rel="noreferrer">💬 Share</a>}
       </div>
       {coaches.length > 0 && (
         <div className="ffd-coachtabs">
