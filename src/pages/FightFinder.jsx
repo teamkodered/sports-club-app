@@ -390,6 +390,12 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const isCoachView = view.startsWith('coach:'), viewCoach = isCoachView ? view.slice(6) : null
   const show = { ring: true, tatami: true, forms: true, ...(s.show || {}) }
   const [showOpen, setShowOpen] = useState(false)
+  // Coaches view: hold the view button to pick one coach
+  const [onlyCoach, setOnlyCoach] = useState(''), [coachPick, setCoachPick] = useState(false)
+  const vHold = useRef({ t: null, fired: false })
+  const vHoldStart = () => { vHold.current.fired = false; clearTimeout(vHold.current.t)
+    if (view === 'coaches') vHold.current.t = setTimeout(() => { vHold.current.fired = true; navigator.vibrate?.(30); window.getSelection?.()?.removeAllRanges(); setCoachPick(true) }, 550) }
+  const vHoldEnd = () => clearTimeout(vHold.current.t)
   // keep the Show menu on screen: open it to the right of the pill, or to the left if there isn't room
   const showRef = useRef(null)
   const [showPos, setShowPos] = useState({ left: 0 })
@@ -599,7 +605,9 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
 
       <div className="ffd-tabs">
         {(() => { const V = [['ring', '🏷 Tatami order'], ['time', '🕒 Time order'], ['grid', '▦ Grid'], ['coaches', '👤 Coaches']], i = V.findIndex(([v]) => v === view)
-          return <button className={`ffd-viewbtn ${i >= 0 ? 'on' : ''}`} title="Tap to change view" onClick={() => setView(V[(i + 1) % V.length][0])}>
+          return <button className={`ffd-viewbtn ${i >= 0 ? 'on' : ''}`} title={view === 'coaches' ? 'Tap to change view · hold to pick a coach' : 'Tap to change view'}
+            onPointerDown={vHoldStart} onPointerUp={vHoldEnd} onPointerLeave={vHoldEnd} onPointerCancel={vHoldEnd}
+            onClick={() => { if (vHold.current.fired) { vHold.current.fired = false; return } setOnlyCoach(''); setView(V[(i + 1) % V.length][0]) }}>
             <span className="ffd-viewlabels">{V.map(([v, label], n) => <span key={v} className={n === Math.max(0, i) ? 'cur' : ''} aria-hidden={n !== Math.max(0, i)}>{label}</span>)}</span> <span className="ffd-viewarrow">⇄</span></button> })()}
         {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
         <span className="ffd-show" ref={showRef}>
@@ -625,9 +633,11 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       ) : (
         view === 'coaches' ? (
           <div className="ffd-coachview">
+            {onlyCoach ? <div className="ffd-muted ffd-onlycoach">Showing {coachName(onlyCoach)} only · <button type="button" className="ffd-jump inline" onClick={() => setOnlyCoach('')}>show all coaches</button></div>
+              : coaches.length > 1 && <div className="ffd-muted ffd-onlycoach">Hold 👤 Coaches to pick one coach.</div>}
             {[...coaches.map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name || ''}`.trim(), rows: shown.filter(r => coachIds(athleteKey(r.a)).includes(c.id)) })),
               { id: '', name: 'No coach yet', rows: shown.filter(r => !coachIds(athleteKey(r.a)).length) }]
-              .filter(g => g.id || g.rows.length).map(g => {
+              .filter(g => g.id || g.rows.length).filter(g => !onlyCoach || g.id === onlyCoach).map(g => {
                 const n = new Set(g.rows.map(r => athleteKey(r.a))).size
                 return (
                   <div key={g.id || 'none'} className={`card ffd-coachcard ${g.id ? '' : 'none'}`}>
@@ -721,6 +731,17 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             <button className="btn" disabled={!!sharing} onClick={() => doShare('download')}>⬇ Download PDF</button>
             <button className="btn" disabled={!!sharing} onClick={() => doShare('print')}>🖨 Print</button>
             <button className="btn" disabled={!!sharing} onClick={() => setShareOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {coachPick && (
+        <div className="ffd-sheet-bg" onClick={() => setCoachPick(false)}>
+          <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
+            <b>👤 Show one coach</b>
+            <button className={`btn ${!onlyCoach ? 'btn-primary' : ''}`} onClick={() => { setOnlyCoach(''); setCoachPick(false) }}>All coaches</button>
+            {coaches.map(c => <button key={c.id} className={`btn ${onlyCoach === c.id ? 'btn-primary' : ''}`} onClick={() => { setOnlyCoach(c.id); setCoachPick(false) }}>{c.first_name} {c.last_name || ''}</button>)}
+            {!coaches.length && <div className="ffd-muted">No coaches at this event yet.</div>}
+            <button className="btn" onClick={() => setCoachPick(false)}>Cancel</button>
           </div>
         </div>
       )}
