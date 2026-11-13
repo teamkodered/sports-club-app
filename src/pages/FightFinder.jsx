@@ -453,20 +453,22 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
     ) : res ? (res === r.colour ? '✓ Won' : '✗ Lost') : '' }
   // 📤 Share: the list on screen (search, Show ticks, coach tab, view order) as a PDF or a print page
   const [shareOpen, setShareOpen] = useState(false), [sharing, setSharing] = useState('')
+  const pickedCoach = viewCoach || (view === 'coaches' ? onlyCoach : '')
+  const listed = pickedCoach ? shown.filter(r => coachIds(athleteKey(r.a)).includes(pickedCoach)) : shown
   const shareData = () => {
-    const tab = viewCoach ? ` · ${coachName(viewCoach)}'s bouts` : ''
-    const n = new Set(shown.map(r => athleteKey(r.a))).size
+    const tab = pickedCoach ? ` · ${coachName(pickedCoach)}'s bouts` : ''
+    const n = new Set(listed.map(r => athleteKey(r.a))).size
     return {
       title: ff.title || 'Fight finder',
-      subtitle: `${run?.query ? `Search: ${run.query}` : 'All'}${tab} · ${n} athlete${n === 1 ? '' : 's'} · ${shown.filter(r => !r.possible).length} bouts · ${view === 'time' ? 'time order' : view === 'grid' ? 'grid (time order)' : 'tatami order'}`,
-      rows: shown.map(r => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`
+      subtitle: `${run?.query ? `Search: ${run.query}` : 'All'}${tab} · ${n} athlete${n === 1 ? '' : 's'} · ${listed.filter(r => !r.possible).length} bouts · ${view === 'time' ? 'time order' : view === 'grid' ? 'grid (time order)' : 'tatami order'}`,
+      rows: listed.map(r => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`
         return { time: r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?', area: areaTxt(r.f.area), name: r.a.name, country: r.a.country || '',
           style: styleOf(r.f.title), weight: weightOf(r.f.title), opp: r.f.solo ? 'solo (forms)' : sideTxt(r.opp),
           bout: r.f.label || `R${r.f.round} · bout ${r.f.boutNo}`, coach: coachIds(k).map(coachName).filter(Boolean).join(', '),
           flag: clashKeys.has(key) ? 'clash' : overlapKeys.has(key) ? 'time' : null, possible: !!r.possible } }),
     }
   }
-  const fileName = () => `${String(ff.title || 'fight-finder').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}${viewCoach ? '-' + (coachName(viewCoach) || 'coach').split(' ')[0] : ''}.pdf`
+  const fileName = () => `${String(ff.title || 'fight-finder').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}${pickedCoach ? '-' + (coachName(pickedCoach) || 'coach').split(' ')[0] : ''}.pdf`
   async function doShare(how) {
     const d = shareData()
     if (how === 'print') { printList(d); return setShareOpen(false) }
@@ -622,15 +624,8 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         <button className="ffd-sharebtn" title="Share" aria-label="Share" onClick={() => setShareOpen(true)} disabled={!shown.length}>📤</button>
         </span>
       </div>
-      {coaches.length > 0 && (
-        <div className="ffd-coachtabs">
-          <span className="ffd-muted">Coach:</span>
-          <button className={!viewCoach ? 'on' : ''} onClick={() => isCoachView && setView('ring')}>All</button>
-          {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
-        </div>
-      )}
 
-      {rows.length > 0 && <div className="ffd-muted ffd-count">Showing <b>{shownAthletes}</b> athlete{shownAthletes === 1 ? '' : 's'} · {shownBouts} bout{shownBouts === 1 ? '' : 's'}{hidden ? ` (of ${countAthletes(inTab)} athletes)` : ''}</div>}
+      {rows.length > 0 && <div className="ffd-muted ffd-count">Showing <b>{countAthletes(listed)}</b> athlete{countAthletes(listed) === 1 ? '' : 's'} · {listed.filter(r => !r.possible).length} bout{listed.filter(r => !r.possible).length === 1 ? '' : 's'}{hidden ? ` (of ${countAthletes(inTab)} athletes)` : ''}</div>}
       {rows.length > 0 && !shown.length ? (
         <div className="card ffd-muted">Nothing to show — tick more in 👁 Show.</div>
       ) : !rows.length ? (
