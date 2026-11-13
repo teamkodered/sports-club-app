@@ -1998,3 +1998,6 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-sheet .ffd-addcoach { align-items: stretch; }
 .ffd-sheet .ffd-addcoach input { flex: 1 1 auto; min-width: 0; width: auto; font-size: 16px; padding: 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); }
 .ffd-sheet .ffd-addcoach .btn { flex: 0 0 auto; width: auto; padding: 12px 16px; }
+
+.ffd-load summary { cursor: pointer; }
+.ffd-load .ffd-pick { align-self: flex-start; cursor: pointer; margin-top: 8px; }

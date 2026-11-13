@@ -533,12 +533,11 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       )}
 
       {isAdmin && (
-        <div className="card ffd-load">
-          <b>1 · Load schedule / bout list</b>
-          <input type="file" multiple accept=".pdf,.html,.htm" onChange={e => e.target.files?.length && onFiles([...e.target.files])} />
-          <div className="ffd-muted">{busy || [`${(ff.data?.schedule || []).length} schedule rows`, `${(ff.data?.draws || []).length} brackets`, (ff.data?.bouts || []).length ? `${ff.data.bouts.length} bouts` : null].filter(Boolean).join(' · ') + ' loaded'}</div>
+        <details className="card ffd-load">
+          <summary><b>Load schedule / bout list</b> <span className="ffd-muted">{busy || [[(ff.data?.bouts || []).length, 'bouts'], [(ff.data?.schedule || []).length, 'schedule rows'], [(ff.data?.draws || []).length, 'brackets']].filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(' · ').replace(/(.+)/, '$1 loaded') || 'nothing loaded yet'}</span></summary>
+          <label className="btn ffd-pick">📄 Choose files<input type="file" multiple accept=".pdf,.html,.htm" hidden onChange={e => { e.target.files?.length && onFiles([...e.target.files]); e.target.value = '' }} /></label>
           {msg && <div className="ffd-muted">{msg}</div>}
-        </div>
+        </details>
       )}
 
       <div className="card ffd-opts">
