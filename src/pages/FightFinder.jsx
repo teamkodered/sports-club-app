@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { listPdf, printList } from '../lib/fightFinderPdf.js'
 import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, buildFights, matchesSearch, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
@@ -332,6 +333,35 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         <button className={res && res !== r.colour ? 'lost' : ''} onClick={() => setResult(r.f, r.colour === 'red' ? 'blue' : 'red')}>Lost</button>
       </span>
     ) : res ? (res === r.colour ? '✓ Won' : '✗ Lost') : '' }
+  // 📤 Share: the list on screen (search, Show ticks, coach tab, view order) as a PDF or a print page
+  const [shareOpen, setShareOpen] = useState(false), [sharing, setSharing] = useState('')
+  const shareData = () => {
+    const tab = viewCoach ? ` · ${coachName(viewCoach)}'s bouts` : ''
+    const n = new Set(shown.map(r => athleteKey(r.a))).size
+    return {
+      title: ff.title || 'Fight finder',
+      subtitle: `${run?.query ? `Search: ${run.query}` : 'All'}${tab} · ${n} athlete${n === 1 ? '' : 's'} · ${shown.filter(r => !r.possible).length} bouts · ${view === 'time' ? 'time order' : view === 'grid' ? 'grid (time order)' : 'tatami order'}`,
+      rows: shown.map(r => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`
+        return { time: r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?', area: areaTxt(r.f.area), name: r.a.name, country: r.a.country || '',
+          style: styleOf(r.f.title), weight: weightOf(r.f.title), opp: r.f.solo ? 'solo (forms)' : sideTxt(r.opp),
+          bout: r.f.label || `R${r.f.round} · bout ${r.f.boutNo}`, coach: coachIds(k).map(coachName).filter(Boolean).join(', '),
+          flag: clashKeys.has(key) ? 'clash' : overlapKeys.has(key) ? 'time' : null, possible: !!r.possible } }),
+    }
+  }
+  const fileName = () => `${String(ff.title || 'fight-finder').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}${viewCoach ? '-' + (coachName(viewCoach) || 'coach').split(' ')[0] : ''}.pdf`
+  async function doShare(how) {
+    const d = shareData()
+    if (how === 'print') { printList(d); return setShareOpen(false) }
+    setSharing(how === 'share' ? 'Making the PDF…' : 'Saving…')
+    try {
+      const file = new File([await listPdf(d)], fileName(), { type: 'application/pdf' })
+      if (how === 'share' && navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: d.title, text: d.subtitle })
+      else { const url = URL.createObjectURL(file), a = document.createElement('a'); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000)
+        if (how === 'share') alert('Sharing files isn\'t supported here, so the PDF has been downloaded instead.') }
+      setShareOpen(false)
+    } catch (e) { if (e?.name !== 'AbortError') alert('Could not make the PDF: ' + (e?.message || e)) }
+    setSharing('')
+  }
   // grid view: one column per area, one row per exact estimated time
   const [cell, setCell] = useState(null)
   const weightOf = t => (String(t || '').match(/([+-]\s?\d+(?:[.,]\d+)?)\s*KG/i) || [])[1]?.replace(/\s/g, '').replace(',', '.') || ''
@@ -427,7 +457,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             </div>
           )}
         </span>
-        <button onClick={() => window.print()}>🖨 Print</button>
+        <button onClick={() => setShareOpen(true)} disabled={!shown.length}>📤 Share</button>
         {viewCoach && <a className="ffd-wa" href={`https://wa.me/?text=${encodeURIComponent(shareText(viewCoach))}`} target="_blank" rel="noreferrer">💬 Share</a>}
       </div>
 
@@ -503,6 +533,18 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             </div>
           </div>
         ) })()}
+      {shareOpen && (
+        <div className="ffd-sheet-bg" onClick={() => !sharing && setShareOpen(false)}>
+          <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
+            <b>📤 Share this list</b>
+            <div className="ffd-muted">{shareData().subtitle}</div>
+            <button className="btn btn-primary" disabled={!!sharing} onClick={() => doShare('share')}>{sharing || '📤 Share PDF (WhatsApp, email…)'}</button>
+            <button className="btn" disabled={!!sharing} onClick={() => doShare('download')}>⬇ Download PDF</button>
+            <button className="btn" disabled={!!sharing} onClick={() => doShare('print')}>🖨 Print</button>
+            <button className="btn" disabled={!!sharing} onClick={() => setShareOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
       {vid && <VideoSheet a={vid.a} f={vid.f} onClose={() => setVid(null)} />}
       <p className="ffd-muted" style={{ marginTop: 8 }}>~ Times are estimates: each category's (or session's) time spread over its bouts, in order. {athletes.length} athlete{athletes.length === 1 ? '' : 's'} found.</p>
     </div>
