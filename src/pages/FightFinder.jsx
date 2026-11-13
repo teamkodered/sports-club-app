@@ -387,7 +387,9 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
 
   const areaKey = a => a == null ? '~' : typeof a === 'number' ? `T${String(a).padStart(3, '0')}` : String(a).replace(/(\d+)/, d => d.padStart(3, '0'))
   const areaTxt = a => a == null ? '?' : typeof a === 'number' ? `T${a}` : a
-  const isCoachView = view.startsWith('coach:'), viewCoach = isCoachView ? view.slice(6) : null
+  // a coach tab left open from another day only counts if that coach is at this day's event
+  const isCoachView = view.startsWith('coach:') && coaches.some(c => c.id === view.slice(6)), viewCoach = isCoachView ? view.slice(6) : null
+  useEffect(() => { if (view.startsWith('coach:') && !isCoachView) setView('ring') }, [view, isCoachView])   // eslint-disable-line
   const show = { ring: true, tatami: true, forms: true, ...(s.show || {}) }
   const [showOpen, setShowOpen] = useState(false)
   // Coaches view: hold the view button to pick one coach
