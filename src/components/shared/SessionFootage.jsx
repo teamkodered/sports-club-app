@@ -24,7 +24,9 @@ const SUGGEST = c => {
     (/boxing/.test(n) && /^wed/.test(day)) || (/^sat/.test(day) && t === '09:30')
 }
 
-export default function SessionFootage({ studentId, days: daysDefault = 45, onCount }) {
+export default function SessionFootage({ studentId, days: daysDefault = 45, onCount, collapsible = true }) {
+  // Collapsed until pressed (slides open / shut); the Media > Athletes Training folder shows it open
+  const [open, setOpen] = useState(!collapsible)
   const [days, setDays] = useState(daysDefault) // look-back range (30 / 45 / 90 / 180 / 365 days)
   const { isAdmin } = useAuth()
   const [classes, setClasses] = useState([])
@@ -120,10 +122,20 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
   const withClips = (sessions || []).filter(s => s.clips.length)
   return (
     <div className="card" style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎥 Session footage <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-tertiary)' }}>coaches only — testing</span></h2>
-        {isAdmin && <button className="btn btn-sm" onClick={() => setPicking(v => !v)}>{picking ? 'Done' : '⚙ Classes'}</button>}
+      <div role={collapsible ? 'button' : undefined} tabIndex={collapsible ? 0 : undefined} aria-expanded={collapsible ? open : undefined}
+        onClick={() => { if (collapsible) setOpen(o => !o) }} onKeyDown={e => { if (collapsible && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setOpen(o => !o) } }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: open ? 6 : 0, cursor: collapsible ? 'pointer' : 'default' }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600 }}>{collapsible && <span style={{ display: 'inline-block', width: 14 }}>{open ? '▾' : '▸'}</span>}🎥 Session footage <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-tertiary)' }}>coaches only — testing</span></h2>
+          {collapsible && !open && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            {sessions === null ? 'Loading…' : withClips.length ? `${withClips.length} session${withClips.length === 1 ? '' : 's'} with clips · last ${days === 365 ? 'year' : `${days} days`}` : 'No clips in this period'} · tap to view
+          </div>}
+        </div>
+        {isAdmin && <button className="btn btn-sm" onClick={e => { e.stopPropagation(); setOpen(true); setPicking(v => !v) }}>{picking ? 'Done' : '⚙ Classes'}</button>}
       </div>
+      {/* slides open / shut (grid rows 0fr <-> 1fr) */}
+      <div style={{ display: 'grid', gridTemplateRows: open ? '1fr' : '0fr', transition: 'grid-template-rows 0.3s ease' }}>
+      <div style={{ overflow: 'hidden', minHeight: 0 }}>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>CCTV clips recorded during sessions this athlete attended -- the chosen classes plus their own check-ins with no class. Clips open at the session start.</p>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {[30, 45, 90, 180, 365].map(d => <button key={d} type="button" className={days === d ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setDays(d)}>{d === 365 ? '1 yr' : `${d} days`}</button>)}
@@ -170,6 +182,8 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
           </>
         )}
 
+      </div>
+      </div>
       {player && (
         <FightFootagePlayer videoUrl={player.url} title={`${camLabel(player.clip.camera_name)} — ${wall(player.clip.recorded_at).toLocaleString('en-GB')}`}
           cctvClipId={player.clip.id} storagePath={player.clip.storage_path} isCoach startAt={player.startAt || 0} key={player.clip.id} onClipSwipe={clipSwipe} swipeHint={`${camLabel(player.clip.camera_name)} · swipe ← → for the next file, ↑ ↓ for the other cameras`} onClose={() => setPlayer(null)} />

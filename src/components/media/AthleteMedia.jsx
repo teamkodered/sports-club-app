@@ -99,7 +99,7 @@ function AthleteFolders({ student }) {
   return (
     <div>
       <Folder icon="📹" title="Training (CCTV)" count={cctvCount == null ? null : `${cctvCount.sessions} session${cctvCount.sessions === 1 ? '' : 's'} · ${cctvCount.clips} clip${cctvCount.clips === 1 ? '' : 's'}`}>
-        <SessionFootage studentId={student.id} onCount={setCctvCount} />
+        <SessionFootage studentId={student.id} onCount={setCctvCount} collapsible={false} />
       </Folder>
       <Folder icon="🥊" title="Fights" count={fights?.length}>
         {fights?.length ? fights.map(f => (
