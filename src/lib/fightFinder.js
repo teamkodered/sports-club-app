@@ -326,3 +326,60 @@ export function kindOf(f) {
   if (f.solo || FORMS.includes(styleOf(f.title).code)) return 'forms'
   return /^R/i.test(String(f.area ?? '')) ? 'ring' : 'tatami'
 }
+
+// ── team list (squad sheet / pasted names / CSV) ──
+// entry: { name, cat, style, weight } -- one per athlete per category; an athlete can have several
+const STYLE_WORDS = [['LIGHT CONTACT', 'LC'], ['KICK LIGHT', 'KL'], ['FULL CONTACT', 'FC'], ['LOW KICK', 'LK'], ['POINTS', 'PF'], ['POINT FIGHTING', 'PF'], ['K1', 'K1'], ['K-1', 'K1'], ['FORMS', 'CF'], ['MUSICAL FORMS', 'CF'], ['PF', 'PF'], ['LC', 'LC'], ['KL', 'KL'], ['FC', 'FC'], ['LK', 'LK'], ['CF', 'CF']]
+const STYLE_NAME = { PF: 'Points', LC: 'Light Contact', KL: 'Kick Light', FC: 'Full Contact', K1: 'K1', LK: 'Low Kick', CF: 'Forms' }
+const styleIn = t => { const u = ` ${String(t).toUpperCase()} `; const s = STYLE_WORDS.find(([w]) => u.includes(` ${w} `)); return s ? s[1] : null }
+const WEIGHT = /^(UNDER|OVER|U|O|-|\+)\s*([\d.,]+)\s*K?G?S?$/i
+const weightTxt = m => `${/^(OVER|O|\+)$/i.test(m[1]) ? '+' : '-'}${m[2].replace(',', '.')}`
+const titleCase = t => String(t).toLowerCase().replace(/(^|[\s/-])\S/g, c => c.toUpperCase()).replace(/\s*\d+$/, '')
+
+// squad sheet PDF: header rows name the style for each column ("SENIOR MALE | POINTS ..."),
+// then "UNDER 57KG | Tylee Dylan" pairs sit under those columns
+export function teamFromPdf(pages) {
+  const out = []
+  for (const lines of pages) {
+    let cols = [], prefix = {}, prefixY = -99
+    for (const l of lines) {
+      const parts = l.parts.map(p => ({ x: p.x, s: String(p.s).trim() })).filter(p => p.s)
+      const styles = parts.filter(p => styleIn(p.s) && !WEIGHT.test(p.s))
+      if (styles.length && !parts.some(p => WEIGHT.test(p.s))) {
+        // a header row: each style word + the label to its left starts a column
+        cols = styles.map(st => {
+          const label = parts.filter(p => p.x < st.x && !styleIn(p.s)).filter(p => !cols.length || true).pop()
+          const lx = label && styles.every(o => o === st || o.x < label.x || o.x > st.x) ? label.x : st.x
+          const near = l.y - prefixY < 20 ? Object.keys(prefix).map(Number).find(px => Math.abs(px - lx) < 25) : null
+          return { x: lx, style: styleIn(st.s), label: titleCase([near != null ? prefix[near] : '', label ? label.s : ''].filter(Boolean).join(' ')) }
+        })
+        prefix = {}
+        continue
+      }
+      if (parts.some(p => WEIGHT.test(p.s))) prefix = {}
+      if (!parts.some(p => WEIGHT.test(p.s))) { prefix = {}; prefixY = l.y; parts.forEach(p => { prefix[Math.round(p.x)] = p.s }); continue }   // only the line just above a header counts   // e.g. "MASTERS / VETS" above "MALE  POINTS"
+      parts.forEach((p, i) => {
+        const m = p.s.match(WEIGHT); if (!m) return
+        const next = parts[i + 1]
+        if (!next || WEIGHT.test(next.s)) return   // empty weight
+        const col = [...cols].sort((a, b) => b.x - a.x).find(c => c.x <= p.x + 12) || cols[0]
+        if (!col) return
+        out.push({ name: next.s.replace(/\s+/g, ' '), style: col.style, weight: weightTxt(m), cat: `${col.label} ${STYLE_NAME[col.style] || ''} ${weightTxt(m)}kg`.replace(/\s+/g, ' ').trim() })
+      })
+    }
+  }
+  return out
+}
+
+// pasted names / CSV: one athlete per line; "name, category" works too. Bullets, numbers and emoji are ignored.
+export function teamFromText(text) {
+  return String(text).split(/\r?\n/).map(l => l.replace(/^[\s\-*•·\d.)]+/, '').replace(/[^\p{L}\p{N}\s,.'\-+/()]/gu, '').trim()).filter(Boolean)
+    .filter(l => !/^name\b/i.test(l))
+    .map(l => { const [name, ...rest] = l.split(/\s*[,;\t]\s*/); const cat = rest.join(' ').trim()
+      return name && /\p{L}{2,}/u.test(name) ? { name: name.replace(/\s+/g, ' '), cat, style: styleIn(cat), weight: (cat.match(/([+-]\d+(?:[.,]\d+)?)/) || [])[1] || '' } : null })
+    .filter(Boolean)
+}
+
+// does a fighter's name match a team athlete? every word of the team name must be in the fighter's name (any order)
+export const teamWords = name => nameKey(name).split(' ').filter(Boolean)
+export const isTeamName = (fighterName, words) => { const f = nameKey(fighterName).split(' '); return words.length > 1 && words.every(w => f.includes(w)) }

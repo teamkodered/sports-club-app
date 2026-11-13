@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { listPdf, printList } from '../lib/fightFinderPdf.js'
-import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, buildFights, matchesSearch, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
+import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, buildFights, matchesSearch, teamFromPdf, teamFromText, teamWords, isTeamName, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
 // (sportdata PDFs or saved pages), search a club / country, then see our athletes' bouts in tatami
@@ -49,7 +49,29 @@ export default function FightFinder() {
     })
   }, [loc.search])
 
-  async function openFinder(id) { const { data } = await supabase.from('fight_finders').select('*').eq('id', id).maybeSingle(); if (data) setFf(data) }
+  async function openFinder(id) {
+    const { data } = await supabase.from('fight_finders').select('*').eq('id', id).maybeSingle()
+    if (!data) return
+    setFf(data)
+    // a day without a team list picks up the event's (from the latest day that has one)
+    const ev = data.settings?.event
+    if (ev && !(data.settings?.team || []).length) {
+      const { data: sib } = await supabase.from('fight_finders').select('settings').eq('settings->>event', ev).neq('id', id).order('updated_at', { ascending: false }).limit(20)
+      const src = (sib || []).find(x => (x.settings?.team || []).length)
+      if (src) {
+        const settings = { ...data.settings, team: src.settings.team, teamCoaches: src.settings.teamCoaches || {} }
+        setFf(f => (f?.id === id ? { ...f, settings } : f))
+        if (isAdmin) await supabase.from('fight_finders').update({ settings }).eq('id', id)
+      }
+    }
+  }
+  // team list edits go to every day of the same event
+  async function shareToEvent(patch) {
+    const ev = ff?.settings?.event
+    if (!isAdmin || !ev) return
+    const { data: sib } = await supabase.from('fight_finders').select('id, settings').eq('settings->>event', ev).neq('id', ff.id)
+    for (const x of sib || []) await supabase.from('fight_finders').update({ settings: { ...(x.settings || {}), ...patch } }).eq('id', x.id)
+  }
   // events: each day stays its own finder, grouped under an event name (kept in settings.event)
   const WAKO = 'WAKO European Championships 2026'
   async function setEvent(x, event) {
@@ -191,7 +213,7 @@ export default function FightFinder() {
 
   const allStaff = [...staff, ...mergeGuests(guests, ff.settings?.guests || [])].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
   return <FinderView ff={ff} staff={allStaff} setGuests={setGuests} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
-    onFiles={loadFiles} setS={setS} save={save} clearMsg={() => setMsg('')} onBack={() => { setFf(null); setMsg(''); nav('/fight-finder', { replace: true }) }} />
+    onFiles={loadFiles} setS={setS} save={save} shareToEvent={shareToEvent} clearMsg={() => setMsg('')} onBack={() => { setFf(null); setMsg(''); nav('/fight-finder', { replace: true }) }} />
 }
 
 function mergeBy(oldList, newList, key) {
@@ -208,11 +230,26 @@ function mergeGuests(a, b) {
   return [...m.values()]
 }
 
-function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack, clearMsg }) {
+function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack, clearMsg, shareToEvent }) {
   const s = ff.settings || {}
   // coaches on an athlete: up to 3 (older finders stored one id as a string)
-  const coachIds = k => { const v = s.assign?.[k]; return Array.isArray(v) ? v.filter(Boolean) : v ? [v] : [] }
-  const withoutCoach = id => Object.fromEntries(Object.keys(s.assign || {}).map(k => [k, coachIds(k).filter(x => x !== id)]).filter(([, v]) => v.length))
+  // team list: entries { name, cat, style, weight } (one per category) -> athletes { key, name, words, entries }
+  const teamEntries = s.team || []
+  const teamAthletes = useMemo(() => {
+    const m = new Map()
+    teamEntries.forEach(e => { const w = teamWords(e.name), key = w.join(' '); if (!key) return; if (!m.has(key)) m.set(key, { key, name: e.name, words: w, entries: [] }); m.get(key).entries.push(e) })
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [s.team])
+  const teamOf = name => teamAthletes.find(t => isTeamName(name, t.words))
+  const teamCoachIds = t => (t && s.teamCoaches?.[t.key]) || []
+  // coaches on an athlete: up to 3 -- chosen on the bout, or else their team-list coaches (older finders stored one id as a string)
+  const nameByKey = useRef({})
+  const coachIds = k => { const v = s.assign?.[k]
+    if (Array.isArray(v)) return v.filter(Boolean)
+    if (v) return [v]
+    const nm = nameByKey.current[k]; return nm ? teamCoachIds(teamOf(nm)) : [] }
+  const withoutCoach = id => Object.fromEntries(Object.keys(s.assign || {}).map(k => [k, coachIds(k).filter(x => x !== id)]))
+  const teamWithoutCoach = id => Object.fromEntries(Object.entries(s.teamCoaches || {}).map(([k, v]) => [k, (v || []).filter(x => x !== id)]).filter(([, v]) => v.length))
   const [newCoach, setNewCoach] = useState('')
   function addGuest() {
     const name = newCoach.trim().replace(/\s+/g, ' ')
@@ -230,27 +267,52 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const exact = staff.some(m => `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === typed.replace(/\s+/g, ' '))
   function pickCoach(m) { setS({ coaches: [...new Set([...(s.coaches || []), m.id])] }); setNewCoach('') }
   function dropCoach(m) {
-    const n = Object.keys(s.assign || {}).filter(k => coachIds(k).includes(m.id)).length
+    const n = Object.keys(s.assign || {}).filter(k => coachIds(k).includes(m.id)).length + Object.values(s.teamCoaches || {}).filter(v => (v || []).includes(m.id)).length
     if (n && !confirm(`Remove ${m.first_name} from this event? Their ${n} assigned athlete${n === 1 ? '' : 's'} will be unassigned.`)) return
-    setS({ coaches: (s.coaches || []).filter(x => x !== m.id), assign: withoutCoach(m.id) })
+    const teamCoaches = teamWithoutCoach(m.id)
+    setS({ coaches: (s.coaches || []).filter(x => x !== m.id), assign: withoutCoach(m.id), teamCoaches }); shareToEvent?.({ teamCoaches })
   }
   function removeGuest(m) {
     if (!confirm(`Remove ${m.name || m.first_name} from the coach list?`)) return
     const assign = withoutCoach(m.id)
-    setS({ guests: (s.guests || []).filter(g => g.id !== m.id), coaches: (s.coaches || []).filter(x => x !== m.id), assign })
+    const teamCoaches = teamWithoutCoach(m.id)
+    setS({ guests: (s.guests || []).filter(g => g.id !== m.id), coaches: (s.coaches || []).filter(x => x !== m.id), assign, teamCoaches }); shareToEvent?.({ teamCoaches })
     setGuests(g => g.filter(x => x.id !== m.id))
   }
+  // ---- team list editing (saved on this day and shared with the event's other days)
+  const setTeam = patch => { setS(patch); shareToEvent?.(patch) }
+  const [teamBusy, setTeamBusy] = useState(''), [pasteOpen, setPasteOpen] = useState(false), [pasteTxt, setPasteTxt] = useState(''), [oneName, setOneName] = useState('')
+  const addTeam = (list, label) => {
+    if (!list.length) return alert(`${label}: no athletes found in it.`)
+    const replace = teamEntries.length > 0 && confirm(`${label}: ${list.length} entries. Replace the current team list? (Cancel adds them to it.)`)
+    const base = replace ? [] : teamEntries, seen = new Set(base.map(e => `${teamWords(e.name).join(' ')}|${e.cat}`))
+    setTeam({ team: [...base, ...list.filter(e => { const k = `${teamWords(e.name).join(' ')}|${e.cat}`; if (seen.has(k)) return false; seen.add(k); return true })] })
+  }
+  async function teamFile(f) {
+    if (!f) return
+    setTeamBusy('Reading…')
+    try {
+      if (/\.pdf$/i.test(f.name)) { const pages = await pdfLines(f); let t = teamFromPdf(pages); if (!t.length) t = teamFromText(pages.flat().map(l => l.text).join('\n')); addTeam(t, f.name) }
+      else addTeam(teamFromText(await f.text()), f.name)
+    } catch (e) { alert(`${f.name}: ${e.message}`) }
+    setTeamBusy('')
+  }
+  const removeTeamAthlete = t => { if (confirm(`Remove ${t.name} from the team list?`)) setTeam({ team: teamEntries.filter(e => teamWords(e.name).join(' ') !== t.key), teamCoaches: Object.fromEntries(Object.entries(s.teamCoaches || {}).filter(([k]) => k !== t.key)) }) }
+  const setTeamSlot = (t, i, id) => { const ids = [...teamCoachIds(t)]; if (id) ids[i] = id; else ids.splice(i, 1); setTeam({ teamCoaches: { ...(s.teamCoaches || {}), [t.key]: ids.filter(Boolean) } }) }
   const query = s.query ?? 'Kode Red', windowMin = Number(s.window ?? 10)
   const [draft, setDraft] = useState(query)
   const loadedAt = JSON.stringify([(ff.data?.schedule || []).length, (ff.data?.draws || []).length, (ff.data?.bouts || []).length])
-  const [run, setRun] = useState(s.searched ? { query, loadedAt } : null)   // the search shown; null = not run yet
-  const stale = run && (run.query !== draft || run.loadedAt !== loadedAt)
-  const find = () => { setRun({ query: draft, loadedAt }); setS({ query: draft, searched: true }); clearMsg?.() }
+  const useTeam = teamAthletes.length > 0 && s.useTeam !== false
+  const [run, setRun] = useState(s.searched ? { query, loadedAt, team: useTeam } : null)   // the search shown; null = not run yet
+  const stale = run && (run.query !== draft || run.loadedAt !== loadedAt || run.team !== useTeam)
+  const find = () => { setRun({ query: draft, loadedAt, team: useTeam }); setS({ query: draft, searched: true }); clearMsg?.() }
   const coaches = staff.filter(m => (s.coaches || []).includes(m.id))
   const coachName = id => { const m = staff.find(x => x.id === id); return m ? `${m.first_name} ${m.last_name || ''}`.trim() : '' }
   const fights = useMemo(() => buildFights({ schedule: ff.data?.schedule || [], draws: ff.data?.draws || [], bouts: ff.data?.bouts || [], results: s.results || {} }), [ff.data, s.results])
+  nameByKey.current = useMemo(() => { const m = {}; fights.forEach(f => ['red', 'blue'].forEach(c => { const a = f[c]?.athlete; if (a) m[athleteKey(a)] = a.name })); return m }, [fights])
+  const teamFound = useMemo(() => new Set(teamAthletes.filter(t => Object.values(nameByKey.current).some(n => isTeamName(n, t.words))).map(t => t.key)), [teamAthletes, fights])
   const byId = useMemo(() => Object.fromEntries(fights.map(f => [f.id, f])), [fights])
-  const ours = sl => !!run && !!sl?.athlete && matchesSearch(sl.athlete, run.query)
+  const ours = sl => !!run && !!sl?.athlete && (matchesSearch(sl.athlete, run.query) || (run.team && !!teamOf(sl.athlete.name)))
   const noClubs = fights.length > 0 && !fights.some(f => f.red?.athlete?.club || f.blue?.athlete?.club)
   const sideTxt = sl => sl?.athlete ? `${sl.athlete.name} (${[sl.athlete.club, sl.athlete.country].filter(Boolean).join(', ')})` : sl?.winnerOf ? `⏳ winner of bout ${byId[sl.winnerOf]?.boutNo ?? '?'} (${['red', 'blue'].map(c => byId[sl.winnerOf]?.[c]).map(x => x?.athlete?.name?.split(' ')[0] || (x?.winnerOf ? 'TBC' : '—')).join(' v ')})` : '— empty —'
 
@@ -276,7 +338,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       }
     }
     return out
-  }, [fights, run, s.results])
+  }, [fights, run, s.results, teamAthletes])
 
   // clashes: same coach (different athletes) or same athlete (different categories) within the window
   const clashes = useMemo(() => {
@@ -440,6 +502,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
           <button className="btn btn-primary ffd-find" onClick={find} disabled={!fights.length}>🔍 Find fights</button>
         </div>
+        {teamAthletes.length > 0 && <label className="ffd-check"><input type="checkbox" checked={useTeam} onChange={e => setS({ useTeam: e.target.checked })} /> 👥 Also find the team list ({teamAthletes.length} athletes)</label>}
         {stale && <div className="ffd-muted">Changed — press 🔍 Find fights to update.</div>}
         <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
         {isAdmin && (
@@ -468,6 +531,51 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           </details>
         )}
       </div>
+
+      {(isAdmin || teamAthletes.length > 0) && (
+        <details className="card ffd-team">
+          <summary><b>👥 Team</b> <span className="ffd-muted">{teamAthletes.length ? `${teamAthletes.length} athletes · ${teamEntries.length} entries · ${teamFound.size} on this day` : 'none yet'}</span></summary>
+          {isAdmin && (
+            <div className="ffd-teamload">
+              <label className="btn">{teamBusy || '📄 Upload team sheet'}<input type="file" accept=".pdf,.csv,.txt" hidden onChange={e => { teamFile(e.target.files?.[0]); e.target.value = '' }} /></label>
+              <button className="btn" onClick={() => setPasteOpen(o => !o)}>📋 Paste names</button>
+              {teamEntries.length > 0 && <button className="btn ffd-del" onClick={() => confirm('Clear the whole team list (all days of this event)?') && setTeam({ team: [], teamCoaches: {} })}>Clear</button>}
+            </div>
+          )}
+          {pasteOpen && (
+            <div className="ffd-paste">
+              <textarea rows={5} value={pasteTxt} onChange={e => setPasteTxt(e.target.value)} placeholder={'One athlete per line, e.g.\nTylee Dylan\nJack Dalton, FC -75'} />
+              <button className="btn btn-primary" disabled={!pasteTxt.trim()} onClick={() => { addTeam(teamFromText(pasteTxt), 'Pasted list'); setPasteTxt(''); setPasteOpen(false) }}>Add to team</button>
+            </div>
+          )}
+          {isAdmin && (
+            <div className="ffd-addcoach">
+              <input value={oneName} onChange={e => setOneName(e.target.value)} placeholder="Add one athlete (name)" onKeyDown={e => { if (e.key === 'Enter' && oneName.trim()) { addTeam(teamFromText(oneName), oneName); setOneName('') } }} />
+              <button className="btn" disabled={!oneName.trim()} onClick={() => { addTeam(teamFromText(oneName), oneName); setOneName('') }}>+ Add</button>
+            </div>
+          )}
+          <div className="ffd-teamlist">
+            {teamAthletes.map(t => (
+              <div key={t.key} className={`ffd-teamrow ${teamFound.has(t.key) ? '' : 'away'}`}>
+                <div className="ffd-teamname"><b>{t.name}</b>{teamFound.has(t.key) ? <span className="ffd-on">✓ on this day</span> : <span className="ffd-muted">not on this day</span>}
+                  {isAdmin && <button type="button" className="ffd-x" title="Remove from team" onClick={() => removeTeamAthlete(t)}>✕</button>}</div>
+                <div className="ffd-teamcats">{t.entries.map((e, n) => <span key={n} className="ffd-sty" style={{ '--sty': styleOf(`01 ${e.style || ''} `).color }} title={e.cat}>{e.style || '?'} {e.weight}</span>)}</div>
+                {isAdmin ? (
+                  <div className="ffd-coachslots row">
+                    {[0, 1, 2].filter(i => i <= teamCoachIds(t).length).map(i => (
+                      <select key={i} className="ffd-coach" value={teamCoachIds(t)[i] || ''} onChange={e => setTeamSlot(t, i, e.target.value)}>
+                        <option value="">{i === 0 ? 'Coach —' : '+ coach'}</option>
+                        {coaches.filter(c => c.id === teamCoachIds(t)[i] || !teamCoachIds(t).includes(c.id)).map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}
+                        {!coaches.length && <option value="" disabled>Add coaches to the event first</option>}
+                      </select>
+                    ))}
+                  </div>
+                ) : <div className="ffd-muted">{teamCoachIds(t).map(coachName).filter(Boolean).join(', ')}</div>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       {realClashes.length > 0 && (
         <div className="card ffd-clash">
@@ -517,7 +625,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       {rows.length > 0 && !shown.length ? (
         <div className="card ffd-muted">Nothing to show — tick more in 👁 Show.</div>
       ) : !rows.length ? (
-        <div className="card ffd-muted">{!fights.length ? 'Load the schedule and draws to find the fights.' : !run ? `${fights.length} bouts loaded — press 🔍 Find fights.` : `No bouts found for "${run.query}".`}</div>
+        <div className="card ffd-muted">{!fights.length ? 'Load the schedule and draws to find the fights.' : !run ? `${fights.length} bouts loaded — press 🔍 Find fights.` : `No bouts found for ${[run.query && `"${run.query}"`, run.team && 'the team list'].filter(Boolean).join(' or ')}.`}</div>
       ) : (
         view === 'grid' ? (
           <div className="ffd-gridwrap">

@@ -1977,3 +1977,19 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-event summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .ffd-event .ffd-saved { padding-left: 18px; }
 .ffd-evname { font-size: 13px; margin: -6px 0 10px; }
+
+/* team list */
+.ffd-team { margin-bottom: 10px; }
+.ffd-team summary { cursor: pointer; }
+.ffd-teamload { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.ffd-teamload .btn { cursor: pointer; }
+.ffd-paste { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ffd-paste textarea { width: 100%; font: inherit; font-size: 15px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); -webkit-user-select: text; user-select: text; }
+.ffd-teamlist { display: flex; flex-direction: column; margin-top: 10px; }
+.ffd-teamrow { padding: 8px 0; border-top: 1px solid var(--border-strong); display: flex; flex-direction: column; gap: 5px; }
+.ffd-teamrow.away b { opacity: .6; }
+.ffd-teamname { display: flex; align-items: center; gap: 8px; }
+.ffd-teamname .ffd-x { margin-left: auto; }
+.ffd-on { font-size: 12px; color: #22C55E; }
+.ffd-teamcats { display: flex; flex-wrap: wrap; gap: 4px; }
+.ffd-coachslots.row { flex-direction: row; flex-wrap: wrap; }
