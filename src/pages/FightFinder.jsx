@@ -281,7 +281,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   }
   // ---- team list editing (saved on this day and shared with the event's other days)
   const setTeam = patch => { setS(patch); shareToEvent?.(patch) }
-  const [teamBusy, setTeamBusy] = useState(''), [pasteOpen, setPasteOpen] = useState(false), [pasteTxt, setPasteTxt] = useState(''), [oneName, setOneName] = useState('')
+  const [teamBusy, setTeamBusy] = useState(''), [oneName, setOneName] = useState('')
   const addTeam = (list, label) => {
     if (!list.length) return alert(`${label}: no athletes found in it.`)
     const replace = teamEntries.length > 0 && confirm(`${label}: ${list.length} entries. Replace the current team list? (Cancel adds them to it.)`)
@@ -493,20 +493,14 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           {isAdmin && (
             <div className="ffd-teamload">
               <label className="btn">{teamBusy || '📄 Upload team sheet'}<input type="file" accept=".pdf,.csv,.txt" hidden onChange={e => { teamFile(e.target.files?.[0]); e.target.value = '' }} /></label>
-              <button className="btn" onClick={() => setPasteOpen(o => !o)}>📋 Paste names</button>
               {teamEntries.length > 0 && <button className="btn ffd-del" onClick={() => confirm('Clear the whole team list (all days of this event)?') && setTeam({ team: [], teamCoaches: {} })}>Clear</button>}
-            </div>
-          )}
-          {pasteOpen && (
-            <div className="ffd-paste">
-              <textarea rows={5} value={pasteTxt} onChange={e => setPasteTxt(e.target.value)} placeholder={'One athlete per line, e.g.\nTylee Dylan\nJack Dalton, FC -75'} />
-              <button className="btn btn-primary" disabled={!pasteTxt.trim()} onClick={() => { addTeam(teamFromText(pasteTxt), 'Pasted list'); setPasteTxt(''); setPasteOpen(false) }}>Add to team</button>
             </div>
           )}
           {isAdmin && (
             <div className="ffd-addcoach">
-              <input value={oneName} onChange={e => setOneName(e.target.value)} placeholder="Add one athlete (name)" onKeyDown={e => { if (e.key === 'Enter' && oneName.trim()) { addTeam(teamFromText(oneName), oneName); setOneName('') } }} />
-              <button className="btn" disabled={!oneName.trim()} onClick={() => { addTeam(teamFromText(oneName), oneName); setOneName('') }}>+ Add</button>
+              <textarea rows={Math.min(6, Math.max(1, oneName.split('\n').length))} value={oneName} onChange={e => setOneName(e.target.value)} placeholder="Add / paste athlete(s)"
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && oneName.trim()) { e.preventDefault(); addTeam(teamFromText(oneName), 'Added'); setOneName('') } }} />
+              <button className="btn" disabled={!oneName.trim()} onClick={() => { addTeam(teamFromText(oneName), 'Added'); setOneName('') }}>+ Add</button>
             </div>
           )}
           <div className="ffd-teamlist">

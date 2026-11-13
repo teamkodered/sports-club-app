@@ -2001,3 +2001,6 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 
 .ffd-load summary { cursor: pointer; }
 .ffd-load .ffd-pick { align-self: flex-start; cursor: pointer; margin-top: 8px; }
+
+.ffd-team .ffd-addcoach { align-items: flex-start; }
+.ffd-team .ffd-addcoach textarea { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); resize: vertical; -webkit-user-select: text; user-select: text; }
