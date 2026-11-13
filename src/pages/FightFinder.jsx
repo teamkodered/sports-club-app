@@ -159,7 +159,7 @@ export default function FightFinder() {
       } catch (e) { notes.push(`${f.name}: couldn't read (${e.message})`) }
     }
     await save({ data: { schedule, draws, bouts } })
-    setBusy(''); setMsg(notes.join(' · ') + (notes.some(n => /bouts|rows|brackets/.test(n)) ? ' -- press 🔍 Find fights' : ''))
+    setBusy(''); setMsg(notes.join(' · ') + (notes.some(n => /bouts|rows|brackets/.test(n)) ? ' -- press Go' : ''))
   }
 
   if (!ff) return (
@@ -304,7 +304,8 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const loadedAt = JSON.stringify([(ff.data?.schedule || []).length, (ff.data?.draws || []).length, (ff.data?.bouts || []).length])
   const useTeam = teamAthletes.length > 0   // the team list is always found, as well as the search box
   const [run, setRun] = useState(s.searched ? { query, loadedAt, team: useTeam } : null)   // the search shown; null = not run yet
-  const stale = run && (run.query !== draft || run.loadedAt !== loadedAt || run.team !== useTeam)
+  useEffect(() => { if (run && (run.loadedAt !== loadedAt || run.team !== useTeam)) setRun(r => ({ ...r, loadedAt, team: useTeam })) }, [loadedAt, useTeam])   // eslint-disable-line
+  const stale = run && run.query !== draft
   const find = () => { setRun({ query: draft, loadedAt, team: useTeam }); setS({ query: draft, searched: true }); clearMsg?.() }
   const coaches = staff.filter(m => (s.coaches || []).includes(m.id))
   const coachName = id => { const m = staff.find(x => x.id === id); return m ? `${m.first_name} ${m.last_name || ''}`.trim() : '' }
@@ -492,8 +493,9 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           <summary><b>👥 Team</b> <span className="ffd-muted">{teamAthletes.length ? `${teamAthletes.length} athletes · ${teamEntries.length} entries · ${teamFound.size} on this day` : 'none yet'}</span></summary>
           <div className="ffd-search ffd-teamsearch">
             <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
+            <button className="btn btn-primary ffd-go" onClick={find} disabled={!fights.length}>Go</button>
           </div>
-          <div className="ffd-muted">Finds these as well as everyone on the team list.</div>
+          <div className="ffd-muted">{stale ? 'Changed — press Go to update.' : 'Finds these as well as everyone on the team list.'}</div>
         {isAdmin && (
           <details className="ffd-teamcoaches">
             <summary>Coaches at this event ({coaches.length})</summary>
@@ -564,10 +566,6 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       )}
 
       <div className="card ffd-opts">
-        <div className="ffd-search">
-          <button className="btn btn-primary ffd-find" onClick={find} disabled={!fights.length}>🔍 Find fights</button>
-        </div>
-        {stale && <div className="ffd-muted">Changed — press 🔍 Find fights to update.</div>}
         <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
       </div>
 
@@ -620,7 +618,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       {rows.length > 0 && !shown.length ? (
         <div className="card ffd-muted">Nothing to show — tick more in 👁 Show.</div>
       ) : !rows.length ? (
-        <div className="card ffd-muted">{!fights.length ? 'Load the schedule and draws to find the fights.' : !run ? `${fights.length} bouts loaded — press 🔍 Find fights.` : `No bouts found for ${[run.query && `"${run.query}"`, run.team && 'the team list'].filter(Boolean).join(' or ')}.`}</div>
+        <div className="card ffd-muted">{!fights.length ? 'Load the schedule / bout list to find the fights.' : !run ? <>{fights.length} bouts loaded — <button className="btn btn-primary ffd-go" onClick={find}>Go</button></> : `No bouts found for ${[run.query && `"${run.query}"`, run.team && 'the team list'].filter(Boolean).join(' or ')}.`}</div>
       ) : (
         view === 'grid' ? (
           <div className="ffd-gridwrap">

@@ -2010,3 +2010,7 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-team .ffd-teamsearch input { flex: 1; min-width: 0; font-size: 15px; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); }
 .ffd-team .ffd-teamcoaches { margin-top: 10px; }
 .ffd-team .ffd-teamcoaches summary { cursor: pointer; }
+
+.ffd-team .ffd-teamsearch { flex-wrap: nowrap; align-items: flex-end; }
+.ffd-team .ffd-teamsearch label { flex: 1 1 auto; min-width: 0; }
+.ffd-go { flex: 0 0 auto; padding: 9px 18px; font-size: 15px; font-weight: 600; }
