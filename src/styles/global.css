@@ -1972,3 +1972,8 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-cellrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ffd-cellsheet .ffd-cellrow .btn { width: auto; padding: 8px 12px; }
 @media print { .ffd-gb { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+.ffd-event { margin-top: 10px; }
+.ffd-event summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.ffd-event .ffd-saved { padding-left: 18px; }
+.ffd-evname { font-size: 13px; margin: -6px 0 10px; }

@@ -34,8 +34,9 @@ export default function FightFinder() {
     return () => document.removeEventListener('contextmenu', block, { capture: true })
   }, [])
   useEffect(() => {
-    supabase.from('fight_finders').select('id, title, fixture_id, updated_at').order('updated_at', { ascending: false }).limit(30)
-      .then(({ data, error }) => setList(error ? (setMsg(/fight_finders/.test(error.message) ? 'Run supabase_fight_finder.sql to switch this on.' : error.message), []) : data || []))
+    supabase.from('fight_finders').select('id, title, fixture_id, updated_at, settings').order('updated_at', { ascending: false }).limit(100)
+      .then(({ data, error }) => { if (error) { setMsg(/fight_finders/.test(error.message) ? 'Run supabase_fight_finder.sql to switch this on.' : error.message); return setList([]) }
+        setList(data || []) })
     supabase.from('members').select('id, first_name, last_name, role').in('role', STAFF).order('first_name').then(({ data }) => setStaff(data || []))
     supabase.from('fight_finders').select('settings').limit(300).then(({ data }) => setGuests(mergeGuests([], (data || []).flatMap(x => x.settings?.guests || []))))
   }, [])
@@ -49,9 +50,39 @@ export default function FightFinder() {
   }, [loc.search])
 
   async function openFinder(id) { const { data } = await supabase.from('fight_finders').select('*').eq('id', id).maybeSingle(); if (data) setFf(data) }
-  async function createFinder(title, fixtureId = null) {
+  // events: each day stays its own finder, grouped under an event name (kept in settings.event)
+  const WAKO = 'WAKO European Championships 2026'
+  async function setEvent(x, event) {
+    const settings = { ...(x.settings || {}), event: event || undefined }
+    const { error } = await supabase.from('fight_finders').update({ settings }).eq('id', x.id)
+    if (error) return alert('Could not move: ' + error.message)
+    setList(l => l.map(y => (y.id === x.id ? { ...y, settings } : y)))
+  }
+  // one-off: the WAKO test days (08, 10, 11, 12 Nov) go under the WAKO event
+  async function groupTesters(rows) {
+    if (!isAdmin) return
+    for (const x of rows) if (!x.settings?.event && /^Competition (08|10|11|12)\/11\/2026$/.test(x.title)) await setEvent(x, WAKO)
+  }
+  const grouped = useRef(false)
+  useEffect(() => { if (isAdmin && list?.length && !grouped.current) { grouped.current = true; groupTesters(list) } }, [isAdmin, list])   // eslint-disable-line react-hooks/exhaustive-deps
+  const [picker, setPicker] = useState(null)   // { x } = move that finder; {} = new finder
+  const [newEvent, setNewEvent] = useState('')
+  const events = [...new Set((list || []).map(x => x.settings?.event).filter(Boolean))]
+  async function pickEvent(event) {
+    const p = picker; setPicker(null); setNewEvent('')
+    if (p?.x) { await setEvent(p.x, event); setMenu(null) }
+    else createFinder(`Competition ${new Date().toLocaleDateString('en-GB')}`, null, event)
+  }
+  const dayKey = x => { const m = String(x.title).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : String(x.updated_at).slice(0, 10) }
+  const groups = (() => {
+    const g = new Map()
+    ;(list || []).forEach(x => { const e = x.settings?.event || ''; if (!g.has(e)) g.set(e, []); g.get(e).push(x) })
+    return [...g.entries()].map(([event, days]) => ({ event, days: days.sort((a, b) => dayKey(a).localeCompare(dayKey(b))), last: Math.max(...days.map(d => +new Date(d.updated_at))) }))
+      .sort((a, b) => (!a.event) - (!b.event) || b.last - a.last)
+  })()
+  async function createFinder(title, fixtureId = null, event = '') {
     const { data, error } = await supabase.from('fight_finders').insert({ title, fixture_id: fixtureId, created_by: profile?.id || null,
-      settings: { query: 'Kode Red', window: 10, coaches: [], assign: {}, results: {} } }).select().single()
+      settings: { query: 'Kode Red', window: 10, coaches: [], assign: {}, results: {}, ...(event ? { event } : {}) } }).select().single()
     if (error) return alert('Could not create: ' + error.message)
     setFf(data); nav(`/fight-finder?id=${data.id}`, { replace: true })
   }
@@ -113,16 +144,21 @@ export default function FightFinder() {
     <div className="ffd">
       <div className="ffd-head"><h1>🥊 Fight finder</h1></div>
       {msg && <div className="card" style={{ color: '#E24B4A' }}>{msg}</div>}
-      {isAdmin && <button className="btn btn-primary" onClick={() => createFinder(`Competition ${new Date().toLocaleDateString('en-GB')}`)}>+ New fight finder</button>}
+      {isAdmin && <button className="btn btn-primary" onClick={() => setPicker({})}>+ New fight finder</button>}
       <div className="card" style={{ marginTop: 12 }}>
         <b>Saved</b>
-        {list === null ? <p>Loading…</p> : !list.length ? <p className="ffd-muted">None yet.</p> : list.map(x => (
+        {list === null ? <p>Loading…</p> : !list.length ? <p className="ffd-muted">None yet.</p> : groups.map(g => (
+          <details key={g.event || '-'} className="ffd-event" open>
+            <summary>{g.event || 'No event'} <span className="ffd-muted">({g.days.length})</span></summary>
+            {g.days.map(x => (
           <button key={x.id} className="ffd-saved" onClick={() => { if (!hold.current.fired) nav(`/fight-finder?id=${x.id}`) }}
             onPointerDown={() => holdStart(x)} onPointerUp={holdEnd} onPointerLeave={holdEnd} onPointerCancel={holdEnd}
             onContextMenu={e => { e.preventDefault(); window.getSelection?.()?.removeAllRanges(); if (isAdmin) { hold.current.fired = true; setMenu(x) } }}>
             {x.title}<span>{new Date(x.updated_at).toLocaleDateString('en-GB')}</span></button>
+            ))}
+          </details>
         ))}
-        {isAdmin && list?.length > 0 && <p className="ffd-muted" style={{ marginTop: 6 }}>Hold one to rename or delete it.</p>}
+        {isAdmin && list?.length > 0 && <p className="ffd-muted" style={{ marginTop: 6 }}>Hold one to rename, move or delete it.</p>}
       </div>
       {menu && (
         <div className="ffd-sheet-bg" onClick={() => setMenu(null)}>
@@ -130,8 +166,23 @@ export default function FightFinder() {
             <b>{menu.title}</b>
             <button className="btn" onClick={() => { window.getSelection?.()?.removeAllRanges(); setMenu(null); nav(`/fight-finder?id=${menu.id}`) }}>Open</button>
             <button className="btn" onClick={() => renameFinder(menu)}>✏️ Rename</button>
+            <button className="btn" onClick={() => setPicker({ x: menu })}>📁 Move to event</button>
             <button className="btn ffd-del" onClick={() => removeFinder(menu)}>🗑 Delete</button>
             <button className="btn" onClick={() => setMenu(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {picker && (
+        <div className="ffd-sheet-bg" onClick={() => setPicker(null)}>
+          <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
+            <b>{picker.x ? `Move “${picker.x.title}” to…` : 'New fight finder — which event?'}</b>
+            {events.map(e => <button key={e} className="btn" onClick={() => pickEvent(e)}>📁 {e}</button>)}
+            <div className="ffd-addcoach">
+              <input value={newEvent} onChange={e => setNewEvent(e.target.value)} placeholder="New event name" onKeyDown={e => e.key === 'Enter' && newEvent.trim() && pickEvent(newEvent.trim())} />
+              <button className="btn" disabled={!newEvent.trim()} onClick={() => pickEvent(newEvent.trim())}>+ New</button>
+            </div>
+            <button className="btn" onClick={() => pickEvent('')}>{picker.x ? 'No event' : 'Skip — no event'}</button>
+            <button className="btn" onClick={() => setPicker(null)}>Cancel</button>
           </div>
         </div>
       )}
@@ -373,6 +424,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         <button className="btn btn-sm" onClick={onBack}>← All</button>
         {isAdmin ? <input className="ffd-title" value={ff.title} onChange={e => save({ title: e.target.value })} /> : <h1>{ff.title}</h1>}
       </div>
+      {s.event && <div className="ffd-muted ffd-evname">📁 {s.event}</div>}
 
       {isAdmin && (
         <div className="card ffd-load">
