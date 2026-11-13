@@ -275,6 +275,17 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const isCoachView = view.startsWith('coach:'), viewCoach = isCoachView ? view.slice(6) : null
   const show = { ring: true, tatami: true, forms: true, ...(s.show || {}) }
   const [showOpen, setShowOpen] = useState(false)
+  // keep the Show menu on screen: open it to the right of the pill, or to the left if there isn't room
+  const showRef = useRef(null)
+  const [showPos, setShowPos] = useState({ left: 0 })
+  const toggleShow = () => {
+    if (!showOpen && showRef.current) {
+      const b = showRef.current.getBoundingClientRect(), vw = document.documentElement.clientWidth, w = Math.min(260, vw - 24)
+      const left = Math.max(12, Math.min(b.left, vw - 12 - w)) - b.left   // relative to the pill
+      setShowPos({ left, width: w })
+    }
+    setShowOpen(o => !o)
+  }
   const [vid, setVid] = useState(null)   // tapped athlete -> video search links
   const hidden = ['ring', 'tatami', 'forms'].filter(k => !show[k]).length
   const stylesHere = [...new Map(rows.map(r => { const st = styleOf(r.f.title); return [st.name, st] })).values()]
@@ -405,10 +416,10 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         <button className={view === 'time' ? 'on' : ''} onClick={() => setView('time')}>Time order</button>
         <button className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')}>Grid</button>
         {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
-        <span className="ffd-show">
-          <button className={`ffd-showbtn ${hidden ? 'on' : ''}`} onClick={() => setShowOpen(o => !o)}><span>👁 Show{hidden ? ` (${3 - hidden}/3)` : ''} ▾</span>{rows.length > 0 && <small>{shownAthletes} athlete{shownAthletes === 1 ? '' : 's'}</small>}</button>
+        <span className="ffd-show" ref={showRef}>
+          <button className={`ffd-showbtn ${hidden ? 'on' : ''}`} onClick={toggleShow}><span>👁 Show{hidden ? ` (${3 - hidden}/3)` : ''} ▾</span>{rows.length > 0 && <small>{shownAthletes} athlete{shownAthletes === 1 ? '' : 's'}</small>}</button>
           {showOpen && (
-            <div className="ffd-show-menu">
+            <div className="ffd-show-menu" style={{ left: showPos.left, right: 'auto', width: showPos.width }}>
               {[['ring', '🥊 Rings'], ['tatami', '🟦 Tatamis'], ['forms', '🎵 Forms']].map(([k, label]) => (
                 <label key={k}><input type="checkbox" checked={show[k]} onChange={e => setS({ show: { ...show, [k]: e.target.checked } })} /> {label} <span className="ffd-muted">({kindCount(k)})</span></label>
               ))}
