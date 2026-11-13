@@ -610,6 +610,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             onClick={() => { if (vHold.current.fired) { vHold.current.fired = false; return } setOnlyCoach(''); setView(V[(i + 1) % V.length][0]) }}>
             <span className="ffd-viewlabels">{V.map(([v, label], n) => <span key={v} className={n === Math.max(0, i) ? 'cur' : ''} aria-hidden={n !== Math.max(0, i)}>{label}</span>)}</span> <span className="ffd-viewarrow">⇄</span></button> })()}
         {coaches.map(c => <button key={c.id} className={view === `coach:${c.id}` ? 'on' : ''} onClick={() => setView(`coach:${c.id}`)}>👤 {c.first_name}</button>)}
+        <span className="ffd-showshare">
         <span className="ffd-show" ref={showRef}>
           <button className={`ffd-showbtn ${hidden ? 'on' : ''}`} onClick={toggleShow}><span>👁 Show{hidden ? ` (${3 - hidden}/3)` : ''} ▾</span>{rows.length > 0 && <small>{shownAthletes} athlete{shownAthletes === 1 ? '' : 's'}</small>}</button>
           {showOpen && (
@@ -622,6 +623,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           )}
         </span>
         <button onClick={() => setShareOpen(true)} disabled={!shown.length}>📤 Share</button>
+        </span>
         {viewCoach && <a className="ffd-wa" href={`https://wa.me/?text=${encodeURIComponent(shareText(viewCoach))}`} target="_blank" rel="noreferrer">💬 Share</a>}
       </div>
 
