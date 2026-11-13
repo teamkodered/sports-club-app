@@ -455,17 +455,23 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const [shareOpen, setShareOpen] = useState(false), [sharing, setSharing] = useState('')
   const pickedCoach = viewCoach || (view === 'coaches' ? onlyCoach : '')
   const listed = pickedCoach ? shown.filter(r => coachIds(athleteKey(r.a)).includes(pickedCoach)) : shown
+  const toRow = r => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`
+        return { time: r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?', area: areaTxt(r.f.area), name: r.a.name, country: r.a.country || '',
+          style: styleOf(r.f.title), weight: weightOf(r.f.title), opp: r.f.solo ? 'solo (forms)' : sideTxt(r.opp),
+          bout: r.f.label || `R${r.f.round} · bout ${r.f.boutNo}`, coach: coachIds(k).map(coachName).filter(Boolean).join(', '),
+          flag: clashKeys.has(key) ? 'clash' : overlapKeys.has(key) ? 'time' : null, possible: !!r.possible } }
   const shareData = () => {
     const tab = pickedCoach ? ` · ${coachName(pickedCoach)}'s bouts` : ''
     const n = new Set(listed.map(r => athleteKey(r.a))).size
     return {
       title: ff.title || 'Fight finder',
-      subtitle: `${run?.query ? `Search: ${run.query}` : 'All'}${tab} · ${n} athlete${n === 1 ? '' : 's'} · ${listed.filter(r => !r.possible).length} bouts · ${view === 'time' ? 'time order' : view === 'grid' ? 'grid (time order)' : 'tatami order'}`,
-      rows: listed.map(r => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`
-        return { time: r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?', area: areaTxt(r.f.area), name: r.a.name, country: r.a.country || '',
-          style: styleOf(r.f.title), weight: weightOf(r.f.title), opp: r.f.solo ? 'solo (forms)' : sideTxt(r.opp),
-          bout: r.f.label || `R${r.f.round} · bout ${r.f.boutNo}`, coach: coachIds(k).map(coachName).filter(Boolean).join(', '),
-          flag: clashKeys.has(key) ? 'clash' : overlapKeys.has(key) ? 'time' : null, possible: !!r.possible } }),
+      subtitle: `${run?.query ? `Search: ${run.query}` : 'All'}${tab} · ${n} athlete${n === 1 ? '' : 's'} · ${listed.filter(r => !r.possible).length} bouts · ${view === 'time' ? 'time order' : view === 'grid' ? 'grid (time order)' : view === 'coaches' ? 'by coach' : 'tatami order'}`,
+      rows: listed.map(toRow),
+      groups: view === 'coaches' ? [...coaches.filter(c => !pickedCoach || c.id === pickedCoach).map(c => ({ id: c.id, title: `${c.first_name} ${c.last_name || ''}`.trim() })),
+        ...(pickedCoach ? [] : [{ id: '', title: 'No coach yet' }])]
+        .map(g => { const rs = listed.filter(r => g.id ? coachIds(athleteKey(r.a)).includes(g.id) : !coachIds(athleteKey(r.a)).length), n2 = new Set(rs.map(r => athleteKey(r.a))).size
+          return { title: g.title, note: (b => `${n2} athlete${n2 === 1 ? '' : 's'} · ${b} bout${b === 1 ? '' : 's'}`)(rs.filter(r => !r.possible).length), rows: rs.map(toRow) } })
+        .filter(g => g.rows.length || g.title !== 'No coach yet') : null,
     }
   }
   const fileName = () => `${String(ff.title || 'fight-finder').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}${pickedCoach ? '-' + (coachName(pickedCoach) || 'coach').split(' ')[0] : ''}.pdf`
