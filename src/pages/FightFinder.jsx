@@ -622,7 +622,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             </div>
           )}
         </span>
-        <button onClick={() => setShareOpen(true)} disabled={!shown.length}>📤 Share</button>
+        <button className="ffd-sharebtn" title="Share" aria-label="Share" onClick={() => setShareOpen(true)} disabled={!shown.length}>📤</button>
         </span>
         {viewCoach && <a className="ffd-wa" href={`https://wa.me/?text=${encodeURIComponent(shareText(viewCoach))}`} target="_blank" rel="noreferrer">💬 Share</a>}
       </div>

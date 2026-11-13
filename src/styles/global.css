@@ -2043,3 +2043,5 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 
 /* Show and Share always sit side by side */
 .ffd-showshare { display: inline-flex; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
+
+.ffd-sharebtn { font-size: 20px; padding-left: 14px; padding-right: 14px; }
