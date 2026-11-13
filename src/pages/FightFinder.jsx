@@ -521,39 +521,42 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             )}
           </details>
         )}
-          {isAdmin && (
-            <div className="ffd-teamload">
-              <label className="btn">{teamBusy || '📄 Upload team sheet'}<input type="file" accept=".pdf,.csv,.txt" hidden onChange={e => { teamFile(e.target.files?.[0]); e.target.value = '' }} /></label>
-              {teamEntries.length > 0 && <button className="btn ffd-del" onClick={() => confirm('Clear the whole team list (all days of this event)?') && setTeam({ team: [], teamCoaches: {} })}>Clear</button>}
-            </div>
-          )}
-          {isAdmin && (
-            <div className="ffd-addcoach">
-              <textarea rows={Math.min(6, Math.max(1, oneName.split('\n').length))} value={oneName} onChange={e => setOneName(e.target.value)} placeholder="Add / paste athlete(s)"
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && oneName.trim()) { e.preventDefault(); addTeam(teamFromText(oneName), 'Added'); setOneName('') } }} />
-              <button className="btn" disabled={!oneName.trim()} onClick={() => { addTeam(teamFromText(oneName), 'Added'); setOneName('') }}>+ Add</button>
-            </div>
-          )}
-          <div className="ffd-teamlist">
-            {teamAthletes.map(t => (
-              <div key={t.key} className={`ffd-teamrow ${teamFound.has(t.key) ? '' : 'away'}`}>
-                <div className="ffd-teamname"><b>{t.name}</b>{teamFound.has(t.key) ? <span className="ffd-on">✓ on this day</span> : <span className="ffd-muted">not on this day</span>}
-                  {isAdmin && <button type="button" className="ffd-x" title="Remove from team" onClick={() => removeTeamAthlete(t)}>✕</button>}</div>
-                <div className="ffd-teamcats">{t.entries.map((e, n) => <span key={n} className="ffd-sty" style={{ '--sty': styleOf(`01 ${e.style || ''} `).color }} title={e.cat}>{e.style || '?'} {e.weight}</span>)}</div>
-                {isAdmin ? (
-                  <div className="ffd-coachslots row">
-                    {[0, 1, 2].filter(i => i <= teamCoachIds(t).length).map(i => (
-                      <select key={i} className="ffd-coach" value={teamCoachIds(t)[i] || ''} onChange={e => setTeamSlot(t, i, e.target.value)}>
-                        <option value="">{i === 0 ? 'Coach —' : '+ coach'}</option>
-                        {coaches.filter(c => c.id === teamCoachIds(t)[i] || !teamCoachIds(t).includes(c.id)).map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}
-                        {!coaches.length && <option value="" disabled>Add coaches to the event first</option>}
-                      </select>
-                    ))}
-                  </div>
-                ) : <div className="ffd-muted">{teamCoachIds(t).map(coachName).filter(Boolean).join(', ')}</div>}
+          <details className="ffd-teamcoaches">
+            <summary>Athletes at this event ({teamAthletes.length})</summary>
+            {isAdmin && (
+              <div className="ffd-teamload">
+                <label className="btn">{teamBusy || '📄 Upload team sheet'}<input type="file" accept=".pdf,.csv,.txt" hidden onChange={e => { teamFile(e.target.files?.[0]); e.target.value = '' }} /></label>
+                {teamEntries.length > 0 && <button className="btn ffd-del" onClick={() => confirm('Clear the whole team list (all days of this event)?') && setTeam({ team: [], teamCoaches: {} })}>Clear</button>}
               </div>
-            ))}
-          </div>
+            )}
+            {isAdmin && (
+              <div className="ffd-addcoach">
+                <textarea rows={Math.min(6, Math.max(1, oneName.split('\n').length))} value={oneName} onChange={e => setOneName(e.target.value)} placeholder="Add / paste athlete(s)"
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && oneName.trim()) { e.preventDefault(); addTeam(teamFromText(oneName), 'Added'); setOneName('') } }} />
+                <button className="btn" disabled={!oneName.trim()} onClick={() => { addTeam(teamFromText(oneName), 'Added'); setOneName('') }}>+ Add</button>
+              </div>
+            )}
+            <div className="ffd-teamlist">
+              {teamAthletes.map(t => (
+                <div key={t.key} className={`ffd-teamrow ${teamFound.has(t.key) ? '' : 'away'}`}>
+                  <div className="ffd-teamname"><b>{t.name}</b>{teamFound.has(t.key) ? <span className="ffd-on">✓ on this day</span> : <span className="ffd-muted">not on this day</span>}
+                    {isAdmin && <button type="button" className="ffd-x" title="Remove from team" onClick={() => removeTeamAthlete(t)}>✕</button>}</div>
+                  <div className="ffd-teamcats">{t.entries.map((e, n) => <span key={n} className="ffd-sty" style={{ '--sty': styleOf(`01 ${e.style || ''} `).color }} title={e.cat}>{e.style || '?'} {e.weight}</span>)}</div>
+                  {isAdmin ? (
+                    <div className="ffd-coachslots row">
+                      {[0, 1, 2].filter(i => i <= teamCoachIds(t).length).map(i => (
+                        <select key={i} className="ffd-coach" value={teamCoachIds(t)[i] || ''} onChange={e => setTeamSlot(t, i, e.target.value)}>
+                          <option value="">{i === 0 ? 'Coach —' : '+ coach'}</option>
+                          {coaches.filter(c => c.id === teamCoachIds(t)[i] || !teamCoachIds(t).includes(c.id)).map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ''}</option>)}
+                          {!coaches.length && <option value="" disabled>Add coaches to the event first</option>}
+                        </select>
+                      ))}
+                    </div>
+                  ) : <div className="ffd-muted">{teamCoachIds(t).map(coachName).filter(Boolean).join(', ')}</div>}
+                </div>
+              ))}
+            </div>
+          </details>
         </details>
       )}
 
