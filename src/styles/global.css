@@ -2045,3 +2045,10 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-showshare { display: inline-flex; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
 
 .ffd-sharebtn { font-size: 20px; padding-left: 14px; padding-right: 14px; }
+
+/* coach picker row under the toolbar (keeps the main buttons still) */
+.ffd-coachtabs { display: flex; gap: 6px; overflow-x: auto; align-items: center; margin: -2px 0 10px; padding-bottom: 2px; }
+.ffd-coachtabs button { flex: 0 0 auto; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: transparent; color: var(--text); white-space: nowrap; }
+.ffd-coachtabs button.on { background: var(--text); color: var(--bg, #121214); }
+.ffd-coachtabs .ffd-muted { font-size: 13px; flex: 0 0 auto; }
+@media print { .ffd-coachtabs { display: none !important; } }
