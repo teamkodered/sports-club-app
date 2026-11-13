@@ -1993,3 +1993,8 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-on { font-size: 12px; color: #22C55E; }
 .ffd-teamcats { display: flex; flex-wrap: wrap; gap: 4px; }
 .ffd-coachslots.row { flex-direction: row; flex-wrap: wrap; }
+
+/* name box + button inside a pop-up: the box gets the room, the button stays its own size */
+.ffd-sheet .ffd-addcoach { align-items: stretch; }
+.ffd-sheet .ffd-addcoach input { flex: 1 1 auto; min-width: 0; width: auto; font-size: 16px; padding: 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); }
+.ffd-sheet .ffd-addcoach .btn { flex: 0 0 auto; width: auto; padding: 12px 16px; }
