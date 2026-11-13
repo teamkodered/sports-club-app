@@ -534,7 +534,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
 
       {isAdmin && (
         <div className="card ffd-load">
-          <b>1 · Load the competition</b>
+          <b>1 · Load schedule / bout list</b>
           <input type="file" multiple accept=".pdf,.html,.htm" onChange={e => e.target.files?.length && onFiles([...e.target.files])} />
           <div className="ffd-muted">{busy || [`${(ff.data?.schedule || []).length} schedule rows`, `${(ff.data?.draws || []).length} brackets`, (ff.data?.bouts || []).length ? `${ff.data.bouts.length} bouts` : null].filter(Boolean).join(' · ') + ' loaded'}</div>
           {msg && <div className="ffd-muted">{msg}</div>}
