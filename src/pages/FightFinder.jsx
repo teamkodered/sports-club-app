@@ -55,11 +55,15 @@ export default function FightFinder() {
     setFf(data)
     // a day without a team list picks up the event's (from the latest day that has one)
     const ev = data.settings?.event
-    if (ev && !(data.settings?.team || []).length) {
+    const needTeam = !(data.settings?.team || []).length, needCoaches = !(data.settings?.coaches || []).length
+    if (ev && (needTeam || needCoaches)) {
       const { data: sib } = await supabase.from('fight_finders').select('settings').eq('settings->>event', ev).neq('id', id).order('updated_at', { ascending: false }).limit(20)
-      const src = (sib || []).find(x => (x.settings?.team || []).length)
-      if (src) {
-        const settings = { ...data.settings, team: src.settings.team, teamCoaches: src.settings.teamCoaches || {} }
+      const tsrc = needTeam ? (sib || []).find(x => (x.settings?.team || []).length) : null
+      const csrc = needCoaches ? (sib || []).find(x => (x.settings?.coaches || []).length) : null
+      if (tsrc || csrc) {
+        const settings = { ...data.settings,
+          ...(tsrc ? { team: tsrc.settings.team, teamCoaches: tsrc.settings.teamCoaches || {} } : {}),
+          ...(csrc ? { coaches: csrc.settings.coaches, guests: csrc.settings.guests || [] } : {}) }
         setFf(f => (f?.id === id ? { ...f, settings } : f))
         if (isAdmin) await supabase.from('fight_finders').update({ settings }).eq('id', id)
       }
@@ -287,29 +291,35 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   function addGuest() {
     const name = newCoach.trim().replace(/\s+/g, ' ')
     if (!name) return
-    const id = guestId(name), known = staff.find(m => m.id === id || `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === name.toLowerCase())
+    const id = guestId(name), known = staff.find(m => m.guest && (m.id === id || `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === name.toLowerCase()))
     const cid = known ? known.id : id
     const patch = { coaches: [...new Set([...(s.coaches || []), cid])] }
-    if (!known) { patch.guests = [...(s.guests || []), { id, name }]; setGuests(g => mergeGuests(g, [{ id, name }])) }
-    setS(patch); setNewCoach('')
+    patch.guests = (s.guests || []).some(g => g.id === cid) ? (s.guests || []) : [...(s.guests || []), { id: cid, name: known ? (known.name || `${known.first_name} ${known.last_name || ''}`.trim()) : name }]
+    if (!known) setGuests(g => mergeGuests(g, [{ id, name }]))
+    setS(patch); shareToEvent?.(patch); setNewCoach('')
   }
   // coach search: staff + typed-in coaches not already at this event, matching every word typed
   const typed = newCoach.trim().toLowerCase()
-  const matches = !typed ? [] : staff.filter(m => !(s.coaches || []).includes(m.id))
+  const matches = !typed ? [] : staff.filter(m => m.guest && !(s.coaches || []).includes(m.id))
     .filter(m => typed.split(/\s+/).every(w => `${m.first_name} ${m.last_name || ''}`.toLowerCase().includes(w))).slice(0, 8)
-  const exact = staff.some(m => `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === typed.replace(/\s+/g, ' '))
-  function pickCoach(m) { setS({ coaches: [...new Set([...(s.coaches || []), m.id])] }); setNewCoach('') }
+  const exact = staff.some(m => m.guest && `${m.first_name} ${m.last_name || ''}`.trim().toLowerCase() === typed.replace(/\s+/g, ' '))
+  function pickCoach(m) {
+    const patch = { coaches: [...new Set([...(s.coaches || []), m.id])], guests: (s.guests || []).some(g => g.id === m.id) ? (s.guests || []) : [...(s.guests || []), { id: m.id, name: m.name || `${m.first_name} ${m.last_name || ''}`.trim() }] }
+    setS(patch); shareToEvent?.(patch); setNewCoach('')
+  }
   function dropCoach(m) {
     const n = Object.keys(s.assign || {}).filter(k => coachIds(k).includes(m.id)).length + Object.values(s.teamCoaches || {}).filter(v => (v || []).includes(m.id)).length
     if (n && !confirm(`Remove ${m.first_name} from this event? Their ${n} assigned athlete${n === 1 ? '' : 's'} will be unassigned.`)) return
     const teamCoaches = teamWithoutCoach(m.id)
-    setS({ coaches: (s.coaches || []).filter(x => x !== m.id), assign: withoutCoach(m.id), teamCoaches }); shareToEvent?.({ teamCoaches })
+    const coachesLeft = (s.coaches || []).filter(x => x !== m.id)
+    setS({ coaches: coachesLeft, assign: withoutCoach(m.id), teamCoaches }); shareToEvent?.({ coaches: coachesLeft, teamCoaches })
   }
   function removeGuest(m) {
     if (!confirm(`Remove ${m.name || m.first_name} from the coach list?`)) return
     const assign = withoutCoach(m.id)
     const teamCoaches = teamWithoutCoach(m.id)
-    setS({ guests: (s.guests || []).filter(g => g.id !== m.id), coaches: (s.coaches || []).filter(x => x !== m.id), assign, teamCoaches }); shareToEvent?.({ teamCoaches })
+    const guests = (s.guests || []).filter(g => g.id !== m.id), coachesLeft = (s.coaches || []).filter(x => x !== m.id)
+    setS({ guests, coaches: coachesLeft, assign, teamCoaches }); shareToEvent?.({ guests, coaches: coachesLeft, teamCoaches })
     setGuests(g => g.filter(x => x.id !== m.id))
   }
   // ---- team list editing (saved on this day and shared with the event's other days)
@@ -614,7 +624,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
               <div className="ffd-suggest">
                 {matches.map(m => (
                   <div key={m.id} className="ffd-suggestrow">
-                    <button type="button" onClick={() => pickCoach(m)}>+ {m.first_name} {m.last_name}{m.guest ? <span className="ffd-muted"> (added before)</span> : null}</button>
+                    <button type="button" onClick={() => pickCoach(m)}>+ {m.first_name} {m.last_name}</button>
                     {m.guest && <button type="button" className="ffd-x" title="Forget this name" onClick={() => removeGuest(m)}>🗑</button>}
                   </div>
                 ))}
