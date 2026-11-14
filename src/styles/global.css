@@ -2072,3 +2072,6 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-clashwrap .ffd-clash { border-left: 4px solid #E24B4A; }
 .ffd-clashwrap .ffd-sametime { border-left: 4px solid #EAB308; }
 .ffd-sametime .ffd-window { margin: 8px 0 4px; }
+
+/* leave room below the toolbar so a shorter view can't pull the page up */
+.ffd { padding-bottom: 70vh; }

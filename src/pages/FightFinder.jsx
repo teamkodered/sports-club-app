@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -366,7 +366,8 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       if (Math.abs(A.f.startMin - B.f.startMin) > windowMin || A.f.id === B.f.id) continue
       const ka = athleteKey(A.a), kb = athleteKey(B.a)
       const ca = coachIds(ka), cb = coachIds(kb), both = [...new Set([...ca, ...cb])]
-      if (ka === kb && normTitle(A.f.title) !== normTitle(B.f.title)) list.push({ type: 'athlete', A, B, possible: A.possible || B.possible })
+      const team = t => /\s(MIX\s+)?T\s*$/i.test(String(t || '').trim())
+      if (ka === kb && normTitle(A.f.title) !== normTitle(B.f.title) && !(team(A.f.title) && team(B.f.title))) list.push({ type: 'athlete', A, B, possible: A.possible || B.possible })
       else if (kindOf(A.f) !== kindOf(B.f)) continue   // ring only with ring, tatami with tatami, forms with forms (own-bout clashes above still count)
       else if (ka !== kb && ca.length && cb.length && both.length === 1) list.push({ type: 'coach', coach: both[0], A, B, possible: A.possible || B.possible })   // nobody else to cover one of them
       else if (ka !== kb && String(A.f.area ?? '') !== String(B.f.area ?? '')) list.push({ type: 'time', A, B, possible: A.possible || B.possible })   // on at the same time on different areas
@@ -407,6 +408,14 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   useEffect(() => { if (view.startsWith('coach:') && !isCoachView) setView('ring') }, [view, isCoachView])   // eslint-disable-line
   const show = { ring: true, tatami: true, forms: true, ...(s.show || {}) }
   const [showOpen, setShowOpen] = useState(false)
+  const tabsRef = useRef(null), tabsTop = useRef(null)
+  const changeView = v => { tabsTop.current = tabsRef.current?.getBoundingClientRect().top ?? null; setView(v) }
+  useLayoutEffect(() => {
+    if (tabsTop.current == null || !tabsRef.current) return
+    const diff = tabsRef.current.getBoundingClientRect().top - tabsTop.current
+    if (Math.abs(diff) > 1) window.scrollBy(0, diff)
+    tabsTop.current = null
+  }, [view])
   // Coaches view: hold the view button to pick one coach
   const [onlyCoach, setOnlyCoach] = useState(''), [coachPick, setCoachPick] = useState(false)
   const vHold = useRef({ t: null, fired: false })
@@ -633,11 +642,11 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         </div>
       )}
 
-      <div className="ffd-tabs">
+      <div className="ffd-tabs" ref={tabsRef}>
         {(() => { const V = [['ring', '🏷 Tatami order'], ['time', '🕒 Time order'], ['grid', '▦ Grid'], ['coaches', '👤 Coaches']], i = V.findIndex(([v]) => v === view)
           return <button className={`ffd-viewbtn ${i >= 0 ? 'on' : ''}`} title="Tap to change view · hold to pick a coach"
             onPointerDown={vHoldStart} onPointerUp={vHoldEnd} onPointerLeave={vHoldEnd} onPointerCancel={vHoldEnd}
-            onClick={() => { if (vHold.current.fired) { vHold.current.fired = false; return } setView(V[(i + 1) % V.length][0]) }}>
+            onClick={() => { if (vHold.current.fired) { vHold.current.fired = false; return } changeView(V[(i + 1) % V.length][0]) }}>
             <span className="ffd-viewlabels">{V.map(([v, label], n) => <span key={v} className={n === Math.max(0, i) ? 'cur' : ''} aria-hidden={n !== Math.max(0, i)}>{label}</span>)}</span> <span className="ffd-viewarrow">⇄</span></button> })()}
         <span className="ffd-showshare">
         <span className="ffd-show" ref={showRef}>
