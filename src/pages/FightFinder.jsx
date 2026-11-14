@@ -507,7 +507,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
             <button className="btn btn-primary ffd-go" onClick={find} disabled={!fights.length}>Go</button>
           </div>
-          <div className="ffd-muted">{stale ? 'Changed — press Go to update.' : 'Finds these as well as everyone on the team list.'}</div>
+          {stale && <div className="ffd-muted">Changed — press Go to update.</div>}
         {isAdmin && (
           <details className="ffd-teamcoaches">
             <summary>Coaches at this event ({coaches.length})</summary>
