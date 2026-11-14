@@ -508,6 +508,13 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             <button className="btn btn-primary ffd-go" onClick={find} disabled={!fights.length}>Go</button>
           </div>
           {stale && <div className="ffd-muted">Changed — press Go to update.</div>}
+          {isAdmin && (
+            <details className="ffd-load ffd-teamcoaches">
+              <summary><b>Load schedule / bout list</b> <span className="ffd-muted">{busy || [[(ff.data?.bouts || []).length, 'bouts'], [(ff.data?.schedule || []).length, 'schedule rows'], [(ff.data?.draws || []).length, 'brackets']].filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(' · ').replace(/(.+)/, '$1 loaded') || 'nothing loaded yet'}</span></summary>
+              <label className="btn ffd-pick">📄 Choose files<input type="file" multiple accept=".pdf,.html,.htm" hidden onChange={e => { e.target.files?.length && onFiles([...e.target.files]); e.target.value = '' }} /></label>
+              {msg && <div className="ffd-muted">{msg}</div>}
+            </details>
+          )}
         {isAdmin && (
           <details className="ffd-teamcoaches">
             <summary>Coaches at this event ({coaches.length})</summary>
@@ -572,13 +579,6 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         </details>
       )}
 
-      {isAdmin && (
-        <details className="card ffd-load">
-          <summary><b>Load schedule / bout list</b> <span className="ffd-muted">{busy || [[(ff.data?.bouts || []).length, 'bouts'], [(ff.data?.schedule || []).length, 'schedule rows'], [(ff.data?.draws || []).length, 'brackets']].filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(' · ').replace(/(.+)/, '$1 loaded') || 'nothing loaded yet'}</span></summary>
-          <label className="btn ffd-pick">📄 Choose files<input type="file" multiple accept=".pdf,.html,.htm" hidden onChange={e => { e.target.files?.length && onFiles([...e.target.files]); e.target.value = '' }} /></label>
-          {msg && <div className="ffd-muted">{msg}</div>}
-        </details>
-      )}
 
       <div className="card ffd-opts">
         <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
