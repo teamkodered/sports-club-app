@@ -284,7 +284,8 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const coachIds = k => { const v = s.assign?.[k]
     if (Array.isArray(v)) return v.filter(Boolean)
     if (v) return [v]
-    const nm = nameByKey.current[k]; return nm ? teamCoachIds(teamOf(nm)) : [] }
+    const nm = nameByKey.current[k]; if (!nm) return []
+    const t = teamOf(nm); return t ? teamCoachIds(t) : (s.teamCoaches?.[nameKey(nm)] || []) }
   const withoutCoach = id => Object.fromEntries(Object.keys(s.assign || {}).map(k => [k, coachIds(k).filter(x => x !== id)]))
   const teamWithoutCoach = id => Object.fromEntries(Object.entries(s.teamCoaches || {}).map(([k, v]) => [k, (v || []).filter(x => x !== id)]).filter(([, v]) => v.length))
   const [newCoach, setNewCoach] = useState('')
@@ -480,7 +481,9 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   // cells shared by the table and the grid's pop-up
   const coachCell = (r, k) => (isAdmin ? (() => {
                         const ids = coachIds(k)
-                        const setSlot = (i, id) => { const next = [...ids]; if (id) next[i] = id; else next.splice(i, 1); setS({ assign: { ...(s.assign || {}), [k]: next.filter(Boolean) } }) }
+                        const setSlot = (i, id) => { const next = [...ids]; if (id) next[i] = id; else next.splice(i, 1)
+                          const t = teamOf(r.a.name), ck = t ? t.key : nameKey(r.a.name), teamCoaches = { ...(s.teamCoaches || {}), [ck]: next.filter(Boolean) }
+                          setS({ assign: { ...(s.assign || {}), [k]: next.filter(Boolean) }, teamCoaches }); shareToEvent?.({ teamCoaches }) }
                         return (
                           <div className="ffd-coachslots">
                             {[0, 1, 2].filter(i => i <= ids.length).map(i => (
