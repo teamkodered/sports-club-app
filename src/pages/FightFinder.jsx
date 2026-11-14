@@ -84,6 +84,18 @@ export default function FightFinder() {
   async function groupTesters(rows) {
     if (!isAdmin) return
     for (const x of rows) if (!x.settings?.event && /^Competition (08|10|11|12)\/11\/2026$/.test(x.title)) await setEvent(x, WAKO)
+    // one-off: days in an event are titled by their date only ("Competition 12/11/2026" -> "12/11/2026")
+    for (const x of rows) { const m = String(x.title).match(/^Competition (\d{1,2}\/\d{1,2}\/\d{4})$/)
+      if (m && (x.settings?.event || /^(08|10|11|12)\/11\/2026$/.test(m[1]))) { const { error } = await supabase.from('fight_finders').update({ title: m[1] }).eq('id', x.id); if (!error) setList(l => l.map(y => (y.id === x.id ? { ...y, title: m[1] } : y))) } }
+  }
+  // rename an event: every day in it gets the new name
+  async function renameEvent(from, to) {
+    to = String(to || '').trim()
+    if (!isAdmin || !from || !to || to === from) return
+    const { data: days } = await supabase.from('fight_finders').select('id, settings').eq('settings->>event', from)
+    for (const x of days || []) await supabase.from('fight_finders').update({ settings: { ...(x.settings || {}), event: to } }).eq('id', x.id)
+    setList(l => l?.map(y => (y.settings?.event === from ? { ...y, settings: { ...y.settings, event: to } } : y)))
+    setFf(f => (f && f.settings?.event === from ? { ...f, settings: { ...f.settings, event: to } } : f))
   }
   const grouped = useRef(false)
   useEffect(() => { if (isAdmin && list?.length && !grouped.current) { grouped.current = true; groupTesters(list) } }, [isAdmin, list])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -93,7 +105,7 @@ export default function FightFinder() {
   async function pickEvent(event) {
     const p = picker; setPicker(null); setNewEvent('')
     if (p?.x) { await setEvent(p.x, event); setMenu(null) }
-    else createFinder(`Competition ${new Date().toLocaleDateString('en-GB')}`, null, event)
+    else createFinder(new Date().toLocaleDateString('en-GB'), null, event)
   }
   const dayKey = x => { const m = String(x.title).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : String(x.updated_at).slice(0, 10) }
   const groups = (() => {
@@ -213,7 +225,7 @@ export default function FightFinder() {
 
   const allStaff = [...staff, ...mergeGuests(guests, ff.settings?.guests || [])].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
   return <FinderView ff={ff} staff={allStaff} setGuests={setGuests} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
-    onFiles={loadFiles} setS={setS} save={save} shareToEvent={shareToEvent} clearMsg={() => setMsg('')} onBack={() => { setFf(null); setMsg(''); nav('/fight-finder', { replace: true }) }} />
+    onFiles={loadFiles} setS={setS} save={save} shareToEvent={shareToEvent} renameEvent={renameEvent} clearMsg={() => setMsg('')} onBack={() => { setFf(null); setMsg(''); nav('/fight-finder', { replace: true }) }} />
 }
 
 function mergeBy(oldList, newList, key) {
@@ -230,7 +242,7 @@ function mergeGuests(a, b) {
   return [...m.values()]
 }
 
-function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack, clearMsg, shareToEvent }) {
+function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, onFiles, setS, save, onBack, clearMsg, shareToEvent, renameEvent }) {
   const s = ff.settings || {}
   // coaches on an athlete: up to 3 (older finders stored one id as a string)
   // team list: entries { name, cat, style, weight } (one per category) -> athletes { key, name, words, entries }
@@ -495,7 +507,11 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const gridTimes = [...new Set(shown.map(r => r.f.startMin != null ? Math.round(r.f.startMin) : null))].sort((a, b) => (a ?? 9e9) - (b ?? 9e9))
   return (
     <div className="ffd">
-      {s.event && <div className="ffd-evtop">📁 {s.event}</div>}
+      {s.event && (isAdmin
+        ? <div className="ffd-evtop">📁 <input key={s.event} defaultValue={s.event} aria-label="Event name"
+            onBlur={e => { const v = e.target.value.trim(); if (!v) e.target.value = s.event; else if (v !== s.event) renameEvent(s.event, v) }}
+            onKeyDown={e => e.key === 'Enter' && e.target.blur()} /></div>
+        : <div className="ffd-evtop">📁 {s.event}</div>)}
       <div className="ffd-head">
         <button className="btn btn-sm" onClick={onBack}>← All</button>
         {isAdmin ? <input className="ffd-title" value={ff.title} onChange={e => save({ title: e.target.value })} /> : <h1>{ff.title}</h1>}
@@ -510,8 +526,8 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           {stale && <div className="ffd-muted">Changed — press Go to update.</div>}
           {isAdmin && (
             <div className="ffd-load ffd-teamload2">
-              <div className="ffd-loadhead"><b>Load schedule / bout list</b> <span className="ffd-muted">{busy || [[(ff.data?.bouts || []).length, 'bouts'], [(ff.data?.schedule || []).length, 'schedule rows'], [(ff.data?.draws || []).length, 'brackets']].filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(' · ').replace(/(.+)/, '$1 loaded') || 'nothing loaded yet'}</span></div>
-              <label className="btn ffd-pick">📄 Choose files<input type="file" multiple accept=".pdf,.html,.htm" hidden onChange={e => { e.target.files?.length && onFiles([...e.target.files]); e.target.value = '' }} /></label>
+              <div className="ffd-loadhead"><b>Load schedule / bout list</b>
+                <label className="btn ffd-pick">{busy || '📄 Choose files'}<input type="file" multiple accept=".pdf,.html,.htm" hidden onChange={e => { e.target.files?.length && onFiles([...e.target.files]); e.target.value = '' }} /></label></div>
               {msg && <div className="ffd-muted">{msg}</div>}
             </div>
           )}

@@ -2059,3 +2059,7 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 /* event name above the day's title (sits beside the ☰ button on phones) */
 .ffd-evtop { font-size: 15px; font-weight: 600; color: var(--text-secondary, #aaa); margin-bottom: 8px; }
 @media (max-width: 767px) { .ffd-evtop { margin-top: 58px; } .ffd-evtop + .ffd-head { margin-top: 0; } }
+
+.ffd-evtop input { font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; width: calc(100% - 30px); }
+.ffd-evtop input:focus { border-color: var(--border-strong); background: var(--bg-secondary); outline: none; }
+.ffd-loadhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
