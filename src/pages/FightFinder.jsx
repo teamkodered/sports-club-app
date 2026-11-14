@@ -411,7 +411,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const [onlyCoach, setOnlyCoach] = useState(''), [coachPick, setCoachPick] = useState(false)
   const vHold = useRef({ t: null, fired: false })
   const vHoldStart = () => { vHold.current.fired = false; clearTimeout(vHold.current.t)
-    if (view === 'coaches') vHold.current.t = setTimeout(() => { vHold.current.fired = true; navigator.vibrate?.(30); window.getSelection?.()?.removeAllRanges(); setCoachPick(true) }, 550) }
+    vHold.current.t = setTimeout(() => { vHold.current.fired = true; navigator.vibrate?.(30); window.getSelection?.()?.removeAllRanges(); setCoachPick(true) }, 550) }
   const vHoldEnd = () => clearTimeout(vHold.current.t)
   // keep the Show menu on screen: open it to the right of the pill, or to the left if there isn't room
   const showRef = useRef(null)
@@ -427,10 +427,12 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const [vid, setVid] = useState(null)   // tapped athlete -> video search links
   const hidden = ['ring', 'tatami', 'forms'].filter(k => !show[k]).length
   const stylesHere = [...new Map(rows.map(r => { const st = styleOf(r.f.title); return [st.name, st] })).values()]
-  const shown = rows.filter(r => show[kindOf(r.f)]).filter(r => !viewCoach || coachIds(athleteKey(r.a)).includes(viewCoach))
+  // one coach picked (hold the view button) stays picked in every view
+  const pickedCoach = viewCoach || (coaches.some(c => c.id === onlyCoach) ? onlyCoach : '')
+  const shown = rows.filter(r => show[kindOf(r.f)]).filter(r => !pickedCoach || coachIds(athleteKey(r.a)).includes(pickedCoach))
     .sort((a, b) => { const ar = areaKey(a.f.area).localeCompare(areaKey(b.f.area)), tm = (a.f.startMin ?? 9e9) - (b.f.startMin ?? 9e9); return view === 'ring' ? ar || tm : tm || ar })
   // athletes per ring / tatami / forms (in this tab), and in what's showing
-  const inTab = rows.filter(r => !viewCoach || coachIds(athleteKey(r.a)).includes(viewCoach))
+  const inTab = rows.filter(r => !pickedCoach || coachIds(athleteKey(r.a)).includes(pickedCoach))
   const countAthletes = list => new Set(list.map(r => athleteKey(r.a))).size
   const kindCount = k => countAthletes(inTab.filter(r => kindOf(r.f) === k))
   const shownAthletes = countAthletes(shown), shownBouts = shown.filter(r => !r.possible).length
@@ -468,8 +470,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
     ) : res ? (res === r.colour ? '✓ Won' : '✗ Lost') : '' }
   // 📤 Share: the list on screen (search, Show ticks, coach tab, view order) as a PDF or a print page
   const [shareOpen, setShareOpen] = useState(false), [sharing, setSharing] = useState('')
-  const pickedCoach = viewCoach || (view === 'coaches' ? onlyCoach : '')
-  const listed = pickedCoach ? shown.filter(r => coachIds(athleteKey(r.a)).includes(pickedCoach)) : shown
+  const listed = shown
   const toRow = r => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`
         return { time: r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?', area: areaTxt(r.f.area), name: r.a.name, country: r.a.country || '',
           style: styleOf(r.f.title), weight: weightOf(r.f.title), opp: r.f.solo ? 'solo (forms)' : sideTxt(r.opp),
@@ -634,9 +635,9 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
 
       <div className="ffd-tabs">
         {(() => { const V = [['ring', '🏷 Tatami order'], ['time', '🕒 Time order'], ['grid', '▦ Grid'], ['coaches', '👤 Coaches']], i = V.findIndex(([v]) => v === view)
-          return <button className={`ffd-viewbtn ${i >= 0 ? 'on' : ''}`} title={view === 'coaches' ? 'Tap to change view · hold to pick a coach' : 'Tap to change view'}
+          return <button className={`ffd-viewbtn ${i >= 0 ? 'on' : ''}`} title="Tap to change view · hold to pick a coach"
             onPointerDown={vHoldStart} onPointerUp={vHoldEnd} onPointerLeave={vHoldEnd} onPointerCancel={vHoldEnd}
-            onClick={() => { if (vHold.current.fired) { vHold.current.fired = false; return } setOnlyCoach(''); setView(V[(i + 1) % V.length][0]) }}>
+            onClick={() => { if (vHold.current.fired) { vHold.current.fired = false; return } setView(V[(i + 1) % V.length][0]) }}>
             <span className="ffd-viewlabels">{V.map(([v, label], n) => <span key={v} className={n === Math.max(0, i) ? 'cur' : ''} aria-hidden={n !== Math.max(0, i)}>{label}</span>)}</span> <span className="ffd-viewarrow">⇄</span></button> })()}
         <span className="ffd-showshare">
         <span className="ffd-show" ref={showRef}>
@@ -654,6 +655,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         </span>
       </div>
 
+      {pickedCoach && !isCoachView && <div className="ffd-muted ffd-onlycoach">👤 Showing {coachName(pickedCoach)} only · <button type="button" className="ffd-jump inline" onClick={() => setOnlyCoach('')}>show all coaches</button></div>}
       {rows.length > 0 && <div className="ffd-muted ffd-count">Showing <b>{countAthletes(listed)}</b> athlete{countAthletes(listed) === 1 ? '' : 's'} · {listed.filter(r => !r.possible).length} bout{listed.filter(r => !r.possible).length === 1 ? '' : 's'}{hidden ? ` (of ${countAthletes(inTab)} athletes)` : ''}</div>}
       {rows.length > 0 && !shown.length ? (
         <div className="card ffd-muted">Nothing to show — tick more in 👁 Show.</div>
@@ -662,8 +664,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       ) : (
         view === 'coaches' ? (
           <div className="ffd-coachview">
-            {onlyCoach ? <div className="ffd-muted ffd-onlycoach">Showing {coachName(onlyCoach)} only · <button type="button" className="ffd-jump inline" onClick={() => setOnlyCoach('')}>show all coaches</button></div>
-              : coaches.length > 1 && <div className="ffd-muted ffd-onlycoach">Hold 👤 Coaches to pick one coach.</div>}
+            {!pickedCoach && coaches.length > 1 && <div className="ffd-muted ffd-onlycoach">Hold 👤 Coaches to pick one coach.</div>}
             {[...coaches.map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name || ''}`.trim(), rows: shown.filter(r => coachIds(athleteKey(r.a)).includes(c.id)) })),
               { id: '', name: 'No coach yet', rows: shown.filter(r => !coachIds(athleteKey(r.a)).length) }]
               .filter(g => g.id || g.rows.length).filter(g => !onlyCoach || g.id === onlyCoach).map(g => {
