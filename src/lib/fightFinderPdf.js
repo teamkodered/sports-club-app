@@ -73,7 +73,7 @@ export async function resultsPdf({ title, sections }) {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 14
-  const cols = [['Athlete', 86], ['Fights', 22], ['Won', 22], ['Lost', 22], ['Win %', 30]]
+  const cols = [['', 86], ['Fights', 22], ['Won', 22], ['Lost', 22], ['Win %', 30]]
   let y = M + 4
   doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(20); doc.text(String(title), M, y); y += 9
   for (const sec of sections) {
@@ -86,6 +86,7 @@ export async function resultsPdf({ title, sections }) {
     sec.rows.forEach((r, i) => {
       if (y > H - M) { doc.addPage(); y = M + 4 }
       if (i % 2) { doc.setFillColor(246, 246, 246); doc.rect(M, y - 3.8, W - 2 * M, 5.4, 'F') }
+      doc.setFont('helvetica', r.name === 'Total' || r.name === 'Team' ? 'bold' : 'normal')
       let x2 = M; [r.name, r.fights, r.won, r.lost, r.pct].forEach((c, j) => { doc.text(String(c), x2, y); x2 += cols[j][1] }); y += 5.4
     })
     y += 6

@@ -542,13 +542,17 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const evRes = useMemo(() => {
     if (!evDays) return null
     const days = [...evDays.filter(x => x.id !== ff.id), { id: ff.id, title: ff.title, data: ff.data, settings: s }]
-    return { days: days.length, rows: addResults(days.map(dayResults)).sort((a, b) => a.name.localeCompare(b.name)) }
+    const dk = t => { const m = String(t).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? `${m[3]}${m[2].padStart(2, '0')}${m[1].padStart(2, '0')}` : String(t) }
+    const perDay = days.map(d => ({ name: d.title, ...totals(dayResults(d)) })).filter(d => d.fights).sort((a, b) => dk(a.name).localeCompare(dk(b.name)))
+    return { days: days.length, perDay, total: totals(addResults(days.map(dayResults))) }
   }, [evDays, ff.data, s, ff.id, ff.title])
-  const sumTxt = rows => { const t = totals(rows); return `${t.athletes} athlete${t.athletes === 1 ? '' : 's'} · ${t.fights} fight${t.fights === 1 ? '' : 's'} · ${t.won} won · ${t.lost} lost · win rate ${winPct(t)}${t.fights - t.won - t.lost > 0 ? ` · ${t.fights - t.won - t.lost} not entered` : ''}` }
+  const sumTxt = t => `${t.athletes} athlete${t.athletes === 1 ? '' : 's'} · ${t.fights} fight${t.fights === 1 ? '' : 's'}${t.fights - t.won - t.lost > 0 ? ` · ${t.fights - t.won - t.lost} not entered` : ''}`
+  const dayTot = totals(dayRes)
   const [resBusy, setResBusy] = useState('')
   async function shareResults() {
-    const sections = [{ title: `This day — ${ff.title}`, summary: sumTxt(dayRes), rows: dayRes.map(r => ({ ...r, pct: winPct(r) })) }]
-    if (evRes) sections.push({ title: `Competition overall — ${evRes.days} day${evRes.days === 1 ? '' : 's'}`, summary: sumTxt(evRes.rows), rows: evRes.rows.map(r => ({ ...r, pct: winPct(r) })) })
+    const sections = [{ title: `This day — ${ff.title}`, summary: sumTxt(dayTot), rows: [{ name: 'Team', ...dayTot, pct: winPct(dayTot) }] }]
+    if (evRes) sections.push({ title: `Competition overall — ${evRes.days} day${evRes.days === 1 ? '' : 's'}`, summary: sumTxt(evRes.total),
+      rows: [...evRes.perDay.map(d => ({ ...d, pct: winPct(d) })), { name: 'Total', ...evRes.total, pct: winPct(evRes.total) }] })
     setResBusy('Making the PDF…')
     try {
       const file = new File([await resultsPdf({ title: `${s.event || ff.title} — results`, sections })], `${String(s.event || ff.title).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}-results.pdf`, { type: 'application/pdf' })
@@ -557,9 +561,9 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
     } catch (e) { if (e?.name !== 'AbortError') alert('Could not make the PDF: ' + (e?.message || e)) }
     setResBusy('')
   }
-  const resTable = rows => (
-    <div className="ffd-restable"><table><thead><tr><th>Athlete</th><th>Fights</th><th>Won</th><th>Lost</th><th>Win %</th></tr></thead>
-      <tbody>{rows.map(r => <tr key={r.name}><td>{r.name}</td><td>{r.fights}</td><td>{r.won}</td><td>{r.lost}</td><td><b>{winPct(r)}</b></td></tr>)}</tbody></table></div>
+  const resTable = (rows, first = 'Day') => (
+    <div className="ffd-restable"><table><thead><tr><th>{first}</th><th>Fights</th><th>Won</th><th>Lost</th><th>Win %</th></tr></thead>
+      <tbody>{rows.map(r => <tr key={r.name} className={r.name === 'Total' ? 'total' : ''}><td>{r.name}</td><td>{r.fights}</td><td>{r.won}</td><td>{r.lost}</td><td><b>{winPct(r)}</b></td></tr>)}</tbody></table></div>
   )
   // grid view: one column per area, one row per exact estimated time
   const [cell, setCell] = useState(null)
@@ -835,14 +839,16 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       {vid && <VideoSheet a={vid.a} f={vid.f} onClose={() => setVid(null)} />}
       {fights.length > 0 && (
         <details className="card ffd-results" onToggle={e => { if (e.currentTarget.open && evDays === null) loadEvDays() }}>
-          <summary><b>📊 Results</b> <span className="ffd-muted">{(t => `${t.won} won · ${t.lost} lost · ${winPct(t)}`)(totals(dayRes))}</span></summary>
-          <div className="ffd-reshead"><b>This day</b><span className="ffd-muted">{sumTxt(dayRes)}</span></div>
-          {dayRes.length ? resTable(dayRes) : <div className="ffd-muted">No fights for our athletes on this day.</div>}
+          <summary><b>📊 Results</b> <span className="ffd-muted">{`${dayTot.won} won · ${dayTot.lost} lost · ${winPct(dayTot)}`}</span></summary>
+          <div className="ffd-reshead"><b>This day — team</b><span className="ffd-muted">{sumTxt(dayTot)}</span></div>
+          {dayTot.fights ? <div className="ffd-resbig"><span><b>{dayTot.fights}</b>fights</span><span><b>{dayTot.won}</b>won</span><span><b>{dayTot.lost}</b>lost</span><span><b>{winPct(dayTot)}</b>win rate</span></div>
+            : <div className="ffd-muted">No fights for our athletes on this day.</div>}
           {s.event && (evRes ? <>
-            <div className="ffd-reshead"><b>Competition overall</b><span className="ffd-muted">{evRes.days} day{evRes.days === 1 ? '' : 's'} · {sumTxt(evRes.rows)}</span></div>
-            {resTable(evRes.rows)}
+            <div className="ffd-reshead"><b>Competition overall — team</b><span className="ffd-muted">{evRes.days} day{evRes.days === 1 ? '' : 's'} · {sumTxt(evRes.total)}</span></div>
+            <div className="ffd-resbig"><span><b>{evRes.total.fights}</b>fights</span><span><b>{evRes.total.won}</b>won</span><span><b>{evRes.total.lost}</b>lost</span><span><b>{winPct(evRes.total)}</b>win rate</span></div>
+            {evRes.perDay.length > 0 && resTable([...evRes.perDay, { name: 'Total', ...evRes.total }])}
           </> : <div className="ffd-muted">Loading the other days…</div>)}
-          <button className="btn" disabled={!!resBusy || !dayRes.length} onClick={shareResults}>{resBusy || '📤 Share results (PDF)'}</button>
+          <button className="btn" disabled={!!resBusy || !dayTot.fights} onClick={shareResults}>{resBusy || '📤 Share results (PDF)'}</button>
         </details>
       )}
       <p className="ffd-muted" style={{ marginTop: 8 }}>~ Times are estimates: each category's (or session's) time spread over its bouts, in order. {athletes.length} athlete{athletes.length === 1 ? '' : 's'} found.</p>
