@@ -314,7 +314,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   }
   const removeTeamAthlete = t => { if (confirm(`Remove ${t.name} from the team list?`)) setTeam({ team: teamEntries.filter(e => teamWords(e.name).join(' ') !== t.key), teamCoaches: Object.fromEntries(Object.entries(s.teamCoaches || {}).filter(([k]) => k !== t.key)) }) }
   const setTeamSlot = (t, i, id) => { const ids = [...teamCoachIds(t)]; if (id) ids[i] = id; else ids.splice(i, 1); setTeam({ teamCoaches: { ...(s.teamCoaches || {}), [t.key]: ids.filter(Boolean) } }) }
-  const query = s.query ?? 'Kode Red', windowMin = 10   // bouts within 10 min of each other count as on at the same time
+  const query = s.query ?? 'Kode Red', windowMin = Number(s.window ?? 10)   // bouts within this many minutes of each other count as on at the same time
   const [draft, setDraft] = useState(query)
   const loadedAt = JSON.stringify([(ff.data?.schedule || []).length, (ff.data?.draws || []).length, (ff.data?.bouts || []).length])
   const useTeam = teamAthletes.length > 0   // the team list is always found, as well as the search box
@@ -603,28 +603,34 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
 
 
 
-      {realClashes.length > 0 && (
-        <div className="card ffd-clash">
-          <b>⚠ {realClashes.length} possible clash{realClashes.length === 1 ? '' : 'es'}</b> — {realClashes.filter(c => c.type === 'coach').length} coach, {realClashes.filter(c => c.type === 'athlete').length} athlete
-          {realClashes.map((c, i) => (
-            <div key={i} className="ffd-clash-row">
-              {c.type === 'coach' ? `👤 ${coachName(c.coach)}: ` : `🥊 ${c.A.a.name}: `}
-              {[c.A, c.B].map((r, n) => <span key={n}>{n ? ' & ' : ''}<button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name.split(' ')[0]} {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</button></span>)}
-              {c.possible && <em> (if they win)</em>}
-            </div>
-          ))}
+      {fights.length > 0 && (
+        <div className="card ffd-clashwrap">
+          <label className="ffd-window">Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min
+            {!realClashes.length && !sameTime.length && run && <span className="ffd-muted"> · no clashes</span>}</label>
+        {realClashes.length > 0 && (
+          <div className="ffd-clash">
+            <b>⚠ {realClashes.length} possible clash{realClashes.length === 1 ? '' : 'es'}</b> — {realClashes.filter(c => c.type === 'coach').length} coach, {realClashes.filter(c => c.type === 'athlete').length} athlete
+            {realClashes.map((c, i) => (
+              <div key={i} className="ffd-clash-row">
+                {c.type === 'coach' ? `👤 ${coachName(c.coach)}: ` : `🥊 ${c.A.a.name}: `}
+                {[c.A, c.B].map((r, n) => <span key={n}>{n ? ' & ' : ''}<button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name.split(' ')[0]} {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</button></span>)}
+                {c.possible && <em> (if they win)</em>}
+              </div>
+            ))}
+          </div>
+        )}
+        {sameTime.length > 0 && (
+          <details className="ffd-sametime">
+            <summary><b>⏱ {sameTime.length} pair{sameTime.length === 1 ? '' : 's'} of bouts on at the same time</b> <span className="ffd-muted">— different areas, need separate coaches</span></summary>
+            {sameTime.map((c, i) => (
+              <div key={i} className="ffd-clash-row">
+                {[c.A, c.B].map((r, n) => <span key={n}>{n ? '  &  ' : ''}<button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name} {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</button></span>)}
+                {c.possible && <em> (if they win)</em>}
+              </div>
+            ))}
+          </details>
+        )}
         </div>
-      )}
-      {sameTime.length > 0 && (
-        <details className="card ffd-sametime">
-          <summary><b>⏱ {sameTime.length} pair{sameTime.length === 1 ? '' : 's'} of bouts on at the same time</b> <span className="ffd-muted">— different areas, need separate coaches</span></summary>
-          {sameTime.map((c, i) => (
-            <div key={i} className="ffd-clash-row">
-              {[c.A, c.B].map((r, n) => <span key={n}>{n ? '  &  ' : ''}<button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name} {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</button></span>)}
-              {c.possible && <em> (if they win)</em>}
-            </div>
-          ))}
-        </details>
       )}
 
       <div className="ffd-tabs">

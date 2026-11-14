@@ -2063,3 +2063,11 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-evtop input { font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; width: calc(100% - 30px); }
 .ffd-evtop input:focus { border-color: var(--border-strong); background: var(--bg-secondary); outline: none; }
 .ffd-loadhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+/* one clash card: the window at the top, then clashes and same-time pairs */
+.ffd-clashwrap { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.ffd-clashwrap .ffd-window { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; }
+.ffd-clashwrap .ffd-window input { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); }
+.ffd-clashwrap .ffd-clash, .ffd-clashwrap .ffd-sametime { margin: 0; padding: 8px 0 0 10px; border-top: 1px solid var(--border-strong); }
+.ffd-clashwrap .ffd-clash { border-left: 4px solid #E24B4A; }
+.ffd-clashwrap .ffd-sametime { border-left: 4px solid #EAB308; }
