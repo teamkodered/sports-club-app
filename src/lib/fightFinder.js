@@ -262,7 +262,15 @@ export function buildFights({ schedule = [], draws = [], bouts = [], results = {
 // each session runs its bouts in order from the session's start time. A bout's length is a guess
 // (fallbackBoutMinutes, 3 min for a solo form); if the next session on that area starts sooner than
 // the guesses add up to, the session is squeezed to fit.
+// the same two fighters in the same category on the same day is one bout: when an updated schedule
+// gives it a new bout number / time, keep only the latest copy (later in the list = uploaded later)
+export function dedupeBouts(bouts) {
+  const key = b => b.red?.athlete && b.blue?.athlete ? `${b.date}|${normTitle(b.title)}|${pairKey(b.red, b.blue)}` : null
+  const last = new Map(); bouts.forEach((b, i) => { const k = key(b); if (k) last.set(k, i) })
+  return bouts.filter((b, i) => { const k = key(b); return !k || last.get(k) === i })
+}
 function addScheduledBouts(fights, bouts, results) {
+  bouts = dedupeBouts(bouts)
   const groups = {}
   bouts.forEach(b => { (groups[`${b.date}|${b.area}|${b.session}`] ||= []).push(b) })
   const starts = Object.values(groups).map(g => ({ date: g[0].date, area: g[0].area, start: toMin(g[0].sessionStart) }))

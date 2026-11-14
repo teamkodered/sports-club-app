@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { listPdf, printList } from '../lib/fightFinderPdf.js'
-import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, buildFights, matchesSearch, teamFromPdf, teamFromText, teamWords, isTeamName, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
+import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, dedupeBouts, buildFights, matchesSearch, teamFromPdf, teamFromText, teamWords, isTeamName, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
 // (sportdata PDFs or saved pages), search a club / country, then see our athletes' bouts in tatami
@@ -173,7 +173,8 @@ export default function FightFinder() {
           const sch = scheduleFromPdf(pages), drw = drawsFromPdf(pages), bts = boutsFromDailySchedulePdf(pages)
           if (sch.length) { schedule = mergeBy(schedule, sch, s => `${s.date}|${normTitle(s.title)}`); notes.push(`${f.name}: ${sch.length} schedule rows`) }
           if (drw.length) { draws = mergeBy(draws, drw, d => normTitle(d.title)); notes.push(`${f.name}: ${drw.length} brackets`) }
-          if (bts.length) { bouts = mergeBy(bouts, bts, b => b.id); notes.push(`${f.name}: ${bts.length} bouts`) }
+          if (bts.length) { const merged = mergeBy(bouts, bts, b => b.id); bouts = dedupeBouts(merged); const gone = merged.length - bouts.length
+            notes.push(`${f.name}: ${bts.length} bouts${gone > 0 ? ` (${gone} older cop${gone === 1 ? 'y' : 'ies'} replaced)` : ''}`) }
           if (!sch.length && !drw.length && !bts.length) {
             const words = pages.flat().map(l => l.text).join(' ').trim().length
             notes.push(words < 20 ? `${f.name}: no text in this PDF (a photo or scan?) -- use the PDF downloaded from the competition site`
