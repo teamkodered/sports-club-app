@@ -2055,3 +2055,7 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 
 .ffd-teamload2 { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .ffd-teamload2 .ffd-pick { margin-top: 0; }
+
+/* event name above the day's title (sits beside the ☰ button on phones) */
+.ffd-evtop { font-size: 15px; font-weight: 600; color: var(--text-secondary, #aaa); margin-bottom: 8px; }
+@media (max-width: 767px) { .ffd-evtop { margin-top: 58px; } .ffd-evtop + .ffd-head { margin-top: 0; } }

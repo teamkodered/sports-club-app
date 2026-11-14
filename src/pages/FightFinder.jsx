@@ -495,11 +495,11 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const gridTimes = [...new Set(shown.map(r => r.f.startMin != null ? Math.round(r.f.startMin) : null))].sort((a, b) => (a ?? 9e9) - (b ?? 9e9))
   return (
     <div className="ffd">
+      {s.event && <div className="ffd-evtop">📁 {s.event}</div>}
       <div className="ffd-head">
         <button className="btn btn-sm" onClick={onBack}>← All</button>
         {isAdmin ? <input className="ffd-title" value={ff.title} onChange={e => save({ title: e.target.value })} /> : <h1>{ff.title}</h1>}
       </div>
-      {s.event && <div className="ffd-muted ffd-evname">📁 {s.event}</div>}
       {(
         <details className="card ffd-team">
           <summary><b>👥 Team</b> <span className="ffd-muted">{teamAthletes.length ? `${teamAthletes.length} athletes · ${teamEntries.length} entries · ${teamFound.size} on this day` : 'none yet'}</span></summary>
