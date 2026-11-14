@@ -314,7 +314,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   }
   const removeTeamAthlete = t => { if (confirm(`Remove ${t.name} from the team list?`)) setTeam({ team: teamEntries.filter(e => teamWords(e.name).join(' ') !== t.key), teamCoaches: Object.fromEntries(Object.entries(s.teamCoaches || {}).filter(([k]) => k !== t.key)) }) }
   const setTeamSlot = (t, i, id) => { const ids = [...teamCoachIds(t)]; if (id) ids[i] = id; else ids.splice(i, 1); setTeam({ teamCoaches: { ...(s.teamCoaches || {}), [t.key]: ids.filter(Boolean) } }) }
-  const query = s.query ?? 'Kode Red', windowMin = Number(s.window ?? 10)
+  const query = s.query ?? 'Kode Red', windowMin = 10   // bouts within 10 min of each other count as on at the same time
   const [draft, setDraft] = useState(query)
   const loadedAt = JSON.stringify([(ff.data?.schedule || []).length, (ff.data?.draws || []).length, (ff.data?.bouts || []).length])
   const useTeam = teamAthletes.length > 0   // the team list is always found, as well as the search box
@@ -601,9 +601,6 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       )}
 
 
-      <div className="card ffd-opts">
-        <label>Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
-      </div>
 
 
       {realClashes.length > 0 && (
