@@ -102,6 +102,14 @@ export default function FightFinder() {
   const [picker, setPicker] = useState(null)   // { x } = move that finder; {} = new finder
   const [newEvent, setNewEvent] = useState('')
   const events = [...new Set((list || []).map(x => x.settings?.event).filter(Boolean))]
+  async function newDay(g) {
+    const fmt = d => d.toLocaleDateString('en-GB'), today = fmt(new Date())
+    let title = today
+    if (g.days.some(x => x.title === today)) {
+      const last = g.days.map(dayKey).sort().pop(), d = new Date(`${last}T12:00:00`); d.setDate(d.getDate() + 1); title = fmt(d)
+    }
+    createFinder(title, null, g.event)
+  }
   async function pickEvent(event) {
     const p = picker; setPicker(null); setNewEvent('')
     if (p?.x) { await setEvent(p.x, event); setMenu(null) }
@@ -193,6 +201,7 @@ export default function FightFinder() {
             onContextMenu={e => { e.preventDefault(); window.getSelection?.()?.removeAllRanges(); if (isAdmin) { hold.current.fired = true; setMenu(x) } }}>
             {x.title}<span>{new Date(x.updated_at).toLocaleDateString('en-GB')}</span></button>
             ))}
+            {isAdmin && g.event && <button type="button" className="btn ffd-newday" onClick={() => newDay(g)}>+ New fight finder</button>}
           </details>
         ))}
         {isAdmin && list?.length > 0 && <p className="ffd-muted" style={{ marginTop: 6 }}>Hold one to rename, move or delete it.</p>}

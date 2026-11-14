@@ -2075,3 +2075,5 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 
 /* leave room below the toolbar so a shorter view can't pull the page up */
 .ffd { padding-bottom: 70vh; }
+
+.ffd-newday { margin: 8px 0 4px 18px; }
