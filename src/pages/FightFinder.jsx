@@ -362,12 +362,23 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const sideTxt = sl => sl?.athlete ? `${sl.athlete.name} (${[sl.athlete.club, sl.athlete.country].filter(Boolean).join(', ')})` : sl?.winnerOf ? `⏳ winner of bout ${byId[sl.winnerOf]?.boutNo ?? '?'} (${['red', 'blue'].map(c => byId[sl.winnerOf]?.[c]).map(x => x?.athlete?.name?.split(' ')[0] || (x?.winnerOf ? 'TBC' : '—')).join(' v ')})` : '— empty —'
 
   // rows: one per (our athlete, bout) -- confirmed bouts, plus "if they win" bouts further on
+  const isHidden = (f, a) => (s.hiddenAthletes || []).includes(nameKey(a.name)) || (s.hiddenBouts || []).includes(`${f.id}|${athleteKey(a)}`)
+  const hiddenCount = (s.hiddenAthletes || []).length + (s.hiddenBouts || []).length
+  // hold an athlete -> remove options
+  const [rmMenu, setRmMenu] = useState(null)
+  const aHold = useRef({ t: null, fired: false })
+  const holdProps = r => !isAdmin ? {} : {
+    onPointerDown: () => { aHold.current.fired = false; clearTimeout(aHold.current.t); aHold.current.t = setTimeout(() => { aHold.current.fired = true; navigator.vibrate?.(30); window.getSelection?.()?.removeAllRanges(); setRmMenu(r) }, 550) },
+    onPointerUp: () => clearTimeout(aHold.current.t), onPointerLeave: () => clearTimeout(aHold.current.t), onPointerCancel: () => clearTimeout(aHold.current.t),
+    onContextMenu: e => { e.preventDefault(); aHold.current.fired = true; setRmMenu(r) },
+  }
+  const tapped = fn => () => { if (aHold.current.fired) { aHold.current.fired = false; return } fn() }
   const rows = useMemo(() => {
     const out = []
     for (const f of fights) {
       for (const colour of ['red', 'blue']) {
         const me = f[colour], opp = f[colour === 'red' ? 'blue' : 'red']
-        if (ours(me)) out.push({ f, a: me.athlete, opp, possible: false, colour })
+        if (ours(me) && !isHidden(f, me.athlete)) out.push({ f, a: me.athlete, opp, possible: false, colour })
       }
     }
     // possible next bouts: follow winnerOf chains from each of our bouts
@@ -383,7 +394,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       }
     }
     return out
-  }, [fights, run, s.results, teamAthletes])
+  }, [fights, run, s.results, teamAthletes, s.hiddenBouts, s.hiddenAthletes])
 
   // clashes: same coach (different athletes) or same athlete (different categories) within the window
   const clashes = useMemo(() => {
@@ -736,6 +747,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       </div>
 
       {pickedCoach && !isCoachView && <div className="ffd-muted ffd-onlycoach">👤 Showing {coachName(pickedCoach)} only · <button type="button" className="ffd-jump inline" onClick={() => setOnlyCoach('')}>show all coaches</button></div>}
+      {isAdmin && hiddenCount > 0 && <div className="ffd-muted ffd-onlycoach">{hiddenCount} removed · <button type="button" className="ffd-jump inline" onClick={() => { const patch = { hiddenBouts: [], hiddenAthletes: [] }; setS(patch); shareToEvent?.({ hiddenAthletes: [] }) }}>bring them all back</button></div>}
       {rows.length > 0 && <div className="ffd-muted ffd-count">Showing <b>{countAthletes(listed)}</b> athlete{countAthletes(listed) === 1 ? '' : 's'} · {listed.filter(r => !r.possible).length} bout{listed.filter(r => !r.possible).length === 1 ? '' : 's'}{hidden ? ` (of ${countAthletes(inTab)} athletes)` : ''}</div>}
       {rows.length > 0 && !shown.length ? (
         <div className="card ffd-muted">Nothing to show — tick more in 👁 Show.</div>
@@ -756,7 +768,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
                     {g.rows.map((r, i) => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`, st = styleOf(r.f.title)
                       const cls = clashKeys.has(key) ? 'clash' : overlapKeys.has(key) ? 'overlap' : ''
                       return (
-                        <button key={i} type="button" className={`ffd-coachline ${cls} ${r.possible ? 'possible' : ''}`} style={{ '--sty': st.color }} onClick={() => setCell(r)}>
+                        <button key={i} type="button" className={`ffd-coachline ${cls} ${r.possible ? 'possible' : ''}`} style={{ '--sty': st.color }} {...holdProps(r)} onClick={tapped(() => setCell(r))}>
                           <span className="ffd-cl-time">~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}<i>{areaTxt(r.f.area)}</i></span>
                           <span className="ffd-cl-main"><b>{r.a.name}</b><i>{st.code} {weightOf(r.f.title)} · v {r.f.solo ? 'solo' : (r.opp?.athlete?.name || 'TBC')}{r.possible ? ' · if they win' : ''}</i></span>
                           {cls && <span className="ffd-cl-flag">{cls === 'clash' ? '⚠' : '⏱'}</span>}
@@ -778,7 +790,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
                     {shown.filter(r => (r.f.area ?? null) === a && (r.f.startMin != null ? Math.round(r.f.startMin) : null) === t).map((r, n) => {
                       const k = athleteKey(r.a), clash = clashKeys.has(`${r.f.id}|${k}`), overlap = !clash && overlapKeys.has(`${r.f.id}|${k}`), st = styleOf(r.f.title)
                       return (
-                        <button key={n} type="button" className={`ffd-gb ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''} ${r.possible ? 'possible' : ''}`} style={{ '--sty': st.color }} onClick={() => setCell(r)}>
+                        <button key={n} type="button" className={`ffd-gb ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''} ${r.possible ? 'possible' : ''}`} style={{ '--sty': st.color }} {...holdProps(r)} onClick={tapped(() => setCell(r))}>
                           <b>{String(r.a.name).split(/\s+/)[0]}</b><i>{st.code} {weightOf(r.f.title)}</i>
                         </button>
                       )
@@ -801,7 +813,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
                     <td><b>{areaTxt(r.f.area)}</b></td>
                     <td>{r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?'}{clash && ' ⚠'}</td>
                     <td><span className="ffd-sty" title={styleOf(r.f.title).name}>{styleOf(r.f.title).code}</span> {r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''}</div></td>
-                    <td><button className="ffd-namebtn" onClick={() => setVid({ a: r.a, f: r.f })}><b>{r.a.name}</b> <span>🎥</span></button><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
+                    <td><button className="ffd-namebtn" {...holdProps(r)} onClick={tapped(() => setVid({ a: r.a, f: r.f }))}><b>{r.a.name}</b> <span>🎥</span></button><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
                     <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : r.opp?.athlete
                       ? <button className="ffd-namebtn" onClick={() => setVid({ a: r.opp.athlete, f: r.f })}>{sideTxt(r.opp)} <span>🎥</span></button> : sideTxt(r.opp)}</td>
                     <td>{coachCell(r, k)}</td>
@@ -856,6 +868,20 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           </div>
         </div>
       )}
+      {rmMenu && (() => { const r = rmMenu, onTeam = teamOf(r.a.name)
+        const done = patch => { setS(patch); setRmMenu(null); setCell(c => (c && c.f.id === r.f.id ? null : c)) }
+        return (
+          <div className="ffd-sheet-bg" onClick={() => setRmMenu(null)}>
+            <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
+              <b>{r.a.name}</b>
+              <div className="ffd-muted">{areaTxt(r.f.area)} · ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'} · {r.f.title}</div>
+              <button className="btn" onClick={() => done({ hiddenBouts: [...new Set([...(s.hiddenBouts || []), `${r.f.id}|${athleteKey(r.a)}`])] })}>🙈 Remove this bout (this day)</button>
+              <button className="btn ffd-del" onClick={() => { const hiddenAthletes = [...new Set([...(s.hiddenAthletes || []), nameKey(r.a.name)])]; done({ hiddenAthletes }); shareToEvent?.({ hiddenAthletes }) }}>🗑 Remove {r.a.name} from this event</button>
+              {onTeam && <button className="btn" onClick={() => { setRmMenu(null); removeTeamAthlete(onTeam) }}>👥 Remove from the team list</button>}
+              <button className="btn" onClick={() => setRmMenu(null)}>Cancel</button>
+            </div>
+          </div>
+        ) })()}
       {vid && <VideoSheet a={vid.a} f={vid.f} onClose={() => setVid(null)} />}
       {fights.length > 0 && (
         <details className="card ffd-results" onToggle={e => { if (e.currentTarget.open && evDays === null) loadEvDays() }}>

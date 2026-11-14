@@ -403,6 +403,7 @@ export function dayResults(fin) {
   for (const f of fights) for (const colour of ['red', 'blue']) {
     const me = f[colour]?.athlete, opp = f[colour === 'red' ? 'blue' : 'red']?.athlete
     if (!ours(me) || !opp) continue
+    if ((s.hiddenAthletes || []).includes(nameKey(me.name)) || (s.hiddenBouts || []).includes(`${f.id}|${athleteKey(me)}`)) continue   // removed by hold
     const k = nameKey(me.name), row = by.get(k) || { name: me.name, fights: 0, won: 0, lost: 0 }
     row.fights++
     const res = s.results?.[f.id]
