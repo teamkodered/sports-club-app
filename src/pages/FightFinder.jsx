@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
-import { listPdf, printList } from '../lib/fightFinderPdf.js'
-import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, dedupeBouts, buildFights, matchesSearch, teamFromPdf, teamFromText, teamWords, isTeamName, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
+import { listPdf, printList, resultsPdf } from '../lib/fightFinderPdf.js'
+import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, dedupeBouts, buildFights, dayResults, addResults, totals, winPct, matchesSearch, teamFromPdf, teamFromText, teamWords, isTeamName, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
 // (sportdata PDFs or saved pages), search a club / country, then see our athletes' bouts in tatami
@@ -531,6 +531,36 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
     } catch (e) { if (e?.name !== 'AbortError') alert('Could not make the PDF: ' + (e?.message || e)) }
     setSharing('')
   }
+  // 📊 results: this day, and the whole event (all its days)
+  const [evDays, setEvDays] = useState(null)   // other days of the event (loaded when the box is opened)
+  const loadEvDays = async () => {
+    if (!s.event) return setEvDays([])
+    const { data } = await supabase.from('fight_finders').select('id, title, data, settings').eq('settings->>event', s.event)
+    setEvDays(data || [])
+  }
+  const dayRes = useMemo(() => dayResults({ data: ff.data, settings: s }).sort((a, b) => a.name.localeCompare(b.name)), [ff.data, s])
+  const evRes = useMemo(() => {
+    if (!evDays) return null
+    const days = [...evDays.filter(x => x.id !== ff.id), { id: ff.id, title: ff.title, data: ff.data, settings: s }]
+    return { days: days.length, rows: addResults(days.map(dayResults)).sort((a, b) => a.name.localeCompare(b.name)) }
+  }, [evDays, ff.data, s, ff.id, ff.title])
+  const sumTxt = rows => { const t = totals(rows); return `${t.athletes} athlete${t.athletes === 1 ? '' : 's'} · ${t.fights} fight${t.fights === 1 ? '' : 's'} · ${t.won} won · ${t.lost} lost · win rate ${winPct(t)}${t.fights - t.won - t.lost > 0 ? ` · ${t.fights - t.won - t.lost} not entered` : ''}` }
+  const [resBusy, setResBusy] = useState('')
+  async function shareResults() {
+    const sections = [{ title: `This day — ${ff.title}`, summary: sumTxt(dayRes), rows: dayRes.map(r => ({ ...r, pct: winPct(r) })) }]
+    if (evRes) sections.push({ title: `Competition overall — ${evRes.days} day${evRes.days === 1 ? '' : 's'}`, summary: sumTxt(evRes.rows), rows: evRes.rows.map(r => ({ ...r, pct: winPct(r) })) })
+    setResBusy('Making the PDF…')
+    try {
+      const file = new File([await resultsPdf({ title: `${s.event || ff.title} — results`, sections })], `${String(s.event || ff.title).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}-results.pdf`, { type: 'application/pdf' })
+      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: file.name })
+      else { const url = URL.createObjectURL(file), a = document.createElement('a'); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000) }
+    } catch (e) { if (e?.name !== 'AbortError') alert('Could not make the PDF: ' + (e?.message || e)) }
+    setResBusy('')
+  }
+  const resTable = rows => (
+    <div className="ffd-restable"><table><thead><tr><th>Athlete</th><th>Fights</th><th>Won</th><th>Lost</th><th>Win %</th></tr></thead>
+      <tbody>{rows.map(r => <tr key={r.name}><td>{r.name}</td><td>{r.fights}</td><td>{r.won}</td><td>{r.lost}</td><td><b>{winPct(r)}</b></td></tr>)}</tbody></table></div>
+  )
   // grid view: one column per area, one row per exact estimated time
   const [cell, setCell] = useState(null)
   const weightOf = t => (String(t || '').match(/([+-]\s?\d+(?:[.,]\d+)?)\s*KG/i) || [])[1]?.replace(/\s/g, '').replace(',', '.') || ''
@@ -803,6 +833,18 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         </div>
       )}
       {vid && <VideoSheet a={vid.a} f={vid.f} onClose={() => setVid(null)} />}
+      {fights.length > 0 && (
+        <details className="card ffd-results" onToggle={e => { if (e.currentTarget.open && evDays === null) loadEvDays() }}>
+          <summary><b>📊 Results</b> <span className="ffd-muted">{(t => `${t.won} won · ${t.lost} lost · ${winPct(t)}`)(totals(dayRes))}</span></summary>
+          <div className="ffd-reshead"><b>This day</b><span className="ffd-muted">{sumTxt(dayRes)}</span></div>
+          {dayRes.length ? resTable(dayRes) : <div className="ffd-muted">No fights for our athletes on this day.</div>}
+          {s.event && (evRes ? <>
+            <div className="ffd-reshead"><b>Competition overall</b><span className="ffd-muted">{evRes.days} day{evRes.days === 1 ? '' : 's'} · {sumTxt(evRes.rows)}</span></div>
+            {resTable(evRes.rows)}
+          </> : <div className="ffd-muted">Loading the other days…</div>)}
+          <button className="btn" disabled={!!resBusy || !dayRes.length} onClick={shareResults}>{resBusy || '📤 Share results (PDF)'}</button>
+        </details>
+      )}
       <p className="ffd-muted" style={{ marginTop: 8 }}>~ Times are estimates: each category's (or session's) time spread over its bouts, in order. {athletes.length} athlete{athletes.length === 1 ? '' : 's'} found.</p>
     </div>
   )

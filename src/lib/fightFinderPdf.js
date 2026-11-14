@@ -67,3 +67,29 @@ export function printList({ title, subtitle, rows, groups }) {
   </tbody></table>`).join('')}<p style="margin-top:8px;font-size:10px">~ times are estimates · Klass Champ fight finder</p></body></html>`)
   w.document.close(); w.focus(); setTimeout(() => w.print(), 300)
 }
+
+// results sheet: sections (this day, competition overall), each with totals and a per-athlete table
+export async function resultsPdf({ title, sections }) {
+  const { jsPDF } = await import('jspdf')
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 14
+  const cols = [['Athlete', 86], ['Fights', 22], ['Won', 22], ['Lost', 22], ['Win %', 30]]
+  let y = M + 4
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(20); doc.text(String(title), M, y); y += 9
+  for (const sec of sections) {
+    if (y > H - 40) { doc.addPage(); y = M + 4 }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(20); doc.text(sec.title, M, y); y += 6
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60); doc.text(sec.summary, M, y); y += 7
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(90)
+    let x = M; cols.forEach(([h, w]) => { doc.text(h, x, y); x += w }); y += 2; doc.setDrawColor(180); doc.line(M, y, W - M, y); y += 5
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(20)
+    sec.rows.forEach((r, i) => {
+      if (y > H - M) { doc.addPage(); y = M + 4 }
+      if (i % 2) { doc.setFillColor(246, 246, 246); doc.rect(M, y - 3.8, W - 2 * M, 5.4, 'F') }
+      let x2 = M; [r.name, r.fights, r.won, r.lost, r.pct].forEach((c, j) => { doc.text(String(c), x2, y); x2 += cols[j][1] }); y += 5.4
+    })
+    y += 6
+  }
+  doc.setFontSize(8); doc.setTextColor(130); doc.text('Won / lost from the results entered in Klass Champ fight finder · win % = won ÷ (won + lost)', M, H - 6)
+  return doc.output('blob')
+}

@@ -391,3 +391,30 @@ export function teamFromText(text) {
 // does a fighter's name match a team athlete? every word of the team name must be in the fighter's name (any order)
 export const teamWords = name => nameKey(name).split(' ').filter(Boolean)
 export const isTeamName = (fighterName, words) => { const f = nameKey(fighterName).split(' '); return words.length > 1 && words.every(w => f.includes(w)) }
+
+// ── results: fights / won / lost per athlete for one day (a fight finder's data + settings) ──
+// our athletes = the day's search (club / country / name) or the team list; a fight counts once it has an opponent
+export function dayResults(fin) {
+  const s = fin?.settings || {}, data = fin?.data || {}
+  const fights = buildFights({ schedule: data.schedule || [], draws: data.draws || [], bouts: data.bouts || [], results: s.results || {} })
+  const team = (s.team || []).map(e => teamWords(e.name)).filter(w => w.length > 1)
+  const ours = a => !!a && (matchesSearch(a, s.query ?? 'Kode Red') || team.some(w => isTeamName(a.name, w)))
+  const by = new Map()
+  for (const f of fights) for (const colour of ['red', 'blue']) {
+    const me = f[colour]?.athlete, opp = f[colour === 'red' ? 'blue' : 'red']?.athlete
+    if (!ours(me) || !opp) continue
+    const k = nameKey(me.name), row = by.get(k) || { name: me.name, fights: 0, won: 0, lost: 0 }
+    row.fights++
+    const res = s.results?.[f.id]
+    if (res === colour) row.won++; else if (res) row.lost++
+    by.set(k, row)
+  }
+  return [...by.values()]
+}
+export function addResults(lists) {
+  const by = new Map()
+  lists.flat().forEach(r => { const k = nameKey(r.name), t = by.get(k) || { name: r.name, fights: 0, won: 0, lost: 0 }; t.fights += r.fights; t.won += r.won; t.lost += r.lost; by.set(k, t) })
+  return [...by.values()]
+}
+export const totals = rows => rows.reduce((t, r) => ({ athletes: t.athletes + 1, fights: t.fights + r.fights, won: t.won + r.won, lost: t.lost + r.lost }), { athletes: 0, fights: 0, won: 0, lost: 0 })
+export const winPct = r => (r.won + r.lost ? `${Math.round((100 * r.won) / (r.won + r.lost))}%` : '–')
