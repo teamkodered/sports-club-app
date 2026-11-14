@@ -85,7 +85,7 @@ export default function FightFinder() {
     if (!isAdmin) return
     for (const x of rows) if (!x.settings?.event && /^Competition (08|10|11|12)\/11\/2026$/.test(x.title)) await setEvent(x, WAKO)
     // one-off: days in an event are titled by their date only ("Competition 12/11/2026" -> "12/11/2026")
-    for (const x of rows) { const m = String(x.title).match(/^Competition (\d{1,2}\/\d{1,2}\/\d{4})$/)
+    for (const x of rows) { const m = String(x.title).match(/^Comp\D*(\d{1,2}\/\d{1,2}\/\d{4})$/)
       if (m && (x.settings?.event || /^(08|10|11|12)\/11\/2026$/.test(m[1]))) { const { error } = await supabase.from('fight_finders').update({ title: m[1] }).eq('id', x.id); if (!error) setList(l => l.map(y => (y.id === x.id ? { ...y, title: m[1] } : y))) } }
   }
   // rename an event: every day in it gets the new name
@@ -120,12 +120,15 @@ export default function FightFinder() {
     if (error) return alert('Could not create: ' + error.message)
     setFf(data); nav(`/fight-finder?id=${data.id}`, { replace: true })
   }
+  const saveQ = useRef(Promise.resolve())   // one save at a time, in order
   async function save(patch) {
     const next = { ...ff, ...patch, settings: { ...ff.settings, ...(patch.settings || {}) }, data: patch.data || ff.data }
     setFf(next)
     if (!isAdmin) return
-    const { error } = await supabase.from('fight_finders').update({ title: next.title, data: next.data, settings: next.settings, updated_at: new Date().toISOString() }).eq('id', ff.id)
-    if (error) setMsg('Could not save: ' + error.message)
+    const run = async () => { const { error } = await supabase.from('fight_finders').update({ title: next.title, data: next.data, settings: next.settings, updated_at: new Date().toISOString() }).eq('id', ff.id)
+      if (error) setMsg('Could not save: ' + error.message) }
+    saveQ.current = saveQ.current.then(run, run)
+    return saveQ.current
   }
   const setS = patch => save({ settings: patch })
   async function removeFinder(x) {
@@ -225,7 +228,7 @@ export default function FightFinder() {
 
   const allStaff = [...staff, ...mergeGuests(guests, ff.settings?.guests || [])].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
   return <FinderView ff={ff} staff={allStaff} setGuests={setGuests} isAdmin={isAdmin} busy={busy} msg={msg} view={view} setView={setView}
-    onFiles={loadFiles} setS={setS} save={save} shareToEvent={shareToEvent} renameEvent={renameEvent} clearMsg={() => setMsg('')} onBack={() => { setFf(null); setMsg(''); nav('/fight-finder', { replace: true }) }} />
+    onFiles={loadFiles} setS={setS} save={save} shareToEvent={shareToEvent} renameEvent={renameEvent} clearMsg={() => setMsg('')} onBack={() => { setList(l => l?.map(y => (y.id === ff.id ? { ...y, title: ff.title, settings: ff.settings, updated_at: new Date().toISOString() } : y))); setFf(null); setMsg(''); nav('/fight-finder', { replace: true }) }} />
 }
 
 function mergeBy(oldList, newList, key) {
@@ -514,7 +517,9 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         : <div className="ffd-evtop">📁 {s.event}</div>)}
       <div className="ffd-head">
         <button className="btn btn-sm" onClick={onBack}>← All</button>
-        {isAdmin ? <input className="ffd-title" value={ff.title} onChange={e => save({ title: e.target.value })} /> : <h1>{ff.title}</h1>}
+        {isAdmin ? <input className="ffd-title" key={ff.id} defaultValue={ff.title}
+          onBlur={e => { const v = e.target.value.trim(); if (!v) e.target.value = ff.title; else if (v !== ff.title) save({ title: v }) }}
+          onKeyDown={e => e.key === 'Enter' && e.target.blur()} /> : <h1>{ff.title}</h1>}
       </div>
       {(
         <details className="card ffd-team">
