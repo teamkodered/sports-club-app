@@ -501,6 +501,12 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
     <button key={j} type="button" className={`ffd-jump ${c.type === 'time' ? 'ffd-sametime-txt' : ''}`} onClick={() => onJump(c.other)}>{c.type === 'time' ? `⏱ Same time: ${c.other.a.name}` : `⚠ ${c.type === 'athlete' ? 'Own bout' : `${(coachName(c.coach) || 'Coach').split(' ')[0]}: ${c.other.a.name}`}`}
       <span className="ffd-muted"> · {areaTxt(c.other.f.area)} ~{c.other.f.startMin != null ? fromMin(c.other.f.startMin) : '?'} · {c.other.f.label || c.other.f.title} ↓</span></button>
   ))
+  // notes on an athlete's bout (saved when you leave the box)
+  const noteKey = r => `${r.f.id}|${athleteKey(r.a)}`
+  const noteCell = (r, big = false) => isAdmin
+    ? <textarea key={noteKey(r) + (s.notes?.[noteKey(r)] || '')} className={`ffd-note ${big ? 'big' : ''}`} rows={big ? 3 : 2} defaultValue={s.notes?.[noteKey(r)] || ''} placeholder={big ? 'Notes for this bout…' : 'Notes…'}
+        onBlur={e => { const v = e.target.value.trim(); if (v !== (s.notes?.[noteKey(r)] || '')) setS({ notes: { ...(s.notes || {}), [noteKey(r)]: v || undefined } }) }} />
+    : <span className="ffd-muted">{s.notes?.[noteKey(r)] || ''}</span>
   const resultCell = r => { const res = s.results?.[r.f.id]
     return !r.possible && r.opp?.athlete && isAdmin ? (
       <span className="ffd-res">
@@ -785,7 +791,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         ) : (
         <div className="ffd-table-wrap">
           <table className="ffd-table">
-            <thead><tr><th>Tatami</th><th>~Time</th><th>Category · bout</th><th>Our athlete</th><th>Opponent</th><th>Coach</th><th>Clashes with</th><th>Result</th></tr></thead>
+            <thead><tr><th>Tatami</th><th>~Time</th><th>Category · bout</th><th>Our athlete</th><th>Opponent</th><th>Coach</th><th>Clashes with</th><th>Notes</th><th>Result</th></tr></thead>
             <tbody>
               {shown.map((r, i) => {
                 const k = athleteKey(r.a)
@@ -800,6 +806,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
                       ? <button className="ffd-namebtn" onClick={() => setVid({ a: r.opp.athlete, f: r.f })}>{sideTxt(r.opp)} <span>🎥</span></button> : sideTxt(r.opp)}</td>
                     <td>{coachCell(r, k)}</td>
                     <td className="ffd-clashcell">{clashCell(r, k, goTo)}</td>
+                    <td className="ffd-notecell">{noteCell(r)}</td>
                     <td>{resultCell(r)}</td>
                   </tr>
                 )
@@ -822,7 +829,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
               <div className="ffd-cellrow">{resultCell(r)}
                 <button className="btn" onClick={() => setVid({ a: r.a, f: r.f })}>🎥 {String(r.a.name).split(/\s+/)[0]}</button>
                 {r.opp?.athlete && <button className="btn" onClick={() => setVid({ a: r.opp.athlete, f: r.f })}>🎥 {String(r.opp.athlete.name).split(/\s+/)[0]}</button>}</div>
-              <button className="btn" onClick={() => setCell(null)}>Close</button>
+              {noteCell(r, true)}
             </div>
           </div>
         ) })()}
