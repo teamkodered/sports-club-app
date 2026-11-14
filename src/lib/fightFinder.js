@@ -264,6 +264,14 @@ export function buildFights({ schedule = [], draws = [], bouts = [], results = {
 // the guesses add up to, the session is squeezed to fit.
 // the same two fighters in the same category on the same day is one bout: when an updated schedule
 // gives it a new bout number / time, keep only the latest copy (later in the list = uploaded later)
+// a newer upload of a session (same day + area + session) replaces that session's bouts completely,
+// so bouts dropped or re-paired since (withdrawals, walkovers) don't linger
+export function replaceSessions(oldBouts, newBouts) {
+  const key = b => `${b.date}|${b.area}|${b.session}`
+  const fresh = new Set(newBouts.map(key))
+  const kept = oldBouts.filter(b => !fresh.has(key(b)))
+  return { bouts: [...kept, ...newBouts], dropped: oldBouts.filter(b => fresh.has(key(b)) && !newBouts.some(n => n.id === b.id)) }
+}
 export function dedupeBouts(bouts) {
   const key = b => b.red?.athlete && b.blue?.athlete ? `${b.date}|${normTitle(b.title)}|${pairKey(b.red, b.blue)}` : null
   const last = new Map(); bouts.forEach((b, i) => { const k = key(b); if (k) last.set(k, i) })
@@ -288,7 +296,9 @@ function addScheduledBouts(fights, bouts, results) {
       t += lens[i] * k
       const drawn = b.red?.athlete && b.blue?.athlete ? fromDraws.get(pairKey(b.red, b.blue)) : null
       if (drawn) { Object.assign(drawn, timing); return }   // the bracket has clubs + next rounds; take the schedule's tatami and time
-      fights.push({ ...timing, id: b.id, title: b.title, round: b.phase, red: b.red, blue: b.blue, solo: !b.blue?.athlete, result: results[b.id] || null })
+      const forms = b.phase === 'OT' || FORMS.includes(styleOf(b.title).code)
+      const empty = !forms && (!b.red?.athlete || !b.blue?.athlete)
+      fights.push({ ...timing, id: b.id, title: b.title, round: b.phase, red: b.red, blue: b.blue, solo: forms && !b.blue?.athlete, emptySlot: empty, result: results[b.id] || null })
     })
   }
 }

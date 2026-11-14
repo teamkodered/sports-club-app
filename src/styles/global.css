@@ -2100,3 +2100,6 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-note { width: 100%; min-width: 140px; font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 6px; border: 1px dashed var(--border-strong); background: transparent; color: var(--text); resize: vertical; -webkit-user-select: text; user-select: text; }
 .ffd-note:focus { border-style: solid; background: var(--bg-secondary); outline: none; }
 .ffd-note.big { font-size: 15px; padding: 10px; }
+
+.ffd-clashwrap .ffd-slots { margin: 0; padding: 8px 0 0 10px; border-top: 1px solid var(--border-strong); border-left: 4px solid #3B82F6; font-size: 14px; }
+.ffd-slots .ffd-clash-row { padding: 4px 0; }

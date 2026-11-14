@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { listPdf, printList, resultsPdf } from '../lib/fightFinderPdf.js'
-import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, dedupeBouts, buildFights, dayResults, addResults, totals, winPct, matchesSearch, teamFromPdf, teamFromText, teamWords, isTeamName, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
+import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, dedupeBouts, replaceSessions, buildFights, dayResults, addResults, totals, winPct, matchesSearch, teamFromPdf, teamFromText, teamWords, isTeamName, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
 // (sportdata PDFs or saved pages), search a club / country, then see our athletes' bouts in tatami
@@ -177,8 +177,10 @@ export default function FightFinder() {
           const sch = scheduleFromPdf(pages), drw = drawsFromPdf(pages), bts = boutsFromDailySchedulePdf(pages)
           if (sch.length) { schedule = mergeBy(schedule, sch, s => `${s.date}|${normTitle(s.title)}`); notes.push(`${f.name}: ${sch.length} schedule rows`) }
           if (drw.length) { draws = mergeBy(draws, drw, d => normTitle(d.title)); notes.push(`${f.name}: ${drw.length} brackets`) }
-          if (bts.length) { const merged = mergeBy(bouts, bts, b => b.id); bouts = dedupeBouts(merged); const gone = merged.length - bouts.length
-            notes.push(`${f.name}: ${bts.length} bouts${gone > 0 ? ` (${gone} older cop${gone === 1 ? 'y' : 'ies'} replaced)` : ''}`) }
+          if (bts.length) {
+            const r = replaceSessions(bouts, bts), merged = r.bouts; bouts = dedupeBouts(merged)
+            const sessions = new Set(bts.map(b => `${b.area} s${b.session}`)).size, gone = r.dropped.length + (merged.length - bouts.length)
+            notes.push(`${f.name}: ${bts.length} bouts in ${sessions} session${sessions === 1 ? '' : 's'}${gone > 0 ? ` (${gone} old bout${gone === 1 ? '' : 's'} replaced or removed)` : ''}`) }
           if (!sch.length && !drw.length && !bts.length) {
             const words = pages.flat().map(l => l.text).join(' ').trim().length
             notes.push(words < 20 ? `${f.name}: no text in this PDF (a photo or scan?) -- use the PDF downloaded from the competition site`
@@ -393,8 +395,23 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         cur = next
       }
     }
+    // empty slots: a later bout in the same category on the same day with a fighter still to be named
+    const ORDER = ['R64', 'R32', 'R16', 'QF', 'SF', 'F']
+    for (const r of out.filter(o => !o.possible)) {
+      if (s.results?.[r.f.id] && s.results[r.f.id] !== r.colour) continue   // lost - no next bout
+      const slots = fights.filter(n => n.emptySlot && n.id !== r.f.id && n.date === r.f.date && normTitle(n.title) === normTitle(r.f.title)
+        && (n.startMin ?? 9e9) > (r.f.startMin ?? -1) && (ORDER.indexOf(n.round) < 0 || ORDER.indexOf(r.f.round) < 0 || ORDER.indexOf(n.round) > ORDER.indexOf(r.f.round)))
+      const firstRound = slots.length ? slots.map(n => n.round).sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b))[0] : null
+      slots.filter(n => n.round === firstRound).forEach((n, _, all) => {
+        if (out.some(o => o.f.id === n.id && athleteKey(o.a) === athleteKey(r.a))) return
+        const side = !n.red?.athlete ? 'red' : 'blue'
+        out.push({ f: n, a: r.a, opp: n[side === 'red' ? 'blue' : 'red'], possible: true, colour: side, via: r.f.id, emptySlot: true, slotOf: all.length })
+      })
+    }
     return out
   }, [fights, run, s.results, teamAthletes, s.hiddenBouts, s.hiddenAthletes])
+  const emptySlotRows = rows.filter(r => r.emptySlot)
+  const ifWin = r => !r.possible ? '' : r.emptySlot ? ` · ⏳ empty slot, if they win${r.slotOf > 1 ? ` (one of ${r.slotOf})` : ''}` : ' · if they win'
 
   // clashes: same coach (different athletes) or same athlete (different categories) within the window
   const clashes = useMemo(() => {
@@ -709,6 +726,14 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             ))}
           </div>
         )}
+        {emptySlotRows.length > 0 && (
+          <div className="ffd-slots">
+            <b>⏳ {new Set(emptySlotRows.map(r => athleteKey(r.a))).size} athlete{new Set(emptySlotRows.map(r => athleteKey(r.a))).size === 1 ? '' : 's'} could fight again today</b> <span className="ffd-muted">— empty slot{emptySlotRows.length === 1 ? '' : 's'} later in their category, if they win</span>
+            {emptySlotRows.map((r, i) => (
+              <div key={i} className="ffd-clash-row"><button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name} · {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'} · {r.f.round} bout {r.f.boutNo}{r.slotOf > 1 ? ` (one of ${r.slotOf})` : ''}</button></div>
+            ))}
+          </div>
+        )}
         {(
           <details className="ffd-sametime">
             <summary>{sameTime.length ? <><b>⏱ {sameTime.length} pair{sameTime.length === 1 ? '' : 's'} of bouts on at the same time</b> <span className="ffd-muted">— different areas, need separate coaches</span></> : <b className="ffd-muted">⏱ No bouts on at the same time</b>}</summary>
@@ -770,7 +795,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
                       return (
                         <button key={i} type="button" className={`ffd-coachline ${cls} ${r.possible ? 'possible' : ''}`} style={{ '--sty': st.color }} {...holdProps(r)} onClick={tapped(() => setCell(r))}>
                           <span className="ffd-cl-time">~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}<i>{areaTxt(r.f.area)}</i></span>
-                          <span className="ffd-cl-main"><b>{r.a.name}</b><i>{st.code} {weightOf(r.f.title)} · v {r.f.solo ? 'solo' : (r.opp?.athlete?.name || 'TBC')}{r.possible ? ' · if they win' : ''}</i></span>
+                          <span className="ffd-cl-main"><b>{r.a.name}</b><i>{st.code} {weightOf(r.f.title)} · v {r.f.solo ? 'solo' : (r.opp?.athlete?.name || 'TBC')}{ifWin(r)}</i></span>
                           {cls && <span className="ffd-cl-flag">{cls === 'clash' ? '⚠' : '⏱'}</span>}
                         </button>
                       ) })}
@@ -791,7 +816,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
                       const k = athleteKey(r.a), clash = clashKeys.has(`${r.f.id}|${k}`), overlap = !clash && overlapKeys.has(`${r.f.id}|${k}`), st = styleOf(r.f.title)
                       return (
                         <button key={n} type="button" className={`ffd-gb ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''} ${r.possible ? 'possible' : ''}`} style={{ '--sty': st.color }} {...holdProps(r)} onClick={tapped(() => setCell(r))}>
-                          <b>{String(r.a.name).split(/\s+/)[0]}</b><i>{st.code} {weightOf(r.f.title)}</i>
+                          <b>{r.emptySlot ? '⏳ ' : ''}{String(r.a.name).split(/\s+/)[0]}</b><i>{st.code} {weightOf(r.f.title)}</i>
                         </button>
                       )
                     })}
@@ -812,7 +837,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
                   <tr key={i} id={rowId(r)} className={`${r.possible ? 'possible' : ''} ${clash ? 'clash' : ''} ${overlap ? 'overlap' : ''}`} style={{ '--sty': styleOf(r.f.title).color }}>
                     <td><b>{areaTxt(r.f.area)}</b></td>
                     <td>{r.f.startMin != null ? `~${fromMin(r.f.startMin)}` : '?'}{clash && ' ⚠'}</td>
-                    <td><span className="ffd-sty" title={styleOf(r.f.title).name}>{styleOf(r.f.title).code}</span> {r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''}</div></td>
+                    <td><span className="ffd-sty" title={styleOf(r.f.title).name}>{styleOf(r.f.title).code}</span> {r.f.title}<div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{ifWin(r)}</div></td>
                     <td><button className="ffd-namebtn" {...holdProps(r)} onClick={tapped(() => setVid({ a: r.a, f: r.f }))}><b>{r.a.name}</b> <span>🎥</span></button><div className="ffd-muted">{[r.a.club, r.a.country].filter(Boolean).join(', ')}</div></td>
                     <td className={!r.opp?.athlete ? 'tbc' : ''}>{r.f.solo ? 'solo (forms)' : r.opp?.athlete
                       ? <button className="ffd-namebtn" onClick={() => setVid({ a: r.opp.athlete, f: r.f })}>{sideTxt(r.opp)} <span>🎥</span></button> : sideTxt(r.opp)}</td>
@@ -834,7 +859,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             <div className="ffd-sheet ffd-cellsheet" onClick={e => e.stopPropagation()} style={{ '--sty': st.color }}>
               <div className="ffd-cellhead"><b>{r.a.name}</b><span className="ffd-muted">{areaTxt(r.f.area)} · ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</span></div>
               <div><span className="ffd-sty">{st.code}</span> {r.f.title}</div>
-              <div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{r.possible ? ' · if they win' : ''} · {[r.a.club, r.a.country].filter(Boolean).join(', ')}</div>
+              <div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{ifWin(r)} · {[r.a.club, r.a.country].filter(Boolean).join(', ')}</div>
               <div>v {r.f.solo ? 'solo (forms)' : sideTxt(r.opp)}</div>
               {(clashWith[`${r.f.id}|${k}`] || []).length > 0 && <div className="ffd-clashcell">{clashCell(r, k, o => setCell(o))}</div>}
               <div className="ffd-cellrow"><span className="ffd-muted">Coach</span>{coachCell(r, k)}</div>
