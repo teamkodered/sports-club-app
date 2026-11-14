@@ -509,11 +509,11 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           </div>
           {stale && <div className="ffd-muted">Changed — press Go to update.</div>}
           {isAdmin && (
-            <details className="ffd-load ffd-teamcoaches">
-              <summary><b>Load schedule / bout list</b> <span className="ffd-muted">{busy || [[(ff.data?.bouts || []).length, 'bouts'], [(ff.data?.schedule || []).length, 'schedule rows'], [(ff.data?.draws || []).length, 'brackets']].filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(' · ').replace(/(.+)/, '$1 loaded') || 'nothing loaded yet'}</span></summary>
+            <div className="ffd-load ffd-teamload2">
+              <div className="ffd-loadhead"><b>Load schedule / bout list</b> <span className="ffd-muted">{busy || [[(ff.data?.bouts || []).length, 'bouts'], [(ff.data?.schedule || []).length, 'schedule rows'], [(ff.data?.draws || []).length, 'brackets']].filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(' · ').replace(/(.+)/, '$1 loaded') || 'nothing loaded yet'}</span></div>
               <label className="btn ffd-pick">📄 Choose files<input type="file" multiple accept=".pdf,.html,.htm" hidden onChange={e => { e.target.files?.length && onFiles([...e.target.files]); e.target.value = '' }} /></label>
               {msg && <div className="ffd-muted">{msg}</div>}
-            </details>
+            </div>
           )}
         {isAdmin && (
           <details className="ffd-teamcoaches">
