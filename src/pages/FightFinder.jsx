@@ -229,8 +229,8 @@ export default function FightFinder() {
       {picker && (
         <div className="ffd-sheet-bg" onClick={() => setPicker(null)}>
           <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
-            <b>{picker.x ? `Move “${picker.x.title}” to…` : 'New fight finder — which event?'}</b>
-            {events.map(e => <button key={e} className="btn" onClick={() => pickEvent(e)}>📁 {e}</button>)}
+            <b>{picker.x ? `Move “${picker.x.title}” to…` : 'New fight finder — new event'}</b>
+            {picker.x && events.map(e => <button key={e} className="btn" onClick={() => pickEvent(e)}>📁 {e}</button>)}
             <div className="ffd-addcoach">
               <input value={newEvent} onChange={e => setNewEvent(e.target.value)} placeholder="New event name" onKeyDown={e => e.key === 'Enter' && newEvent.trim() && pickEvent(newEvent.trim())} />
               <button className="btn" disabled={!newEvent.trim()} onClick={() => pickEvent(newEvent.trim())}>+ New</button>
