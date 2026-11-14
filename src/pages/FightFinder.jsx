@@ -605,8 +605,6 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
 
       {fights.length > 0 && (
         <div className="card ffd-clashwrap">
-          <label className="ffd-window">Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min
-            {!realClashes.length && !sameTime.length && run && <span className="ffd-muted"> · no clashes</span>}</label>
         {realClashes.length > 0 && (
           <div className="ffd-clash">
             <b>⚠ {realClashes.length} possible clash{realClashes.length === 1 ? '' : 'es'}</b> — {realClashes.filter(c => c.type === 'coach').length} coach, {realClashes.filter(c => c.type === 'athlete').length} athlete
@@ -619,9 +617,10 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             ))}
           </div>
         )}
-        {sameTime.length > 0 && (
+        {(
           <details className="ffd-sametime">
-            <summary><b>⏱ {sameTime.length} pair{sameTime.length === 1 ? '' : 's'} of bouts on at the same time</b> <span className="ffd-muted">— different areas, need separate coaches</span></summary>
+            <summary>{sameTime.length ? <><b>⏱ {sameTime.length} pair{sameTime.length === 1 ? '' : 's'} of bouts on at the same time</b> <span className="ffd-muted">— different areas, need separate coaches</span></> : <b className="ffd-muted">⏱ No bouts on at the same time</b>}</summary>
+            <label className="ffd-window">Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
             {sameTime.map((c, i) => (
               <div key={i} className="ffd-clash-row">
                 {[c.A, c.B].map((r, n) => <span key={n}>{n ? '  &  ' : ''}<button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name} {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</button></span>)}

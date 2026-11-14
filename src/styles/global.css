@@ -2071,3 +2071,4 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-clashwrap .ffd-clash, .ffd-clashwrap .ffd-sametime { margin: 0; padding: 8px 0 0 10px; border-top: 1px solid var(--border-strong); }
 .ffd-clashwrap .ffd-clash { border-left: 4px solid #E24B4A; }
 .ffd-clashwrap .ffd-sametime { border-left: 4px solid #EAB308; }
+.ffd-sametime .ffd-window { margin: 8px 0 4px; }
