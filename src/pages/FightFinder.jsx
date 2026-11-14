@@ -122,9 +122,17 @@ export default function FightFinder() {
     return [...g.entries()].map(([event, days]) => ({ event, days: days.sort((a, b) => dayKey(a).localeCompare(dayKey(b))), last: Math.max(...days.map(d => +new Date(d.updated_at))) }))
       .sort((a, b) => (!a.event) - (!b.event) || b.last - a.last)
   })()
+  // a new day in an event starts with the event's search, coaches, clash window, Show ticks and team list from its latest day
+  const carryOver = event => {
+    if (!event) return {}
+    const last = (list || []).filter(x => x.settings?.event === event).sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))[0]?.settings
+    if (!last) return {}
+    const keep = ['query', 'window', 'coaches', 'show', 'team', 'teamCoaches', 'guests']
+    return Object.fromEntries(keep.filter(k => last[k] !== undefined).map(k => [k, last[k]]))
+  }
   async function createFinder(title, fixtureId = null, event = '') {
     const { data, error } = await supabase.from('fight_finders').insert({ title, fixture_id: fixtureId, created_by: profile?.id || null,
-      settings: { query: 'Kode Red', window: 10, coaches: [], assign: {}, results: {}, ...(event ? { event } : {}) } }).select().single()
+      settings: { query: 'Kode Red', window: 10, coaches: [], assign: {}, results: {}, ...carryOver(event), ...(event ? { event } : {}) } }).select().single()
     if (error) return alert('Could not create: ' + error.message)
     setFf(data); nav(`/fight-finder?id=${data.id}`, { replace: true })
   }
