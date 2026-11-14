@@ -527,7 +527,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         ...(pickedCoach ? [] : [{ id: '', title: 'No coach yet' }])]
         .map(g => { const rs = listed.filter(r => g.id ? coachIds(athleteKey(r.a)).includes(g.id) : !coachIds(athleteKey(r.a)).length), n2 = new Set(rs.map(r => athleteKey(r.a))).size
           return { title: g.title, note: (b => `${n2} athlete${n2 === 1 ? '' : 's'} · ${b} bout${b === 1 ? '' : 's'}`)(rs.filter(r => !r.possible).length), rows: rs.map(toRow) } })
-        .filter(g => g.rows.length || g.title !== 'No coach yet') : null,
+        .filter(g => g.rows.length) : null,
     }
   }
   const fileName = () => `${String(ff.title || 'fight-finder').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}${pickedCoach ? '-' + (coachName(pickedCoach) || 'coach').split(' ')[0] : ''}.pdf`
@@ -741,7 +741,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             {!pickedCoach && coaches.length > 1 && <div className="ffd-muted ffd-onlycoach">Hold 👤 Coaches to pick one coach.</div>}
             {[...coaches.map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name || ''}`.trim(), rows: shown.filter(r => coachIds(athleteKey(r.a)).includes(c.id)) })),
               { id: '', name: 'No coach yet', rows: shown.filter(r => !coachIds(athleteKey(r.a)).length) }]
-              .filter(g => g.id || g.rows.length).filter(g => !onlyCoach || g.id === onlyCoach).map(g => {
+              .filter(g => g.rows.length).filter(g => !onlyCoach || g.id === onlyCoach).map(g => {
                 const n = new Set(g.rows.map(r => athleteKey(r.a))).size
                 return (
                   <div key={g.id || 'none'} className={`card ffd-coachcard ${g.id ? '' : 'none'}`}>
