@@ -526,7 +526,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         <details className="card ffd-team">
           <summary><b>👥 Team</b> <span className="ffd-muted">{teamAthletes.length ? `${teamAthletes.length} athletes · ${teamEntries.length} entries · ${teamFound.size} on this day` : 'none yet'}</span></summary>
           <div className="ffd-search ffd-teamsearch">
-            <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Kode Red, GBR, Tylee" /></label>
+            <label>Club / country / name <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { find(); e.target.blur() } }} enterKeyHint="go" placeholder="Kode Red, GBR, Tylee" /></label>
             <button className="btn btn-primary ffd-go" onClick={find} disabled={!fights.length}>Go</button>
           </div>
           {stale && <div className="ffd-muted">Changed — press Go to update.</div>}
@@ -621,7 +621,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         {(
           <details className="ffd-sametime">
             <summary>{sameTime.length ? <><b>⏱ {sameTime.length} pair{sameTime.length === 1 ? '' : 's'} of bouts on at the same time</b> <span className="ffd-muted">— different areas, need separate coaches</span></> : <b className="ffd-muted">⏱ No bouts on at the same time</b>}</summary>
-            <label className="ffd-window">Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} style={{ width: 60 }} /> min</label>
+            <label className="ffd-window">Clash window ±<input type="number" min="0" max="60" value={windowMin} onChange={e => setS({ window: Number(e.target.value) || 0 })} onKeyDown={e => e.key === 'Enter' && e.target.blur()} enterKeyHint="done" style={{ width: 60 }} /> min</label>
             {sameTime.map((c, i) => (
               <div key={i} className="ffd-clash-row">
                 {[c.A, c.B].map((r, n) => <span key={n}>{n ? '  &  ' : ''}<button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name} {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</button></span>)}
