@@ -662,10 +662,10 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   return (
     <div className="ffd">
       {s.event && (isAdmin
-        ? <div className="ffd-evtop">📁 <input key={s.event} defaultValue={s.event} aria-label="Event name"
+        ? <div className="ffd-evtop"><input key={s.event} defaultValue={s.event} aria-label="Event name"
             onBlur={e => { const v = e.target.value.trim(); if (!v) e.target.value = s.event; else if (v !== s.event) renameEvent(s.event, v) }}
             onKeyDown={e => e.key === 'Enter' && e.target.blur()} /></div>
-        : <div className="ffd-evtop">📁 {s.event}</div>)}
+        : <div className="ffd-evtop">{s.event}</div>)}
       <div className="ffd-head">
         <button className="btn btn-sm" onClick={onBack}>← All</button>
         {isAdmin ? <input className="ffd-title" key={ff.id} defaultValue={ff.title}
