@@ -62,7 +62,7 @@ export default function FightFinder() {
       const csrc = needCoaches ? (sib || []).find(x => (x.settings?.coaches || []).length) : null
       if (tsrc || csrc) {
         const settings = { ...data.settings,
-          ...(tsrc ? { team: tsrc.settings.team, teamCoaches: tsrc.settings.teamCoaches || {} } : {}),
+          ...(tsrc ? { team: tsrc.settings.team, teamCoaches: tsrc.settings.teamCoaches || {}, teamPhotos: tsrc.settings.teamPhotos || {} } : {}),
           ...(csrc ? { coaches: csrc.settings.coaches, guests: csrc.settings.guests || [] } : {}) }
         setFf(f => (f?.id === id ? { ...f, settings } : f))
         if (isAdmin) await supabase.from('fight_finders').update({ settings }).eq('id', id)
@@ -131,7 +131,7 @@ export default function FightFinder() {
     if (!event) return {}
     const last = (list || []).filter(x => x.settings?.event === event).sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))[0]?.settings
     if (!last) return {}
-    const keep = ['query', 'window', 'coaches', 'show', 'team', 'teamCoaches', 'guests']
+    const keep = ['query', 'window', 'coaches', 'show', 'team', 'teamCoaches', 'teamPhotos', 'guests', 'hiddenAthletes']
     return Object.fromEntries(keep.filter(k => last[k] !== undefined).map(k => [k, last[k]]))
   }
   async function createFinder(title, fixtureId = null, event = '') {
@@ -342,6 +342,33 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       else addTeam(teamFromText(await f.text()), f.name)
     } catch (e) { alert(`${f.name}: ${e.message}`) }
     setTeamBusy('')
+  }
+  // athlete photos: shrunk on the phone, stored in the club's media bucket, the link kept with the team list
+  const photoOf = name => { const t = teamOf(name); return t ? s.teamPhotos?.[t.key] : null }
+  async function shrink(file) {
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(file) })
+    const k = Math.min(1, 360 / Math.max(img.width, img.height)), c = document.createElement('canvas')
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+    return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.85))
+  }
+  async function uploadPhotos(pairs) {   // [[teamAthlete, file], ...]
+    const add = {}
+    for (const [t, file] of pairs) {
+      const path = `fight-finder/${String(s.event || ff.id).replace(/[^\w-]+/g, '-')}/${t.key.replace(/\s+/g, '-')}-${Date.now()}.jpg`
+      const { error } = await supabase.storage.from('athlete-media').upload(path, await shrink(file), { contentType: 'image/jpeg' })
+      if (error) { alert(`${t.name}: ${error.message}`); continue }
+      add[t.key] = supabase.storage.from('athlete-media').getPublicUrl(path).data.publicUrl
+    }
+    if (Object.keys(add).length) setTeam({ teamPhotos: { ...(s.teamPhotos || {}), ...add } })
+    return Object.keys(add).length
+  }
+  async function bulkPhotos(files) {   // file names like "Tylee Dylan.jpg" or "dylan_tylee.png"
+    setTeamBusy('Uploading photos…')
+    const pairs = [], missed = []
+    for (const f of files) { const w = nameKey(f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[_.]+/g, ' ')).split(' ')
+      const t = teamAthletes.find(a => a.words.every(x => w.includes(x))); if (t) pairs.push([t, f]); else missed.push(f.name) }
+    const n = await uploadPhotos(pairs); setTeamBusy('')
+    alert(`${n} photo${n === 1 ? '' : 's'} added.${missed.length ? `\nNo team athlete matched: ${missed.join(', ')}` : ''}`)
   }
   const removeTeamAthlete = t => { if (confirm(`Remove ${t.name} from the team list?`)) setTeam({ team: teamEntries.filter(e => teamWords(e.name).join(' ') !== t.key), teamCoaches: Object.fromEntries(Object.entries(s.teamCoaches || {}).filter(([k]) => k !== t.key)) }) }
   const setTeamSlot = (t, i, id) => { const ids = [...teamCoachIds(t)]; if (id) ids[i] = id; else ids.splice(i, 1); setTeam({ teamCoaches: { ...(s.teamCoaches || {}), [t.key]: ids.filter(Boolean) } }) }
@@ -689,6 +716,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             <summary>Athletes at this event ({teamAthletes.length})</summary>
             {isAdmin && (
               <div className="ffd-teamload">
+                <label className="btn">📷 Add photos<input type="file" accept="image/*" multiple hidden onChange={e => { const fs = [...(e.target.files || [])]; e.target.value = ''; if (fs.length) bulkPhotos(fs) }} /></label>
                 <label className="btn">{teamBusy || '📄 Upload team sheet'}<input type="file" accept=".pdf,.csv,.txt" hidden onChange={e => { teamFile(e.target.files?.[0]); e.target.value = '' }} /></label>
                 {teamEntries.length > 0 && <button className="btn ffd-del" onClick={() => confirm('Clear the whole team list (all days of this event)?') && setTeam({ team: [], teamCoaches: {} })}>Clear</button>}
               </div>
@@ -703,7 +731,9 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             <div className="ffd-teamlist">
               {teamAthletes.map(t => (
                 <div key={t.key} className={`ffd-teamrow ${teamFound.has(t.key) ? '' : 'away'}`}>
-                  <div className="ffd-teamname"><b>{t.name}</b>{teamFound.has(t.key) ? <span className="ffd-on">✓ on this day</span> : <span className="ffd-muted">not on this day</span>}
+                  <div className="ffd-teamname">{isAdmin
+                    ? <label className="ffd-avatar" title="Add / change photo">{s.teamPhotos?.[t.key] ? <img src={s.teamPhotos[t.key]} alt="" /> : '📷'}<input type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadPhotos([[t, f]]) }} /></label>
+                    : s.teamPhotos?.[t.key] && <span className="ffd-avatar"><img src={s.teamPhotos[t.key]} alt="" /></span>}<b>{t.name}</b>{teamFound.has(t.key) ? <span className="ffd-on">✓ on this day</span> : <span className="ffd-muted">not on this day</span>}
                     {isAdmin && <button type="button" className="ffd-x" title="Remove from team" onClick={() => removeTeamAthlete(t)}>✕</button>}</div>
                   <div className="ffd-teamcats">{t.entries.map((e, n) => <span key={n} className="ffd-sty" style={{ '--sty': styleOf(`01 ${e.style || ''} `).color }} title={e.cat}>{e.style || '?'} {e.weight}</span>)}</div>
                   {isAdmin ? (
@@ -872,7 +902,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
         return (
           <div className="ffd-sheet-bg" onClick={() => setCell(null)}>
             <div className="ffd-sheet ffd-cellsheet" onClick={e => e.stopPropagation()} style={{ '--sty': st.color }}>
-              <div className="ffd-cellhead"><b>{r.a.name}</b><span className="ffd-muted">{areaTxt(r.f.area)} · ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</span></div>
+              <div className="ffd-cellhead">{photoOf(r.a.name) && <img className="ffd-photo" src={photoOf(r.a.name)} alt="" />}<b>{r.a.name}</b><span className="ffd-muted">{areaTxt(r.f.area)} · ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'}</span></div>
               <div><span className="ffd-sty">{st.code}</span> {r.f.title}</div>
               <div className="ffd-muted">{r.f.label || `R${r.f.round} · bout ${r.f.boutNo}/${r.f.boutsInCat}`}{ifWin(r)} · {[r.a.club, r.a.country].filter(Boolean).join(', ')}</div>
               <div>v {r.f.solo ? 'solo (forms)' : sideTxt(r.opp)}</div>
@@ -922,7 +952,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             </div>
           </div>
         ) })()}
-      {vid && <VideoSheet a={vid.a} f={vid.f} onClose={() => setVid(null)} />}
+      {vid && <VideoSheet a={vid.a} f={vid.f} photo={photoOf(vid.a.name)} onClose={() => setVid(null)} />}
       {fights.length > 0 && (
         <details className="card ffd-results" onToggle={e => { if (e.currentTarget.open && evDays === null) loadEvDays() }}>
           <summary><b>📊 Results</b> <span className="ffd-muted">{`${dayTot.won} won · ${dayTot.lost} lost · ${winPct(dayTot)}`}</span></summary>
@@ -944,7 +974,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
 
 // tap a fighter -> YouTube / Google video searches for their fights. Draw sheets write "Surname First",
 // so the search uses "First Surname" (last word moved to the front) and the name as written.
-function VideoSheet({ a, f, onClose }) {
+function VideoSheet({ a, f, photo, onClose }) {
   const words = String(a.name || '').trim().split(/\s+/)
   const flipped = words.length > 1 ? [words[words.length - 1], ...words.slice(0, -1)].join(' ') : a.name
   const nice = flipped.toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase())
@@ -954,7 +984,7 @@ function VideoSheet({ a, f, onClose }) {
   return (
     <div className="ffd-sheet-bg" onClick={onClose}>
       <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
-        <b>🎥 {nice}</b>
+        <div className="ffd-vidhead">{photo && <img className="ffd-photo" src={photo} alt="" />}<b>🎥 {nice}</b></div>
         <div className="ffd-muted">{[a.club, a.country, style.name !== 'Other' ? style.name : null].filter(Boolean).join(' · ')}</div>
         <a className="btn btn-primary ffd-vidlink ffd-vidmain" href={yt(`"${nice}" kickboxing`)} target="_blank" rel="noreferrer">▶ Find {nice}'s fights on YouTube</a>
         <div className="ffd-vidmore">
