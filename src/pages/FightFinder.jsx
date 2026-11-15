@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
-import { listPdf, printList, resultsPdf } from '../lib/fightFinderPdf.js'
+import { listPdf, printList, resultsPdf, gridPdf, printGrid } from '../lib/fightFinderPdf.js'
 import { pdfLines, scheduleFromPdf, scheduleFromHtml, drawsFromPdf, drawFromHtml, boutsFromDailySchedulePdf, dedupeBouts, replaceSessions, buildFights, dayResults, addResults, totals, winPct, matchesSearch, teamFromPdf, teamFromText, teamWords, isTeamName, styleOf, kindOf, STYLES, athleteKey, fromMin, normTitle, nameKey } from '../lib/fightFinder.js'
 
 // 🥊 Fight finder -- from the Calendar (ad-hoc) or an event. Load the competition's schedule + draws
@@ -564,6 +564,14 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
       title: ff.title || 'Fight finder',
       subtitle: `${run?.query ? `Search: ${run.query}` : 'All'}${tab} · ${n} athlete${n === 1 ? '' : 's'} · ${listed.filter(r => !r.possible).length} bouts · ${view === 'time' ? 'time order' : view === 'grid' ? 'grid (time order)' : view === 'coaches' ? 'by coach' : 'tatami order'}`,
       rows: listed.map(toRow),
+      grid: view === 'grid' ? {
+        areas: gridAreas.map(areaTxt),
+        rows: gridTimes.map(t => ({ time: t != null ? fromMin(t) : '?', cells: Object.fromEntries(gridAreas.map(a => [areaTxt(a), listed
+          .filter(r => (r.f.area ?? null) === a && (r.f.startMin != null ? Math.round(r.f.startMin) : null) === t)
+          .map(r => { const k = athleteKey(r.a), key = `${r.f.id}|${k}`, st = styleOf(r.f.title)
+            return { name: r.a.name, sub: `${st.code} ${weightOf(r.f.title)} · ${r.f.label || r.f.round}${r.emptySlot ? ' · empty slot' : ''}`, opp: r.f.solo ? 'solo' : (r.opp?.athlete?.name || 'TBC'),
+              color: st.color, flag: clashKeys.has(key) ? 'clash' : overlapKeys.has(key) ? 'time' : null, possible: !!r.possible } })])) })),
+      } : null,
       groups: view === 'coaches' ? [...coaches.filter(c => !pickedCoach || c.id === pickedCoach).map(c => ({ id: c.id, title: `${c.first_name} ${c.last_name || ''}`.trim() })),
         ...(pickedCoach ? [] : [{ id: '', title: 'No coach yet' }])]
         .map(g => { const rs = listed.filter(r => g.id ? coachIds(athleteKey(r.a)).includes(g.id) : !coachIds(athleteKey(r.a)).length), n2 = new Set(rs.map(r => athleteKey(r.a))).size
@@ -574,10 +582,10 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   const fileName = () => `${String(ff.title || 'fight-finder').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}${pickedCoach ? '-' + (coachName(pickedCoach) || 'coach').split(' ')[0] : ''}.pdf`
   async function doShare(how) {
     const d = shareData()
-    if (how === 'print') { printList(d); return setShareOpen(false) }
+    if (how === 'print') { (d.grid ? printGrid : printList)(d); return setShareOpen(false) }
     setSharing(how === 'share' ? 'Making the PDF…' : 'Saving…')
     try {
-      const file = new File([await listPdf(d)], fileName(), { type: 'application/pdf' })
+      const file = new File([await (d.grid ? gridPdf(d) : listPdf(d))], fileName(), { type: 'application/pdf' })
       if (how === 'share' && navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: d.title, text: d.subtitle })
       else { const url = URL.createObjectURL(file), a = document.createElement('a'); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000)
         if (how === 'share') alert('Sharing files isn\'t supported here, so the PDF has been downloaded instead.') }
