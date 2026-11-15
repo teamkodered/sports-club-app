@@ -482,6 +482,13 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
   // keep the Show menu on screen: open it to the right of the pill, or to the left if there isn't room
   const showRef = useRef(null)
   const [showPos, setShowPos] = useState({ left: 0 })
+  // tapping anywhere outside the Show menu closes it
+  useEffect(() => {
+    if (!showOpen) return
+    const away = e => { if (showRef.current && !showRef.current.contains(e.target)) setShowOpen(false) }
+    document.addEventListener('pointerdown', away, true)
+    return () => document.removeEventListener('pointerdown', away, true)
+  }, [showOpen])
   const toggleShow = () => {
     if (!showOpen && showRef.current) {
       const b = showRef.current.getBoundingClientRect(), vw = document.documentElement.clientWidth, w = Math.min(260, vw - 24)
