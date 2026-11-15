@@ -344,6 +344,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
     setTeamBusy('')
   }
   // athlete photos: shrunk on the phone, stored in the club's media bucket, the link kept with the team list
+  const [photoPick, setPhotoPick] = useState(null)   // team athlete whose photo is being added
   const photoOf = name => { const t = teamOf(name); return t ? s.teamPhotos?.[t.key] : null }
   async function shrink(file) {
     const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(file) })
@@ -732,7 +733,7 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
               {teamAthletes.map(t => (
                 <div key={t.key} className={`ffd-teamrow ${teamFound.has(t.key) ? '' : 'away'}`}>
                   <div className="ffd-teamname">{isAdmin
-                    ? <label className="ffd-avatar" title="Add / change photo">{s.teamPhotos?.[t.key] ? <img src={s.teamPhotos[t.key]} alt="" /> : '📷'}<input type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadPhotos([[t, f]]) }} /></label>
+                    ? <button type="button" className="ffd-avatar" title="Add / change photo" onClick={() => setPhotoPick(t)}>{s.teamPhotos?.[t.key] ? <img src={s.teamPhotos[t.key]} alt="" /> : '📷'}</button>
                     : s.teamPhotos?.[t.key] && <span className="ffd-avatar"><img src={s.teamPhotos[t.key]} alt="" /></span>}<b>{t.name}</b>{teamFound.has(t.key) ? <span className="ffd-on">✓ on this day</span> : <span className="ffd-muted">not on this day</span>}
                     {isAdmin && <button type="button" className="ffd-x" title="Remove from team" onClick={() => removeTeamAthlete(t)}>✕</button>}</div>
                   <div className="ffd-teamcats">{t.entries.map((e, n) => <span key={n} className="ffd-sty" style={{ '--sty': styleOf(`01 ${e.style || ''} `).color }} title={e.cat}>{e.style || '?'} {e.weight}</span>)}</div>
@@ -952,6 +953,19 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
             </div>
           </div>
         ) })()}
+      {photoPick && (
+        <div className="ffd-sheet-bg" onClick={() => setPhotoPick(null)}>
+          <div className="ffd-sheet" onClick={e => e.stopPropagation()}>
+            <div className="ffd-vidhead">{s.teamPhotos?.[photoPick.key] && <img className="ffd-photo" src={s.teamPhotos[photoPick.key]} alt="" />}<b>📷 {photoPick.name}</b></div>
+            {[['📸 Take a photo', 'environment'], ['🖼 Choose from phone', null]].map(([label, cap]) => (
+              <label key={label} className="btn ffd-vidlink">{label}
+                <input type="file" accept="image/*" {...(cap ? { capture: cap } : {})} hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; const t = photoPick; setPhotoPick(null); if (f) uploadPhotos([[t, f]]) }} /></label>
+            ))}
+            {s.teamPhotos?.[photoPick.key] && <button className="btn ffd-del" onClick={() => { const teamPhotos = { ...(s.teamPhotos || {}) }; delete teamPhotos[photoPick.key]; setTeam({ teamPhotos }); setPhotoPick(null) }}>🗑 Remove photo</button>}
+            <button className="btn" onClick={() => setPhotoPick(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
       {vid && <VideoSheet a={vid.a} f={vid.f} photo={photoOf(vid.a.name)} onClose={() => setVid(null)} />}
       {fights.length > 0 && (
         <details className="card ffd-results" onToggle={e => { if (e.currentTarget.open && evDays === null) loadEvDays() }}>

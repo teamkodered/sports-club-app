@@ -2113,3 +2113,5 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-cellhead { align-items: center; flex-wrap: wrap; }
 .ffd-vidhead { display: flex; align-items: center; gap: 10px; }
 .ffd-vidhead .ffd-photo { order: 0; margin-left: 0; }
+
+button.ffd-avatar { padding: 0; color: inherit; }
