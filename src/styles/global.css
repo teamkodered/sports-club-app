@@ -2103,3 +2103,5 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 
 .ffd-clashwrap .ffd-slots { margin: 0; padding: 8px 0 0 10px; border-top: 1px solid var(--border-strong); border-left: 4px solid #3B82F6; font-size: 14px; }
 .ffd-slots .ffd-clash-row { padding: 4px 0; }
+
+.ffd-slots summary { cursor: pointer; }

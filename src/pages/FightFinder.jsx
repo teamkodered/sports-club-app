@@ -727,12 +727,12 @@ function FinderView({ ff, staff, setGuests, isAdmin, busy, msg, view, setView, o
           </div>
         )}
         {emptySlotRows.length > 0 && (
-          <div className="ffd-slots">
-            <b>⏳ {new Set(emptySlotRows.map(r => athleteKey(r.a))).size} athlete{new Set(emptySlotRows.map(r => athleteKey(r.a))).size === 1 ? '' : 's'} could fight again today</b> <span className="ffd-muted">— empty slot{emptySlotRows.length === 1 ? '' : 's'} later in their category, if they win</span>
+          <details className="ffd-slots">
+            <summary><b>⏳ {new Set(emptySlotRows.map(r => athleteKey(r.a))).size} athlete{new Set(emptySlotRows.map(r => athleteKey(r.a))).size === 1 ? '' : 's'} could fight again today</b> <span className="ffd-muted">— empty slot{emptySlotRows.length === 1 ? '' : 's'} later in their category, if they win</span></summary>
             {emptySlotRows.map((r, i) => (
               <div key={i} className="ffd-clash-row"><button type="button" className="ffd-jump inline" onClick={() => goTo(r)}>{r.a.name} · {areaTxt(r.f.area)} ~{r.f.startMin != null ? fromMin(r.f.startMin) : '?'} · {r.f.round} bout {r.f.boutNo}{r.slotOf > 1 ? ` (one of ${r.slotOf})` : ''}</button></div>
             ))}
-          </div>
+          </details>
         )}
         {(
           <details className="ffd-sametime">
