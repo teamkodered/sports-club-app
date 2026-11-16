@@ -112,8 +112,9 @@ export default function FightFinder() {
     if (error) return alert('Could not export: ' + error.message)
     const file = new File([JSON.stringify({ app: 'fight-finder', version: 1, event: g.event, exported: new Date().toISOString(), days: data || [] })],
       `${g.event.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}.fightfinder.json`, { type: 'application/json' })
-    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: file.name }) } catch { /* cancelled */ } return }
-    const url = URL.createObjectURL(file), a = document.createElement('a'); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000)
+    // save straight to the phone's Downloads (sharing .json files isn't supported by every phone)
+    const url = URL.createObjectURL(file), a = document.createElement('a'); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000)
+    alert(`Saved "${file.name}" to your Downloads (${(data || []).length} days). In the Fight Finder app, tap ⬆ Import event and pick this file.`)
   }
   async function newDay(g) {
     const fmt = d => d.toLocaleDateString('en-GB'), today = fmt(new Date())
