@@ -106,6 +106,15 @@ export default function FightFinder() {
   const [picker, setPicker] = useState(null)   // { x } = move that finder; {} = new finder
   const [newEvent, setNewEvent] = useState('')
   const events = [...new Set((list || []).map(x => x.settings?.event).filter(Boolean))]
+  // one file with every day of an event (schedule, team list, coaches, photos, results, notes) for the standalone Fight Finder app
+  async function exportEvent(g) {
+    const { data, error } = await supabase.from('fight_finders').select('title, data, settings, updated_at').eq('settings->>event', g.event)
+    if (error) return alert('Could not export: ' + error.message)
+    const file = new File([JSON.stringify({ app: 'fight-finder', version: 1, event: g.event, exported: new Date().toISOString(), days: data || [] })],
+      `${g.event.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-')}.fightfinder.json`, { type: 'application/json' })
+    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: file.name }) } catch { /* cancelled */ } return }
+    const url = URL.createObjectURL(file), a = document.createElement('a'); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
   async function newDay(g) {
     const fmt = d => d.toLocaleDateString('en-GB'), today = fmt(new Date())
     let title = today
@@ -216,6 +225,7 @@ export default function FightFinder() {
             onContextMenu={e => { e.preventDefault(); window.getSelection?.()?.removeAllRanges(); if (isAdmin) { hold.current.fired = true; setMenu(x) } }}>
             {x.title}<span>{new Date(x.updated_at).toLocaleDateString('en-GB')}</span></button>
             ))}
+            {isAdmin && g.event && <button type="button" className="btn ffd-newday" onClick={() => exportEvent(g)}>⬇ Export for the Fight Finder app</button>}
             {isAdmin && g.event && <button type="button" className="btn ffd-newday" onClick={() => newDay(g)}>+ New fight finder</button>}
           </details>
         ))}
