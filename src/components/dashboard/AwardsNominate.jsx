@@ -123,6 +123,8 @@ export default function AwardsNominate() {
   )
 }
 
+const fmtJoined = d => new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
 function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemoved }) {
   const [people, setPeople] = useState(null)
   const [q, setQ] = useState('')
@@ -161,6 +163,13 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
           joined: s.members?.joined_date || '', sessions: sess[s.id] || 0, points: s.house_points || 0 }))
       }
       const sorters = { joined: (a, b) => String(b.joined).localeCompare(String(a.joined)), sessions: (a, b) => b.sessions - a.sessions, points: (a, b) => b.points - a.points, name: (a, b) => a.name.localeCompare(b.name) }
+      // 🏆 awards they've won before (past registers + earlier years in the app)
+      try {
+        const { data: past } = await supabase.rpc('kc_awards_won', { p_names: list.map(p => p.name) })
+        const byName = {}
+        ;(past || []).forEach(a => { (byName[String(a.name).toLowerCase()] ||= []).push(a) })
+        list.forEach(p => { p.past = (byName[p.name.toLowerCase()] || []).sort((a, b) => b.year - a.year) })
+      } catch { /* not set up yet */ }
       setPeople(list.sort(sorters[how.sort] || sorters.name))
     })()
   }, [cat.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -195,13 +204,18 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
           const on = sel && ((p.student_id && p.student_id === sel.student_id) || (p.member_id && p.member_id === sel.member_id))
           return (
             <button key={p.student_id || p.member_id} type="button" onClick={() => setSel(p)}
-              style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 10px', marginBottom: 4, borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+              style={{ display: 'flex', flexWrap: 'wrap', width: '100%', alignItems: 'center', gap: 10, padding: '8px 10px', marginBottom: 4, borderRadius: 8, cursor: 'pointer', textAlign: 'left',
                 border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7522' : 'transparent', color: 'var(--text)' }}>
               {p.photo ? <img src={p.photo} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover' }} /> : <span style={{ width: 34 }} />}
               <span style={{ flex: 1, fontSize: 14, fontWeight: on ? 700 : 500 }}>{p.name}</span>
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'right' }}>
-                {p.sub || <>{p.sessions} sessions · {p.points} pts{p.joined?.startsWith(y) ? <><br /><b style={{ color: '#1D9E75' }}>joined {y}</b></> : null}</>}
+                {p.sub || <>{p.sessions} sessions · {p.points} pts{p.joined ? <><br />{p.joined.startsWith(y) ? <b style={{ color: '#1D9E75' }}>joined {fmtJoined(p.joined)}</b> : <>joined {fmtJoined(p.joined)}</>}</> : null}</>}
               </span>
+              {p.past?.length > 0 && (
+                <span style={{ flexBasis: '100%', fontSize: 11, color: '#EF9F27', paddingLeft: 44 }}>
+                  🏆 {p.past.map(a => `${a.year} ${a.category}${a.grp ? ` (${a.grp})` : ''}`).join(' · ')}
+                </span>
+              )}
             </button>
           )
         })}
