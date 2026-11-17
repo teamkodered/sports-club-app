@@ -72,8 +72,9 @@ function HoldableName({ student, name, onHold, style }) {
   )
 }
 
-// students who use the athlete app (KR, KRBA, PTs or the 📱 app switch) -- ranked in the athlete league
-export const isAppAthlete = s => !!(s?.is_kr || s?.discipline === 'KRBA' || s?.is_pts || s?.app_access)
+// KR and KRBA athletes -- ranked in the athlete league, not the club league (PTs stay in the club league
+// unless they're KR / KRBA as well)
+export const isAppAthlete = s => !!(s?.is_kr || s?.discipline === 'KRBA')
 
 export default function LeagueViews() {
   const { isAdmin } = useAuth()
@@ -785,8 +786,8 @@ export default function LeagueViews() {
       {!loading && tab === 'Individual' && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{individualRankings.length} students ranked{showAppAthletes ? '' : ' · app athletes are in the athlete league (their points still count for their house)'}
-              <label style={{ marginLeft: 10, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={showAppAthletes} onChange={e => setShowAppAthletes(e.target.checked)} /> show app athletes</label></p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{individualRankings.length} students ranked{showAppAthletes ? '' : ' · KR / KRBA athletes are in the athlete league (their points still count for their house)'}
+              <label style={{ marginLeft: 10, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={showAppAthletes} onChange={e => setShowAppAthletes(e.target.checked)} /> show KR / KRBA athletes</label></p>
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Show top:</span>
