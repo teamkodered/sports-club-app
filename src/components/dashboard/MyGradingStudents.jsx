@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { beltStyle } from '../../lib/beltColours.js'
 import BbbcLine from '../shared/BbbcLine.jsx'
+import { mainFirst } from '../../lib/mainClass.js'
 import GradingRequestSheet from '../shared/GradingRequestSheet.jsx'
 
 // 🎽 Coaches: grading requests from the students in THEIR classes (shared automatically when submitted).
@@ -79,7 +80,7 @@ export default function MyGradingStudents() {
         ;(asg2 || []).filter(a => a.classes && (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today) && !/register/i.test(a.classes.name || ''))
           .forEach(a => { const l = (allCls[a.student_id] ||= []); if (!l.some(x => x.id === a.classes.id)) l.push({ ...a.classes, mine: myIds.includes(a.class_id) }) })
       }
-      const list = (data || []).filter(r => !r.grading_list).map(r => ({ ...r, classes: allCls[r.student_id]?.length ? allCls[r.student_id] : (cls[r.student_id] || []).map(c => ({ ...c, mine: true })), sessions: sessions[r.student_id] || 0 }))
+      const list = (data || []).filter(r => !r.grading_list).map(r => ({ ...r, classes: mainFirst(allCls[r.student_id]?.length ? allCls[r.student_id] : (cls[r.student_id] || []).map(c => ({ ...c, mine: true })), r.students), sessions: sessions[r.student_id] || 0 }))
       setRows(list)
       // 🔔 reminder once per login while some are waiting and the OK-by date hasn't passed
       const due = list.filter(r => !r.coach_ok && !r.coach_not_ready && (!okByOf(r.grading_date) || okByOf(r.grading_date) >= today))

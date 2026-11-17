@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
 import { sessionGroups, isTrainingRow } from '../lib/sessionGroups.js'
+import { mainFirst } from '../lib/mainClass.js'
 import GradingRequestSheet from '../components/shared/GradingRequestSheet.jsx'
 import BbbcLine from '../components/shared/BbbcLine.jsx'
 import { beltStyle } from '../lib/beltColours.js'
@@ -985,7 +986,7 @@ export default function CRM() {
       ;(asg || []).filter(a => a.classes && (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today) && !/register/i.test(a.classes.name || ''))
         .forEach(a => { (byStudent[a.student_id] ||= []).push(a.classes) })
     }
-    enriched.forEach(r => { r.trainClasses = byStudent[r.student_id] || [] })
+    enriched.forEach(r => { r.trainClasses = mainFirst(byStudent[r.student_id] || [], r.students) })   // main lesson first
     // 💷 grading fee paid? (bookings taken in Sell -> Gradings, courses & Level Up)
     const gids = enriched.map(r => r.id)
     if (gids.length) {
@@ -1030,8 +1031,8 @@ export default function CRM() {
         const orderIdx = beltOrderIndex(r.discipline, band, r.grading_for, krbaLevelsForGrading)
         return {
           ...r,
-          clsLabel: [...new Set((r.trainClasses || []).map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.age_category ? ` (${c.age_category})` : ''}`.trim()))].join(', '),
-          coachLabel: [...new Set((r.trainClasses || []).map(c => c.instructor).filter(Boolean))].join(', '),
+          clsLabel: (r.trainClasses || []).slice(0, 1).map(c => `${String(c.day_of_week || '').includes('/') ? c.day_of_week : (c.day_of_week || '').slice(0, 3)} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.age_category ? ` (${c.age_category})` : ''}`.trim()).join(''),   // main lesson
+          coachLabel: (r.trainClasses || [])[0]?.instructor || '',
           name: m ? `${m.first_name} ${m.last_name}` : (gradingTypedName(r) || 'Unknown student'),
           age: ageFromDOB(dob),
           band,
@@ -5513,8 +5514,8 @@ export default function CRM() {
                       {(() => {
                         // drop-down filters on each column (options from all requests for the chosen grading date)
                         const base = gradingRequests.map(r => ({ ...r,
-                          cl: (r.trainClasses || []).map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.age_category ? ` (${c.age_category})` : ''}`.trim()),
-                          co: (r.trainClasses || []).map(c => c.instructor).filter(Boolean) }))
+                          cl: (r.trainClasses || []).slice(0, 1).map(c => `${String(c.day_of_week || '').includes('/') ? c.day_of_week : (c.day_of_week || '').slice(0, 3)} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.age_category ? ` (${c.age_category})` : ''}`.trim()),
+                          co: (r.trainClasses || []).slice(0, 1).map(c => c.instructor).filter(Boolean) }))
                         const uniq = arr => [...new Set(arr.filter(Boolean))].sort()
                         const sel = (key, opts) => (
                           <select value={gradingCol[key]} onChange={e => setGradingCol(f => ({ ...f, [key]: e.target.value }))} style={{ fontSize: 11, padding: '3px 4px', maxWidth: 150 }}>
