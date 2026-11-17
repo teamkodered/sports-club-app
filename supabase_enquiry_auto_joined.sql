@@ -11,7 +11,7 @@ begin
   select id, phone, email, created_at into m from members where id = p_member;
   if m is null then return 0; end if;
   update enquiries e set status = 'joined', linked_member_id = m.id, updated_at = now()
-  where coalesce(e.status, '') not in ('joined', 'not_interested', 'sent_elsewhere')
+  where coalesce(e.status, '') <> 'joined'
     and e.linked_member_id is null
     and ((length(kc_digits(m.phone)) >= 9 and kc_digits(e.contact_phone) = kc_digits(m.phone))
       or (coalesce(m.email, '') <> '' and lower(trim(e.contact_email)) = lower(trim(m.email))));
@@ -34,7 +34,7 @@ with hit as (
   from enquiries e join members m
     on ((length(kc_digits(m.phone)) >= 9 and kc_digits(e.contact_phone) = kc_digits(m.phone))
      or (coalesce(m.email, '') <> '' and lower(trim(e.contact_email)) = lower(trim(m.email))))
-  where coalesce(e.status, '') not in ('joined', 'not_interested', 'sent_elsewhere') and e.linked_member_id is null
+  where coalesce(e.status, '') <> 'joined' and e.linked_member_id is null
     and (m.joined_date is null or e.enquiry_date is null or m.joined_date >= e.enquiry_date)
   order by e.id, m.created_at desc
 )
