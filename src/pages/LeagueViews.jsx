@@ -72,6 +72,9 @@ function HoldableName({ student, name, onHold, style }) {
   )
 }
 
+// students who use the athlete app (KR, KRBA, PTs or the 📱 app switch) -- ranked in the athlete league
+export const isAppAthlete = s => !!(s?.is_kr || s?.discipline === 'KRBA' || s?.is_pts || s?.app_access)
+
 export default function LeagueViews() {
   const { isAdmin } = useAuth()
   const navigate = useNavigate()
@@ -94,6 +97,7 @@ export default function LeagueViews() {
   const [editingHouse, setEditingHouse] = useState(null)
   const [savingHouse, setSavingHouse] = useState(false)
   const [individualRankings, setIndividualRankings] = useState([])
+  const [showAppAthletes, setShowAppAthletes] = useState(false)
   const [houses, setHouses] = useState([])
   const [pointsLog, setPointsLog] = useState([])
   const [indivSortKey, setIndivSortKey] = useState('total')
@@ -166,7 +170,7 @@ export default function LeagueViews() {
     return true
   }
 
-  useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter, selectedClassId])
+  useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter, selectedClassId, showAppAthletes])
 
   // Load saved "show top" selections and date range so the public
   // league display can mirror whatever is currently set here. dateFrom
@@ -335,7 +339,7 @@ export default function LeagueViews() {
         .gte('awarded_at', dateFrom)
         .lte('awarded_at', dateTo + 'T23:59:59')),
       fetchAllRows(() => supabase.from('students')
-        .select('id, student_ref, class_champion_count, house_name, member_id, is_kr, is_pts, is_leader, discipline, members(first_name, last_name, date_of_birth, houses(name))')),
+        .select('*, members(first_name, last_name, date_of_birth, houses(name))')),
     ])
     if (!ptsData) return
 
@@ -351,6 +355,7 @@ export default function LeagueViews() {
         champCount: s.class_champion_count || 0,
         dob: m?.date_of_birth,
         is_kr: s.is_kr, is_pts: s.is_pts, discipline: s.discipline,
+        appAthlete: isAppAthlete(s),
       }
     }
 
@@ -369,7 +374,7 @@ export default function LeagueViews() {
           house: info.house,
           champCount: info.champCount,
           dob: info.dob,
-          is_kr: info.is_kr, is_pts: info.is_pts, discipline: info.discipline,
+          is_kr: info.is_kr, is_pts: info.is_pts, discipline: info.discipline, appAthlete: info.appAthlete,
           housePoints: 0,
           individualPoints: 0,
           total: 0,
@@ -387,7 +392,9 @@ export default function LeagueViews() {
       .map((s, i) => ({ ...s, rank: i + 1 }))
 
     if (requestId !== loadRequestIdRef.current) return // superseded by a newer date range since this started -- don't apply stale results
-    setIndividualRankings(ranked)
+    // app athletes (KR / KRBA / PTs / 📱 app) are left out of the CLUB individual lists -- they're ranked in the
+    // athlete league -- but their points still count for their house (house standings use every student)
+    setIndividualRankings((showAppAthletes ? ranked : ranked.filter(r => !r.appAthlete)).map((s, i) => ({ ...s, rank: i + 1 })))
   }
 
   async function loadPointsLog(requestId) {
@@ -778,7 +785,8 @@ export default function LeagueViews() {
       {!loading && tab === 'Individual' && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{individualRankings.length} students ranked</p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{individualRankings.length} students ranked{showAppAthletes ? '' : ' · app athletes are in the athlete league (their points still count for their house)'}
+              <label style={{ marginLeft: 10, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={showAppAthletes} onChange={e => setShowAppAthletes(e.target.checked)} /> show app athletes</label></p>
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Show top:</span>

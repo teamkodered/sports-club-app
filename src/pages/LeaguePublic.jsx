@@ -82,7 +82,7 @@ export default function LeaguePublic() {
       if (sm.league_date_from) setDateFrom(sm.league_date_from)
       if (resolvedTo !== dateTo) setDateTo(resolvedTo)
 
-      const [{ data: h }, pts, { data: studentsData }] = await Promise.all([
+      const [{ data: h }, pts, { data: studentsData }, appAth] = await Promise.all([
         supabase.from('houses').select('*'),
         // Points come from kc_public_league_points (points only, no reasons/notes);
         // falls back to the table read until that function exists
@@ -99,6 +99,7 @@ export default function LeaguePublic() {
         // locked down from anonymous public access, so this function
         // deliberately returns only name + house, nothing else.
         supabase.rpc('public_league_students'),
+        supabase.rpc('public_league_app_athletes'),
       ])
 
       // Build student lookup map (separate query avoids unreliable nested joins)
@@ -136,7 +137,10 @@ export default function LeaguePublic() {
       // than their configured top-N. Each tab applies its own slice
       // (topN for the Individual tab, houseTopN per house below) from
       // this same full list, independently.
-      const ranked = Object.values(map).sort((a, b) => b.total - a.total)
+      // app athletes (KR / KRBA / PTs / 📱 app) are ranked in the athlete league, not here -- their points
+      // still count for their house above (houseTotals uses everyone)
+      const appIds = new Set((appAth?.data || []).map(x => x.student_id || x.id || x))
+      const ranked = Object.entries(map).filter(([sid]) => !appIds.has(sid)).map(([, v]) => v).sort((a, b) => b.total - a.total)
       setIndividual(ranked)
 
       // House standings use session points (date-filtered) to match internal League page
