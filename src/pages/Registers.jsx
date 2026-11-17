@@ -1039,11 +1039,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       const fullSchedule = (s.class_schedule || '').trim()
       const className = (selectedClass.name || '').trim()
       const timeMatch = s.class_time === classStart || s.class_time_2 === classStart
-      const schedMatch = fullSchedule === selectedClass.day_of_week
-        || fullSchedule === className
-        || fullSchedule === shortDay
-        || fullSchedule === fullDay2
+      // A student's own class + time only places them in their MAIN class: a venue class named the same as
+      // their class (Derby Moore / Moorways), or a KR Centre class on their days. Other classes at the same
+      // day and time (e.g. Alvaston Project Thu 17:00) only show students actually assigned to them.
+      const dayMatch = fullSchedule === selectedClass.day_of_week || fullSchedule === shortDay || fullSchedule === fullDay2
         || fullSchedule.split('/').map(p => p.trim()).some(p => p === selectedClass.day_of_week || p === shortDay || p === fullDay2)
+      const schedMatch = fullSchedule === className || (dayMatch && /kr centre/i.test(className))
       return timeMatch && schedMatch
     })
     .filter(s => matchesSearch(search, s.members?.first_name, s.members?.last_name, s.student_ref))
