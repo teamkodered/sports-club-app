@@ -503,7 +503,7 @@ export default function StudentDatabase() {
           ) })}
         </div>
       )}
-      {tab !== 'Archived athletes' && <div className="card" style={{ padding: 0, overflowX: 'auto', zoom: `${studentsZoom}%` }}>
+      {tab !== 'Archived athletes' && <div className="card kc-sticky-head" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(var(--kc-vh, 1vh) * 100 - 140px)', zoom: `${studentsZoom}%` }}>
         <table>
           <thead>
             <tr>

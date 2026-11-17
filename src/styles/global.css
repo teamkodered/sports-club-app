@@ -2115,3 +2115,7 @@ tr[id^="ffr-"] { scroll-margin-top: 90px; }
 .ffd-vidhead .ffd-photo { order: 0; margin-left: 0; }
 
 button.ffd-avatar { padding: 0; color: inherit; }
+
+/* Students list: the column titles (ID, First name...) stay at the top while scrolling down the list */
+.kc-sticky-head thead th { position: sticky; top: 0; z-index: 12; background: var(--bg-secondary, #1a1f24); }
+.kc-sticky-head thead th[style*="left"] { z-index: 14; }
