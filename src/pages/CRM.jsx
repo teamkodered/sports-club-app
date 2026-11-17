@@ -1029,8 +1029,13 @@ export default function CRM() {
         const dob = m?.date_of_birth
         const band = r.discipline === 'PKA' ? ageBandFor(dob) : 'KRBA'
         const orderIdx = beltOrderIndex(r.discipline, band, r.grading_for, krbaLevelsForGrading)
+        // double (or more) grades: they need EVERY belt they pass -- e.g. Yellow -> Green = Orange + Green
+        const order = r.discipline === 'PKA' ? (PKA_GRADE_ORDERS[band] || []) : []
+        const ci = order.indexOf(r.current_belt), gi = order.indexOf(r.grading_for)
+        const beltsNeeded = ci >= 0 && gi > ci + 1 ? order.slice(ci + 1, gi + 1) : [r.grading_for]
         return {
           ...r,
+          beltsNeeded,
           clsLabel: (r.trainClasses || []).slice(0, 1).map(c => `${String(c.day_of_week || '').includes('/') ? c.day_of_week : (c.day_of_week || '').slice(0, 3)} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.age_category ? ` (${c.age_category})` : ''}`.trim()).join(''),   // main lesson
           coachLabel: (r.trainClasses || [])[0]?.instructor || '',
           name: m ? `${m.first_name} ${m.last_name}` : (gradingTypedName(r) || 'Unknown student'),
@@ -1062,9 +1067,12 @@ export default function CRM() {
   function computeBeltTally(rows) {
     const tally = {}
     rows.forEach(r => {
-      const key = `${r.size}__${r.grading_for}`
-      if (!tally[key]) tally[key] = { size: r.size, belt: r.grading_for, qty: 0 }
-      tally[key].qty++
+      for (const belt of (r.beltsNeeded?.length ? r.beltsNeeded : [r.grading_for])) {   // double grades: one of each belt
+        const key = `${r.size}__${belt}`
+        if (!tally[key]) tally[key] = { size: r.size, belt, qty: 0, doubles: 0 }
+        tally[key].qty++
+        if ((r.beltsNeeded || []).length > 1) tally[key].doubles++
+      }
     })
     return Object.values(tally).sort((a, b) => a.size.localeCompare(b.size) || a.belt.localeCompare(b.belt))
   }
@@ -1118,7 +1126,7 @@ export default function CRM() {
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.json_to_sheet(tally.map(t => {
       const inStock = stockMap[`${t.size}__${t.belt}`] || 0
-      return { Size: t.size, Belt: t.belt, Needed: t.qty, 'In stock': inStock, 'To order': Math.max(0, t.qty - inStock) }
+      return { Size: t.size, Belt: t.belt, Needed: t.qty, 'Of which double grades': t.doubles || '', 'In stock': inStock, 'To order': Math.max(0, t.qty - inStock) }
     }))
     XLSX.utils.book_append_sheet(wb, ws, 'Belt order form')
     XLSX.writeFile(wb, `belt_order_form_${new Date().toISOString().split('T')[0]}.xlsx`)
@@ -5462,7 +5470,7 @@ export default function CRM() {
                         <thead><tr><th style={{ textAlign: 'left' }}>Size</th><th style={{ textAlign: 'left' }}>Belt</th><th style={{ textAlign: 'right' }}>Needed</th></tr></thead>
                         <tbody>
                           {tally.map(t => (
-                            <tr key={t.size + t.belt}><td>{t.size}</td><td>{t.belt}</td><td style={{ textAlign: 'right' }}>{t.qty}</td></tr>
+                            <tr key={t.size + t.belt}><td>{t.size}</td><td>{t.belt}</td><td style={{ textAlign: 'right' }}>{t.qty}{t.doubles ? <span style={{ color: '#EF9F27', fontSize: 11 }}> (incl. {t.doubles} double grade{t.doubles === 1 ? '' : 's'})</span> : null}</td></tr>
                           ))}
                         </tbody>
                       </table>
@@ -5558,7 +5566,7 @@ export default function CRM() {
                               <td style={{ padding: 8 }}>{r.age ?? '—'}</td>
                               <td style={{ padding: 8 }}>{r.size}</td>
                               <td style={{ padding: 8 }}>{r.current_belt || '—'}</td>
-                              <td style={{ padding: 8 }}><span style={beltStyle(r.grading_for)}>{r.grading_for}</span></td>
+                              <td style={{ padding: 8 }}><span style={beltStyle(r.grading_for)}>{r.grading_for}</span>{r.beltsNeeded?.length > 1 && <div style={{ fontSize: 10, color: '#EF9F27', fontWeight: 700 }}>double grade · belts: {r.beltsNeeded.join(' + ')}</div>}</td>
                               <td style={{ padding: 8 }}>{r.clsLabel || '—'}</td>
                               <td style={{ padding: 8 }}>{r.coachLabel || '—'}</td>
                               <td style={{ padding: 8 }} title={r.coach_ok_by || ''}>{r.coach_ok ? <span style={{ color: '#1D9E75' }}>✓ {r.coach_ok_by?.split(' ')[0] || ''}</span> : r.coach_not_ready ? <span style={{ color: '#E24B4A' }} title={r.coach_note || ''}>✗ not ready</span> : r.sent_to_coach_at ? <span style={{ color: '#EF9F27' }}>waiting</span> : '—'}</td>
