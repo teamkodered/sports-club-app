@@ -171,6 +171,16 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
         ;(past || []).forEach(a => { (byName[String(a.name).toLowerCase()] ||= []).push(a) })
         list.forEach(p => { p.past = (byName[p.name.toLowerCase()] || []).sort((a, b) => b.year - a.year) })
       } catch { /* not set up yet */ }
+      // 🎖 already nominated this year (any award, any group, by any coach)
+      try {
+        const ids = list.map(p => p.student_id).filter(Boolean)
+        if (ids.length) {
+          const { data: noms } = await supabase.rpc('kc_awards_nominated', { p_year: year, p_students: ids })
+          const by = {}
+          ;(noms || []).forEach(n => { (by[n.student_id] ||= []).push(n) })
+          list.forEach(p => { p.noms = by[p.student_id] || [] })
+        }
+      } catch { /* not set up yet */ }
       setPeople(list.sort(sorters[how.sort] || sorters.name))
     })()
   }, [cat.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -213,6 +223,11 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'right' }}>
                 {p.sub || <>{p.sessions} sessions · {p.points} pts{p.joined ? <><br />{p.joined.startsWith(y) ? <b style={{ color: '#1D9E75' }}>joined {fmtJoined(p.joined)}</b> : <>joined {fmtJoined(p.joined)}</>}</> : null}</>}
               </span>
+              {p.noms?.length > 0 && (
+                <span style={{ flexBasis: '100%', fontSize: 11, color: '#8B5CF6', paddingLeft: 44, fontWeight: 600 }}>
+                  🎖 Nominated {year}: {p.noms.map(n => `${n.category} (${n.grp})${n.times > 1 ? ` ×${n.times}` : ''}`).join(' · ')}
+                </span>
+              )}
               {p.past?.length > 0 && (
                 <span style={{ flexBasis: '100%', fontSize: 11, color: '#EF9F27', paddingLeft: 44 }}>
                   🏆 {p.past.map(a => `${a.year} ${a.category}${a.grp ? ` (${a.grp})` : ''}`).join(' · ')}
