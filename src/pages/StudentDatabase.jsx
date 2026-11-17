@@ -142,7 +142,8 @@ export default function StudentDatabase() {
     setVisibleCols(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   }
 
-  useEffect(() => { load() }, [])
+  // pending for over a week -> Not started (admins), then load so the lists are right straight away
+  useEffect(() => { (isAdmin ? supabase.rpc('kc_auto_not_started').then(() => {}, () => {}) : Promise.resolve()).then(() => load()) }, [])
   useEffect(() => {
     supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
       .then(({ data }) => setAllClasses(data || []))
@@ -390,7 +391,7 @@ export default function StudentDatabase() {
           <h1>Students</h1>
           <p>
             {tab === 'Stopped' ? `${filtered.length} stopped`
-              : tab === 'Not Started' ? `${filtered.length} not started`
+              : tab === 'Not Started' ? `${filtered.length} not started · pending students move here after a week -- ✓ Approve or ↩ Pending to bring them back`
               : tab === 'Stopped Squad' ? `${filtered.length} stopped a squad`
               : isAdmin ? `${filtered.length} of ${activeStudentsCount} students` : `${filtered.length} students`}   {/* club-wide total: admins only */}
           </p>
@@ -732,7 +733,12 @@ export default function StudentDatabase() {
                       }
                       case 'status':      return (
                         <td key={c.key}>
-                          {tab === 'Stopped' && m?.status === 'stopped' ? (
+                          {tab === 'Not Started' && m?.status === 'not_started' && isAdmin ? (
+                            <span style={{ display: 'inline-flex', gap: 4 }}>
+                              <button onClick={() => setMemberStatus(s, 'active')} className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} title="They've come back and are starting -- approve them">✓ Approve</button>
+                              <button onClick={() => setMemberStatus(s, 'pending')} className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} title="Back to pending (another week to approve)">↩ Pending</button>
+                            </span>
+                          ) : tab === 'Stopped' && m?.status === 'stopped' ? (
                             <button onClick={isAdmin ? () => setMemberStatus(s, 'active') : undefined}
                               className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
                               title="Reactivate this student — restores them to the active list, keeping their previous class">

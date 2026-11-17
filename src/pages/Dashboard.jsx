@@ -27,6 +27,7 @@ export default function Dashboard() {
   useEffect(() => {
     supabase.rpc('kc_generate_monthly_improvements').then(() => {}, () => {})
     supabase.rpc('kc_auto_checkout').then(() => {}, () => {})
+    if (isAdmin) supabase.rpc('kc_auto_not_started').then(() => {}, () => {})   // pending over a week -> Not started
   }, [])
   const [stats, setStats]         = useState({})
   const [memberBreakdownIndex, setMemberBreakdownIndex] = useState(0)
