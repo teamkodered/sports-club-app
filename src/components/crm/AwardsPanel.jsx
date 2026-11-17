@@ -272,8 +272,20 @@ export default function AwardsPanel() {
               onPointerDown={() => { held.current = false; clearTimeout(holdT.current); holdT.current = setTimeout(() => { held.current = true; navigator.vibrate?.(30); deleteGroup(g) }, 650) }}
               onPointerUp={() => clearTimeout(holdT.current)} onPointerLeave={() => clearTimeout(holdT.current)} onContextMenu={e => e.preventDefault()}
               onClick={() => { if (held.current) { held.current = false; return } setOpenGrp(o => ({ ...o, [g.grp]: !o[g.grp] })) }} style={{ width: '100%', display: 'flex', gap: 8, padding: '11px 14px', userSelect: 'none', WebkitUserSelect: 'none', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
-              <b style={{ flex: 1 }}>{g.grp}</b>
-              <span style={{ fontSize: 12, color: gDecided === g.cats.length ? '#1D9E75' : 'var(--text-secondary)' }}>{gDecided} of {g.cats.length} decided</span>
+              {(() => {
+                // how many of this group's awards have nominations (or votes) in -- colours the group name
+                const gNom = g.cats.filter(c => noms.some(n => n.category_id === c.id) || votes.some(v => v.category_id === c.id)).length
+                const col = gNom === 0 ? 'var(--text)' : gNom === g.cats.length ? '#1D9E75' : '#EF9F27'
+                return (
+                  <>
+                    <b style={{ flex: 1, color: col }}>{g.grp}</b>
+                    <span style={{ fontSize: 12, textAlign: 'right', color: 'var(--text-secondary)' }}>
+                      <span style={{ color: col === 'var(--text)' ? 'var(--text-tertiary)' : col, fontWeight: 600 }}>{gNom} of {g.cats.length} nominated</span>
+                      <br /><span style={{ color: gDecided === g.cats.length ? '#1D9E75' : 'var(--text-secondary)' }}>{gDecided} decided</span>
+                    </span>
+                  </>
+                )
+              })()}
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{openGrp[g.grp] ? '▲' : '▼'}</span>
             </button>
             <div className={`kc-slide${openGrp[g.grp] ? ' open' : ''}`}><div style={{ padding: openGrp[g.grp] ? '0 14px 10px' : 0 }}>
