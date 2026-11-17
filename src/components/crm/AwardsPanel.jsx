@@ -122,10 +122,11 @@ export default function AwardsPanel() {
   async function loadHouses() {
     const [{ data: hs }, { data: st }] = await Promise.all([
       supabase.from('houses').select('name, points').order('points', { ascending: false }),
-      supabase.from('students').select('id, house_points, house_name, members(first_name, last_name, status, houses(name))'),
+      supabase.from('students').select('id, house_points, house_name, is_kr, discipline, members(first_name, last_name, status, auth_id, houses(name))'),
     ])
     const by = {}
-    ;(st || []).filter(s => (s.members?.status || 'active') === 'active').forEach(s => {
+    // same as the club league: KR / KRBA athletes with an app login are left out (they're in the athlete league)
+    ;(st || []).filter(s => (s.members?.status || 'active') === 'active' && !((s.is_kr || s.discipline === 'KRBA') && s.members?.auth_id)).forEach(s => {
       const h = s.members?.houses?.name || s.house_name; if (!h) return
       ;(by[h] ||= []).push({ student_id: s.id, name: `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim(), pts: s.house_points || 0 })
     })
