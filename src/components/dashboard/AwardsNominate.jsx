@@ -45,7 +45,8 @@ export default function AwardsNominate() {
       : x.grp_kind === 'squad' ? squads.has(x.squad)
       : (ids || []).length > 0)
     setCats(visible)
-    const mineMap = Object.fromEntries((noms || []).map(n => [n.category_id, n]))
+    const mineMap = {}
+    ;(noms || []).forEach(n => { (mineMap[n.category_id] ||= []).push(n) })   // category -> my nominations (several for multi awards)
     setMine(mineMap)
     // 🔔 reminder once per login while some are still to do
     const left = visible.filter(x => !mineMap[x.id]).length
@@ -62,7 +63,7 @@ export default function AwardsNominate() {
   }, [cats])
 
   if (!cur || !nominationsOpen(cur) || !groups.length) return null
-  const done = cats.filter(c => mine[c.id]).length
+  const done = cats.filter(c => mine[c.id]?.length).length
 
   return (
     <div ref={cardRef} className="card" style={{ marginBottom: 16, border: '1px solid #EF9F2766', scrollMarginTop: 70 }}>
@@ -74,7 +75,7 @@ export default function AwardsNominate() {
       <div className={`kc-slide${open ? ' open' : ''}`}><div>
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0' }}>Pick one student for each award -- only students from your classes are shown. You can change it until nominations close.</div>
         {groups.map(g => {
-          const gDone = g.cats.filter(c => mine[c.id]).length
+          const gDone = g.cats.filter(c => mine[c.id]?.length).length
           return (
             <div key={g.grp} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8 }}>
               <button type="button" onClick={() => setOpenGrp(o => ({ ...o, [g.grp]: !o[g.grp] }))} style={{ width: '100%', display: 'flex', gap: 8, padding: '9px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
@@ -87,10 +88,17 @@ export default function AwardsNominate() {
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid var(--border)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
-                      {mine[c.id] ? <div style={{ fontSize: 12, color: '#1D9E75' }}>✓ {mine[c.id].nominee_name}{mine[c.id].reason ? <span style={{ color: 'var(--text-tertiary)' }}> -- {mine[c.id].reason}</span> : null}</div>
-                        : <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{catHint(c.name).hint ? `Suggested: ${catHint(c.name).hint}` : 'Not nominated yet'}</div>}
+                      {mine[c.id]?.length ? mine[c.id].map(n => (
+                          <div key={n.id} style={{ fontSize: 12, color: '#1D9E75', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>✓ {n.nominee_name}{n.reason ? <span style={{ color: 'var(--text-tertiary)' }}> -- {n.reason}</span> : null}</span>
+                            {isMulti(c) && <button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => setPick({ cat: c, edit: n })}>change</button>}
+                          </div>
+                        ))
+                        : <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{catHint(c.name).hint ? `Suggested: ${catHint(c.name).hint}` : isMulti(c) ? 'Not nominated yet -- you can nominate several' : 'Not nominated yet'}</div>}
                     </div>
-                    <button type="button" className={`btn btn-sm${mine[c.id] ? '' : ' btn-primary'}`} onClick={() => setPick({ cat: c })}>{mine[c.id] ? 'Change' : 'Nominate'}</button>
+                    {isMulti(c)
+                      ? <button type="button" className={`btn btn-sm${mine[c.id]?.length ? '' : ' btn-primary'}`} onClick={() => setPick({ cat: c, edit: null })}>{mine[c.id]?.length ? '+ Add another' : 'Nominate'}</button>
+                      : <button type="button" className={`btn btn-sm${mine[c.id]?.length ? '' : ' btn-primary'}`} onClick={() => setPick({ cat: c, edit: mine[c.id]?.[0] || null })}>{mine[c.id]?.length ? 'Change' : 'Nominate'}</button>}
                   </div>
                 ))}
               </div></div>
@@ -116,16 +124,22 @@ export default function AwardsNominate() {
             </div>
           </div>
         </div>, document.body)}
-      {pick && createPortal(<Picker cat={pick.cat} current={mine[pick.cat.id]} year={cur.year} profile={profile} allowed={allowed}
-        onClose={() => setPick(null)} onSaved={n => { setMine(m => ({ ...m, [pick.cat.id]: n })); setPick(null) }}
-        onRemoved={() => { setMine(m => { const x = { ...m }; delete x[pick.cat.id]; return x }); setPick(null) }} />, document.body)}
+      {pick && createPortal(<Picker cat={pick.cat} current={pick.edit} year={cur.year} profile={profile} allowed={allowed}
+        already={(mine[pick.cat.id] || []).filter(n => n.id !== pick.edit?.id)}
+        onClose={() => setPick(null)}
+        onSaved={n => { setMine(m => ({ ...m, [pick.cat.id]: [...(m[pick.cat.id] || []).filter(x => x.id !== n.id), n] })); setPick(null) }}
+        onRemoved={id => { setMine(m => ({ ...m, [pick.cat.id]: (m[pick.cat.id] || []).filter(x => x.id !== id) })); setPick(null) }} />, document.body)}
     </div>
   )
 }
 
+// awards a coach can nominate several people for
+export const MULTI_CATS = ['Special warrior award']
+const isMulti = c => MULTI_CATS.includes(c?.name)
+
 const fmtJoined = d => new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
-function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemoved }) {
+function Picker({ cat, current, year, profile, allowed, already = [], onClose, onSaved, onRemoved }) {
   const [people, setPeople] = useState(null)
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(current ? { student_id: current.student_id, member_id: current.member_id, name: current.nominee_name } : null)
@@ -139,20 +153,28 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
       const today = new Date().toISOString().split('T')[0], y0 = `${year}-01-01`
       let list = []
       if (cat.name === 'Coaches coach') {
-        const { data } = await supabase.from('members').select('id, first_name, last_name, role').in('role', ['admin', 'captain', 'coach', 'leader', 'head_coach'])
-        list = (data || []).map(m => ({ member_id: m.id, name: `${m.first_name} ${m.last_name}`.trim(), sub: m.role }))
+        // coaches only: coaching logins (not leaders) + students in the Coach group
+        const [{ data }, { data: stc }] = await Promise.all([
+          supabase.from('members').select('id, first_name, last_name, role, status').in('role', ['admin', 'captain', 'coach', 'head_coach']),
+          supabase.from('students').select('member_id, is_coach, photo_url, members(id, first_name, last_name, status)').eq('is_coach', true),
+        ])
+        const byId = {}
+        ;(data || []).filter(m => (m.status || 'active') !== 'stopped' && !/^test|^u$/i.test(m.first_name || '')).forEach(m => { byId[m.id] = { member_id: m.id, name: `${m.first_name} ${m.last_name}`.trim(), sub: m.role.replace('_', ' ') } })
+        ;(stc || []).filter(x => x.members && (x.members.status || 'active') === 'active').forEach(x => { byId[x.members.id] ||= { member_id: x.members.id, name: `${x.members.first_name} ${x.members.last_name}`.trim(), sub: 'coach', photo: x.photo_url } })
+        list = Object.values(byId)
       } else {
         let ids = null
         if (cat.grp_kind === 'class' && cat.class_id) {
           const { data: asg } = await supabase.from('student_class_assignments').select('*').in('class_id', cat.class_ids?.length ? cat.class_ids : [cat.class_id])
           ids = [...new Set((asg || []).filter(a => (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today)).map(a => a.student_id))]
         }
-        let qs = supabase.from('students').select('id, is_kr, discipline, house_points, photo_url, members(first_name, last_name, joined_date, status)')
+        let qs = supabase.from('students').select('id, is_kr, is_leader, discipline, house_points, photo_url, members(first_name, last_name, joined_date, status)')
         if (ids) qs = qs.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
         const { data: st } = await qs
         let rows = (st || []).filter(s => (s.members?.status || 'active') === 'active' && (!allowed || allowed.includes(s.id)))   // coaches: their classes only
         if (cat.squad === 'KR') rows = rows.filter(s => s.is_kr)
         if (cat.squad === 'KRBA') rows = rows.filter(s => s.discipline === 'KRBA')
+        if (/leader/i.test(cat.name)) rows = rows.filter(s => s.is_leader)   // Junior / Tinys leader: leaders only
         // sessions this year
         const sids = rows.map(s => s.id), sess = {}
         for (let i = 0; i < sids.length; i += 150) {
@@ -190,7 +212,10 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
     setBusy(true)
     const row = { category_id: cat.id, student_id: sel.student_id || null, member_id: sel.member_id || null, nominee_name: sel.name,
       coach_member_id: profile.id, coach_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(), reason: reason.trim() || null }
-    const { data, error } = await supabase.from('awards_nominations').upsert(row, { onConflict: 'category_id,coach_member_id' }).select().single()
+    if (already.some(n => (n.student_id && n.student_id === row.student_id) || (n.member_id && n.member_id === row.member_id))) { setBusy(false); return alert(`You've already nominated ${sel.name} for this.`) }
+    const { data, error } = current
+      ? await supabase.from('awards_nominations').update(row).eq('id', current.id).select().single()
+      : await supabase.from('awards_nominations').insert(row).select().single()
     setBusy(false)
     if (error) return alert('Could not save: ' + error.message)
     onSaved(data)
@@ -199,7 +224,7 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
     if (!current || !confirm('Remove your nomination?')) return
     const { error } = await supabase.from('awards_nominations').delete().eq('id', current.id)
     if (error) return alert('Could not remove: ' + error.message)
-    onRemoved()
+    onRemoved(current.id)
   }
   const y = String(year)
   const shown = (people || []).filter(p => !q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase()))
