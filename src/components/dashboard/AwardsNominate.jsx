@@ -126,6 +126,7 @@ export default function AwardsNominate() {
         </div>, document.body)}
       {pick && createPortal(<Picker cat={pick.cat} current={pick.edit} year={cur.year} profile={profile} allowed={allowed}
         already={(mine[pick.cat.id] || []).filter(n => n.id !== pick.edit?.id)}
+        myNoms={Object.entries(mine).flatMap(([cid, list]) => { const c = cats.find(x => x.id === cid); return c ? (list || []).map(n => ({ student_id: n.student_id, category: c.name, grp: c.grp })) : [] })}
         onClose={() => setPick(null)}
         onSaved={n => { setMine(m => ({ ...m, [pick.cat.id]: [...(m[pick.cat.id] || []).filter(x => x.id !== n.id), n] })); setPick(null) }}
         onRemoved={id => { setMine(m => ({ ...m, [pick.cat.id]: (m[pick.cat.id] || []).filter(x => x.id !== id) })); setPick(null) }} />, document.body)}
@@ -139,7 +140,7 @@ const isMulti = c => MULTI_CATS.includes(c?.name)
 
 const fmtJoined = d => new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
-function Picker({ cat, current, year, profile, allowed, already = [], onClose, onSaved, onRemoved }) {
+function Picker({ cat, current, year, profile, allowed, already = [], myNoms = [], onClose, onSaved, onRemoved }) {
   const [people, setPeople] = useState(null)
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(current ? { student_id: current.student_id, member_id: current.member_id, name: current.nominee_name } : null)
@@ -197,9 +198,12 @@ function Picker({ cat, current, year, profile, allowed, already = [], onClose, o
       try {
         const ids = list.map(p => p.student_id).filter(Boolean)
         if (ids.length) {
-          const { data: noms } = await supabase.rpc('kc_awards_nominated', { p_year: year, p_students: ids })
+          const { data: noms, error: nErr } = await supabase.rpc('kc_awards_nominated', { p_year: Number(year), p_students: ids })
           const by = {}
-          ;(noms || []).forEach(n => { (by[n.student_id] ||= []).push(n) })
+          // everyone's nominations (needs supabase_awards_nominated.sql); your own always show either way
+          const rows = nErr ? myNoms.map(n => ({ ...n, times: 1 })) : (noms || [])
+          if (nErr) console.warn('kc_awards_nominated', nErr.message)
+          rows.forEach(n => { (by[n.student_id] ||= []).push(n) })
           list.forEach(p => { p.noms = by[p.student_id] || [] })
         }
       } catch { /* not set up yet */ }
