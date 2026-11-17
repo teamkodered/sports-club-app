@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { sessionGroups, isTrainingRow } from '../lib/sessionGroups.js'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { matchesSearch } from '../lib/searchMatch.js'
 import { Link } from 'react-router-dom'
@@ -88,6 +89,7 @@ export default function Trackers({ onStatsReady } = {}) {
   const [sheetEntries, setSheetEntries] = useState([])
   const [savingEntry, setSavingEntry] = useState(null)
   const [sessions, setSessions]     = useState([])
+  const [classesById, setClassesById] = useState({})
   const [allMembers, setAllMembers] = useState([]) // for join/stop duration tracking
   const [weightDivisions, setWeightDivisions] = useState({}) // student_id -> weight_division (comp weight)
   const [loading, setLoading]       = useState(true)
@@ -136,6 +138,8 @@ export default function Trackers({ onStatsReady } = {}) {
       .select('student_id, session_date, attended_at, attendance_type, class_id')
       .order('attended_at', { ascending: false }))
     setAttendance(att)
+    const { data: cl } = await supabase.from('classes').select('*')
+    setClassesById(Object.fromEntries((cl || []).map(c => [c.id, c])))
     // Class assignments + holidays, for each student's own attendance rate
     const [asg, { data: hol }] = await Promise.all([
       fetchAllRows(() => supabase.from('student_class_assignments').select('*, classes(id, day_of_week)')),
@@ -337,30 +341,24 @@ export default function Trackers({ onStatsReady } = {}) {
     for (const k of BREAKDOWN_KEYS) if (groups[k]) totalStudentsBreakdown[k]++
   }
 
-  const avgSessions = totalStudents > 0 ? (sessions.length / totalStudents).toFixed(1) : 0
-  const avgSessionsBreakdown = emptyBreakdown()
-  for (const k of BREAKDOWN_KEYS) {
-    const groupStudentCount = activeStudents.filter(s => studentGroupsById[s.id][k]).length
-    const groupSessionCount = sessions.filter(f => studentGroupsById[f.student_id]?.[k]).length
-    avgSessionsBreakdown[k] = groupStudentCount > 0 ? (groupSessionCount / groupStudentCount).toFixed(1) : '0.0'
-  }
-
-  // "Trained this month" -- real attendance (attended + full kit), not
-  // Fit II Fight logs, plus a per-day breakdown for the graph below
+  // "Trained this month" -- training SESSIONS this month (register marks + check-ins, attended / full kit),
+  // grouped by the CLASS they were in; plus how many DIFFERENT students that was.
   const now = new Date()
-  const attendanceThisMonth = attendance.filter(a => {
-    const d = new Date(a.attended_at)
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-  })
-  const attendedCount = attendanceThisMonth.filter(a => a.attendance_type !== 'full_kit').length
-  const fullKitCount = attendanceThisMonth.filter(a => a.attendance_type === 'full_kit').length
-  const trainedThisMonth = attendedCount + fullKitCount
+  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const attendanceThisMonth = attendance.filter(a => isTrainingRow(a) && String(a.session_date || a.attended_at || '').startsWith(monthPrefix))
+  const trainedThisMonth = attendanceThisMonth.filter(a => sessionGroups(a, classesById, studentGroupsById).all).length
   const trainedThisMonthBreakdown = emptyBreakdown()
+  const studentsTrainedSets = Object.fromEntries(BREAKDOWN_KEYS.map(k => [k, new Set()]))
   for (const a of attendanceThisMonth) {
-    const groups = studentGroupsById[a.student_id]
-    if (!groups) continue
-    for (const k of BREAKDOWN_KEYS) if (groups[k]) trainedThisMonthBreakdown[k]++
+    const groups = sessionGroups(a, classesById, studentGroupsById)
+    for (const k of BREAKDOWN_KEYS) if (groups[k]) { trainedThisMonthBreakdown[k]++; studentsTrainedSets[k].add(a.student_id) }
   }
+  const studentsTrainedThisMonth = studentsTrainedSets.all.size
+  const studentsTrainedBreakdown = Object.fromEntries(BREAKDOWN_KEYS.map(k => [k, studentsTrainedSets[k].size]))
+  // Avg sessions per student who trained this month (same groups as above)
+  const avgSessions = studentsTrainedThisMonth > 0 ? (trainedThisMonth / studentsTrainedThisMonth).toFixed(1) : '0.0'
+  const avgSessionsBreakdown = Object.fromEntries(BREAKDOWN_KEYS.map(k => [k, studentsTrainedSets[k].size ? (trainedThisMonthBreakdown[k] / studentsTrainedSets[k].size).toFixed(1) : '0.0']))
+  void sessions
 
   // New members this month -- compares the plain "YYYY-MM" prefix of
   // joined_date directly, rather than parsing it with `new Date(...)`
@@ -380,6 +378,10 @@ export default function Trackers({ onStatsReady } = {}) {
   const newPendingThisMonth = joinedThisMonth.filter(m => m.status === 'pending').length
   // Returned students: came back after stopping (or an old record re-joined) -- members.rejoined_at
   const returnedThisMonth = allMembers.filter(m => String(m.rejoined_at || '').startsWith(currentMonthPrefix) && studentGroupsByMemberId[m.id] && m.status !== 'stopped').length
+  // everyone who joined this month (approved + waiting for approval), for the card's main number
+  const newJoinedThisMonth = joinedThisMonth.filter(m => m.status !== 'not_started').length
+  const newJoinedBreakdown = emptyBreakdown()
+  for (const m of joinedThisMonth) { if (m.status === 'not_started') continue; const g = studentGroupsByMemberId[m.id]; if (g) for (const k of BREAKDOWN_KEYS) if (g[k]) newJoinedBreakdown[k]++ }
   const newMembersThisMonthBreakdown = emptyBreakdown()
   for (const m of joinedThisMonth) {
     if (!isNewApproved(m)) continue
@@ -415,11 +417,11 @@ export default function Trackers({ onStatsReady } = {}) {
   useEffect(() => {
     if (loading) return
     onStatsReady?.({
-      totalStudents, pendingStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained,
+      totalStudents, pendingStudents, newMembersThisMonth, newPendingThisMonth, newJoinedThisMonth, newJoinedBreakdown, returnedThisMonth, trainedThisMonth, studentsTrainedThisMonth, studentsTrainedBreakdown, avgSessions, avgMonthsTrained,
       completedDurationsCount: completedDurations.length, missingStopDates,
       totalStudentsBreakdown, newMembersThisMonthBreakdown, trainedThisMonthBreakdown, avgSessionsBreakdown, avgMonthsTrainedBreakdown,
     })
-  }, [loading, totalStudents, pendingStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
+  }, [loading, totalStudents, pendingStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, studentsTrainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates, classesById])
 
   if (loading) return <div className="loading">Loading trackers…</div>
 

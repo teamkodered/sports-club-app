@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
+import { sessionGroups, isTrainingRow } from '../lib/sessionGroups.js'
 import GradingRequestSheet from '../components/shared/GradingRequestSheet.jsx'
 import BbbcLine from '../components/shared/BbbcLine.jsx'
 import { beltStyle } from '../lib/beltColours.js'
@@ -478,6 +479,7 @@ export default function CRM() {
   const [enquiryMethodFilter, setEnquiryMethodFilter] = useState('all')
   const [leadSources, setLeadSources] = useState([])
   const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
+  const [leadRange, setLeadRange] = useState('12m')   // 'Where they found us': last 3 months / 12 months / all time
   const [joinsStopsMembers, setJoinsStopsMembers] = useState([])
   const [joinsStopsLoaded, setJoinsStopsLoaded] = useState(false)
   const [trackersStats, setTrackersStats] = useState(null)
@@ -517,6 +519,7 @@ export default function CRM() {
     fetchAllRows(() => supabase.from('students').select('id, member_id, discipline, is_kr, class_schedule, members(first_name, last_name)')).then(data => setStudentsForBreakdown(data))
   }, [])
   const [trainedPerDay, setTrainedPerDay] = useState([])
+  const [chartClassesById, setChartClassesById] = useState({})
   const [attendanceRowsForChart, setAttendanceRowsForChart] = useState([]) // raw rows (with student_id), so the chart can re-filter per-group rather than only using the pre-aggregated by-day totals
   const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
@@ -2304,10 +2307,11 @@ export default function CRM() {
     return raw.trim() // anything genuinely unrecognised shows as-is, rather than being silently hidden
   }
 
-  function loadLeadSources() {
-    supabase.from('membership_forms').select('hear_about').then(({ data }) => {
+  function loadLeadSources(range = leadRange) {
+    supabase.from('membership_forms').select('*').then(({ data }) => {
       const counts = {}
-      for (const row of data || []) {
+      const from = range === 'all' ? null : (() => { const d = new Date(); d.setMonth(d.getMonth() - (range === '3m' ? 3 : 12)); return d.toISOString() })()
+      for (const row of (data || []).filter(r => !from || ((r.created_at || r.submitted_at) && (r.created_at || r.submitted_at) >= from))) {
         const key = normalizeHearAboutSource(row.hear_about)
         counts[key] = (counts[key] || 0) + 1
       }
@@ -2328,8 +2332,9 @@ export default function CRM() {
 
   function loadTrainedPerDay() {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30)
-    supabase.from('attendance').select('student_id, session_date').gte('session_date', cutoff.toISOString().split('T')[0]).then(({ data }) => {
-      setAttendanceRowsForChart(data || [])
+    supabase.from('classes').select('*').then(({ data }) => setChartClassesById(Object.fromEntries((data || []).map(c => [c.id, c]))))
+    supabase.from('attendance').select('student_id, session_date, class_id, attendance_type').gte('session_date', cutoff.toISOString().split('T')[0]).then(({ data }) => {
+      setAttendanceRowsForChart((data || []).filter(isTrainingRow))
       const byDay = {}
       for (const row of data || []) {
         if (!row.session_date) continue
@@ -2449,13 +2454,13 @@ export default function CRM() {
   // "Where they came from" stays a completely separate card below --
   // it's a percentage breakdown by category, not a time series, so it
   // was never going to sensibly overlay with the others.
-  function CombinedDailyChart({ enquiries, joinsStopsMembers, attendanceRows, studentsForBreakdown, selectedGroupKey, selectedGroupLabel }) {
+  function CombinedDailyChart({ enquiries, joinsStopsMembers, attendanceRows, studentsForBreakdown, selectedGroupKey, selectedGroupLabel, classesById = {} }) {
     const SERIES = [
       { key: 'enquiries', label: 'Enquiries', colour: '#378ADD' },
       { key: 'joined', label: 'Joined', colour: '#1D9E75' },
       { key: 'stopped', label: 'Stopped', colour: '#E24B4A' },
       { key: 'pending', label: 'Pending', colour: '#8B5CF6' },
-      { key: 'trained', label: 'Students trained', colour: '#EF9F27' },
+      { key: 'trained', label: 'Sessions', colour: '#EF9F27' },
     ]
     // Remembers which series pills were switched on/off, per
     // individual staff member, following them across their own
@@ -2509,7 +2514,11 @@ export default function CRM() {
       if (s.member_id) memberIdMatchesGroup[s.member_id] = matches
     }
     const filteredJoinsStopsMembers = selectedGroupKey === 'all' ? joinsStopsMembers : joinsStopsMembers.filter(m => memberIdMatchesGroup[m.id])
-    const filteredAttendanceRows = selectedGroupKey === 'all' ? attendanceRows : attendanceRows.filter(a => studentIdMatchesGroup[a.student_id])
+    // sessions go by the class they were in (venue / discipline), not the student's own groups
+    const studentGroupsForRows = {}
+    for (const st of studentsForBreakdown) studentGroupsForRows[st.id] = { all: true, [selectedGroupKey]: studentIdMatchesGroup[st.id] }
+    const filteredAttendanceRows = attendanceRows.filter(a => sessionGroups(a, classesById, studentGroupsForRows)[selectedGroupKey])
+    const differentStudents = new Set(filteredAttendanceRows.filter(a => a.session_date >= (() => { const d = new Date(); d.setDate(d.getDate() - 29); return d.toISOString().split('T')[0] })()).map(a => a.student_id)).size
 
     const days = Array.from({ length: 30 }, (_, i) => {
       const d = new Date(); d.setDate(d.getDate() - (29 - i)); return d.toISOString().split('T')[0]
@@ -2526,7 +2535,7 @@ export default function CRM() {
       joined: filteredJoinsStopsMembers.filter(m => m.joined_date === day).length,
       stopped: filteredJoinsStopsMembers.filter(m => m.stopped_at?.split('T')[0] === day).length,
       pending: filteredJoinsStopsMembers.filter(m => m.status === 'pending' && m.joined_date === day).length,
-      trained: trainedByDay[day]?.size || 0,
+      trained: filteredAttendanceRows.filter(a => a.session_date === day).length,
     }))
     const activeSeries = SERIES.filter(s => visible.has(s.key))
     const maxVal = Math.max(1, ...data.flatMap(d => activeSeries.map(s => d[s.key])))
@@ -2563,7 +2572,7 @@ export default function CRM() {
                 border: `1px solid ${visible.has(s.key) ? s.colour : 'var(--border)'}`,
                 background: visible.has(s.key) ? s.colour + '18' : 'transparent',
                 color: visible.has(s.key) ? s.colour : 'var(--text-tertiary)', fontWeight: visible.has(s.key) ? 600 : 400 }}>
-              {seriesTotals[s.key]} {s.label}
+              {seriesTotals[s.key]} {s.label}{s.key === 'trained' ? ` · ${differentStudents} students` : ''}
             </button>
           ))}
         </div>
@@ -3040,16 +3049,20 @@ export default function CRM() {
       // (US-style month-first, since e.g. "09/20/2026" can't be
       // read as day-first -- there's no 20th month).
       function parseLeadsCenterDate(raw) {
-        const m = String(raw || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-        if (!m) return new Date().toISOString().split('T')[0]
-        const [, month, day, year] = m
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+        // the lead's own date -- never today's (that piled every unreadable date onto the import day)
+        if (raw instanceof Date && !isNaN(raw)) return raw.toISOString().split('T')[0]
+        const t = String(raw || '').trim()
+        let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (m) return `${m[1]}-${m[2]}-${m[3]}`
+        m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        if (m) { const [, a, b, y] = m; const [mo, d] = Number(a) > 12 ? [b, a] : [a, b]; return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}` }
+        if (typeof raw === 'number' && raw > 30000) { const d = new Date(Math.round((raw - 25569) * 86400000)); if (!isNaN(d)) return d.toISOString().split('T')[0] }
+        const d = new Date(t); return isNaN(d) ? null : d.toISOString().split('T')[0]
       }
 
       const parsed = rows.map(r => {
         if (isIdFormat) {
-          const created = r.created_time instanceof Date ? r.created_time : new Date(r.created_time)
-          const dateStr = isNaN(created) ? new Date().toISOString().split('T')[0] : created.toISOString().split('T')[0]
+          const dateStr = parseLeadsCenterDate(r.created_time) || new Date().toISOString().split('T')[0]
           const notesParts = []
           if (r.campaign_name) notesParts.push(`Campaign: ${r.campaign_name}`)
           if (r.ad_name) notesParts.push(`Ad: ${r.ad_name}`)
@@ -3063,7 +3076,7 @@ export default function CRM() {
             external_id: r.id ? String(r.id) : null,
           }
         } else {
-          const dateStr = parseLeadsCenterDate(r.Created)
+          const dateStr = parseLeadsCenterDate(r.Created) || new Date().toISOString().split('T')[0]
           const notesParts = []
           if (r.Form) notesParts.push(`Form: ${r.Form}`)
           if (r.Source) notesParts.push(`Source: ${r.Source}`)
@@ -4152,9 +4165,11 @@ export default function CRM() {
             <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
               {[
                 { cardKey: 'totalStudents', defaultLabel: 'Total students', value: trackersStats.totalStudents, breakdown: trackersStats.totalStudentsBreakdown, colour: '#378ADD', icon: '🎽', caption: trackersStats.pendingStudents ? `+ ${trackersStats.pendingStudents} pending` : 'Active students' },
-                { cardKey: 'newMembers', defaultLabel: 'New members this month', value: trackersStats.newMembersThisMonth, breakdown: trackersStats.newMembersThisMonthBreakdown, colour: '#E24B4A', icon: '🆕', caption: [trackersStats.returnedThisMonth ? `↻ ${trackersStats.returnedThisMonth} returned` : null, trackersStats.newPendingThisMonth ? `+ ${trackersStats.newPendingThisMonth} waiting for approval` : null].filter(Boolean).join(' · ') || 'Approved students only' },
-                { cardKey: 'trainedThisMonth', defaultLabel: 'Trained this month', value: trackersStats.trainedThisMonth, breakdown: trackersStats.trainedThisMonthBreakdown, colour: '#1D9E75', icon: '💪' },
-                { cardKey: 'avgSessions', defaultLabel: 'Avg sessions/student', value: trackersStats.avgSessions, breakdown: trackersStats.avgSessionsBreakdown, colour: '#EF9F27', icon: '📈' },
+                { cardKey: 'newMembers', defaultLabel: 'Joined this month', value: trackersStats.newJoinedThisMonth ?? trackersStats.newMembersThisMonth, breakdown: trackersStats.newJoinedBreakdown || trackersStats.newMembersThisMonthBreakdown, colour: '#E24B4A', icon: '🆕',
+                  caption: [`${trackersStats.newMembersThisMonth} approved`, trackersStats.newPendingThisMonth ? `${trackersStats.newPendingThisMonth} waiting -- tap to approve` : null, trackersStats.returnedThisMonth ? `↻ ${trackersStats.returnedThisMonth} returned` : null].filter(Boolean).join(' · ') },
+                { cardKey: 'trainedThisMonth', defaultLabel: 'Sessions this month', value: trackersStats.trainedThisMonth, breakdown: trackersStats.trainedThisMonthBreakdown, colour: '#1D9E75', icon: '💪',
+                  caption: `${trackersStats.studentsTrainedThisMonth ?? '—'} different students · by class`, captionBreakdown: trackersStats.studentsTrainedBreakdown },
+                { cardKey: 'avgSessions', defaultLabel: 'Avg sessions/student', value: trackersStats.avgSessions, breakdown: trackersStats.avgSessionsBreakdown, colour: '#EF9F27', icon: '📈', caption: 'this month · students who trained' },
                 {
                   cardKey: 'avgLength', defaultLabel: 'Avg length of training', colour: '#8B5CF6', icon: '⏱️',
                   value: trackersStats.avgMonthsTrained !== null ? `${trackersStats.avgMonthsTrained}mo` : '—',
@@ -4183,7 +4198,7 @@ export default function CRM() {
                       const [t, grp] = TO[g] || ['All', '']
                       const q = new URLSearchParams({ tab: t })
                       if (grp) q.set('group', grp)
-                      if (s.cardKey === 'newMembers') q.set('joined', 'month')
+                      if (s.cardKey === 'newMembers') { q.set('joined', 'month'); if (trackersStats.newPendingThisMonth) q.set('status', 'pending') }
                       navigate(`/students?${q}`)
                     }}>
                     <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
@@ -4200,12 +4215,18 @@ export default function CRM() {
             enquiries={enquiries}
             joinsStopsMembers={joinsStopsMembers}
             attendanceRows={attendanceRowsForChart}
+            classesById={chartClassesById}
             studentsForBreakdown={studentsForBreakdown}
             selectedGroupKey={TRACKERS_BREAKDOWN_STEPS[trackersBreakdownIndex % TRACKERS_BREAKDOWN_STEPS.length].key}
             selectedGroupLabel={TRACKERS_BREAKDOWN_STEPS[trackersBreakdownIndex % TRACKERS_BREAKDOWN_STEPS.length].label}
           />
           <div className="card" style={{ padding: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Where members actually said they found us</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>Where members actually said they found us <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>(from joining forms)</span></span>
+              {[['3m', 'Last 3 months'], ['12m', 'Last 12 months'], ['all', 'All time']].map(([k, l]) => (
+                <button key={k} type="button" className={`btn btn-sm${leadRange === k ? ' btn-primary' : ''}`} onClick={() => { setLeadRange(k); loadLeadSources(k) }}>{l}</button>
+              ))}
+            </div>
             {!leadSourcesLoaded ? (
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
             ) : (

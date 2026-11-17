@@ -170,8 +170,8 @@ export default function JoinKRBA() {
             )}
             <div className="field"><label>Previous club details</label><input value={form.previous_club} onChange={set('previous_club')} /></div>
             <VenueQuestion venue={venue} setVenue={setVenue} fromLink={venueFromLink} />
-            <div className="field"><label>How did you hear about us?</label>
-              <select value={form.hear_about} onChange={set('hear_about')}>
+            <div className="field"><label>How did you hear about us? <span className="required">*</span></label>
+              <select value={form.hear_about} onChange={set('hear_about')} required>
                 <option value="">Select…</option>
                 {HEAR_OPTIONS.map(o => <option key={o}>{o}</option>)}
               </select>
