@@ -135,7 +135,7 @@ export default function AwardsNominate() {
 }
 
 // awards a coach can nominate several people for
-export const MULTI_CATS = ['Special warrior award']
+export const MULTI_CATS = ['Special warrior award', 'Mentions']
 const isMulti = c => MULTI_CATS.includes(c?.name)
 
 const fmtJoined = d => new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
