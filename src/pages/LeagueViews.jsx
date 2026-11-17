@@ -72,9 +72,9 @@ function HoldableName({ student, name, onHold, style }) {
   )
 }
 
-// KR and KRBA athletes -- ranked in the athlete league, not the club league (PTs stay in the club league
-// unless they're KR / KRBA as well)
-export const isAppAthlete = s => !!(s?.is_kr || s?.discipline === 'KRBA')
+// KR / KRBA athletes WITH an app login -- ranked in the athlete league, not the club league. Without a login
+// they can't use the app, so they stay in the club league. (PTs-only students stay in the club league.)
+export const isAppAthlete = s => !!((s?.is_kr || s?.discipline === 'KRBA') && s?.members?.auth_id)
 
 export default function LeagueViews() {
   const { isAdmin } = useAuth()
@@ -340,7 +340,7 @@ export default function LeagueViews() {
         .gte('awarded_at', dateFrom)
         .lte('awarded_at', dateTo + 'T23:59:59')),
       fetchAllRows(() => supabase.from('students')
-        .select('*, members(first_name, last_name, date_of_birth, houses(name))')),
+        .select('*, members(first_name, last_name, date_of_birth, auth_id, houses(name))')),
     ])
     if (!ptsData) return
 
@@ -786,7 +786,7 @@ export default function LeagueViews() {
       {!loading && tab === 'Individual' && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{individualRankings.length} students ranked{showAppAthletes ? '' : ' · KR / KRBA athletes are in the athlete league (their points still count for their house)'}
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{individualRankings.length} students ranked{showAppAthletes ? '' : ' · KR / KRBA athletes with an app login are in the athlete league (their points still count for their house)'}
               <label style={{ marginLeft: 10, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={showAppAthletes} onChange={e => setShowAppAthletes(e.target.checked)} /> show KR / KRBA athletes</label></p>
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
