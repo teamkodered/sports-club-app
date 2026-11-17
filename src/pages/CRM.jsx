@@ -1161,9 +1161,12 @@ export default function CRM() {
   }
 
   function printCertificateList(rows) {
-    let html = `<h1>Certificates to print</h1><table><thead><tr><th>Name</th><th>New belt</th></tr></thead><tbody>`
-    rows.forEach(r => { html += `<tr><td>${r.name}</td><td>${r.grading_for}</td></tr>` })
-    html += `</tbody></table>`
+    // double (or more) grades get a certificate for EVERY belt they pass (e.g. Orange AND Green)
+    const esc = v => String(v ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+    const lines = rows.flatMap(r => (r.beltsNeeded?.length ? r.beltsNeeded : [r.grading_for]).map((b, i, all) => ({ name: r.name, belt: b, note: all.length > 1 ? `double grade (${i + 1} of ${all.length})` : '' })))
+    let html = `<h1>Certificates to print</h1><p>${lines.length} certificate${lines.length === 1 ? '' : 's'} for ${rows.length} student${rows.length === 1 ? '' : 's'}</p><table><thead><tr><th>Name</th><th>New belt</th><th></th></tr></thead><tbody>`
+    html += lines.map(l => `<tr><td>${esc(l.name)}</td><td>${esc(l.belt)}</td><td>${esc(l.note)}</td></tr>`).join('')
+    html += '</tbody></table>'
     printGradingWindow('Certificate list', html)
   }
 
