@@ -147,10 +147,24 @@ export default function AwardsPanel() {
 
   function exportRegister() {
     const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(cats.map(c => {
-      const n = noms.filter(x => x.category_id === c.id), v = votes.filter(x => x.category_id === c.id)
-      return { Group: c.grp, Award: c.name, Winner: c.winner_name || '', Nominations: c.vote ? `${v.length} votes` : n.map(x => `${x.nominee_name} (${x.coach_name || 'coach'})`).join('; ') }
-    }))
+    // one row per nomination: nominee and the coach who nominated them in their own columns
+    const rows = []
+    cats.forEach(c => {
+      const base = { Group: c.grp, Award: c.name, Winner: c.winner_name || '' }
+      if (c.vote) {
+        const tally = {}
+        votes.filter(x => x.category_id === c.id).forEach(x => { tally[x.nominee_name || 'Athlete'] = (tally[x.nominee_name || 'Athlete'] || 0) + 1 })
+        const list = Object.entries(tally).sort((a, b) => b[1] - a[1])
+        if (!list.length) rows.push({ ...base, Nominee: '', 'Nominated by': '', Votes: 0, Reason: '' })
+        list.forEach(([name, n]) => rows.push({ ...base, Nominee: name, 'Nominated by': 'Athlete vote', Votes: n, Reason: '' }))
+      } else {
+        const n = noms.filter(x => x.category_id === c.id)
+        if (!n.length) rows.push({ ...base, Nominee: '', 'Nominated by': '', Votes: '', Reason: '' })
+        n.forEach(x => rows.push({ ...base, Nominee: x.nominee_name, 'Nominated by': x.coach_name || 'Coach', Votes: '', Reason: x.reason || '' }))
+      }
+    })
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = [{ wch: 30 }, { wch: 24 }, { wch: 24 }, { wch: 26 }, { wch: 22 }, { wch: 7 }, { wch: 40 }]
     XLSX.utils.book_append_sheet(wb, ws, `Awards ${cur.year}`)
     XLSX.writeFile(wb, `awards_register_${cur.year}.xlsx`)
   }
