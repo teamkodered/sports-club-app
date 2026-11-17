@@ -1,5 +1,20 @@
 -- 🔗 Enquiry -> Joined only once the member is APPROVED (status becomes 'active'), not when the joining
 -- form is submitted. Staff adding someone straight in as active counts as approved too.
+create or replace function public.kc_enquiry_mark_joined(p_member uuid)
+returns int language plpgsql security definer set search_path = public as $$
+declare m record; n int;
+begin
+  select id, phone, email into m from members where id = p_member;
+  if m is null then return 0; end if;
+  update enquiries e set status = 'joined', linked_member_id = m.id, updated_at = now()
+  where coalesce(e.status, '') <> 'joined'
+    and (e.linked_member_id = m.id
+      or (e.linked_member_id is null and (
+            (length(kc_digits(m.phone)) >= 9 and kc_digits(e.contact_phone) = kc_digits(m.phone))
+         or (coalesce(m.email, '') <> '' and lower(trim(e.contact_email)) = lower(trim(m.email))))));
+  get diagnostics n = row_count;
+  return n;
+end $$;
 create or replace function public.kc_enquiry_joined_trg() returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.status = 'active' and (tg_op = 'INSERT' or coalesce(old.status, '') <> 'active') then
