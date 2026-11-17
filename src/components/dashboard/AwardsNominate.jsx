@@ -131,6 +131,7 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
   const [sel, setSel] = useState(current ? { student_id: current.student_id, member_id: current.member_id, name: current.nominee_name } : null)
   const [reason, setReason] = useState(current?.reason || '')
   const [busy, setBusy] = useState(false)
+  const [bigPhoto, setBigPhoto] = useState(null)   // 🔍 tapped photo, shown large
   const how = catHint(cat.name)
 
   useEffect(() => {
@@ -206,7 +207,8 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
             <button key={p.student_id || p.member_id} type="button" onClick={() => setSel(p)}
               style={{ display: 'flex', flexWrap: 'wrap', width: '100%', alignItems: 'center', gap: 10, padding: '8px 10px', marginBottom: 4, borderRadius: 8, cursor: 'pointer', textAlign: 'left',
                 border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7522' : 'transparent', color: 'var(--text)' }}>
-              {p.photo ? <img src={p.photo} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover' }} /> : <span style={{ width: 34 }} />}
+              {p.photo ? <img src={p.photo} alt="" title="Tap to see it bigger" onClick={e => { e.stopPropagation(); setBigPhoto({ src: p.photo, name: p.name }) }}
+                style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', cursor: 'zoom-in' }} /> : <span style={{ width: 34 }} />}
               <span style={{ flex: 1, fontSize: 14, fontWeight: on ? 700 : 500 }}>{p.name}</span>
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'right' }}>
                 {p.sub || <>{p.sessions} sessions · {p.points} pts{p.joined ? <><br />{p.joined.startsWith(y) ? <b style={{ color: '#1D9E75' }}>joined {fmtJoined(p.joined)}</b> : <>joined {fmtJoined(p.joined)}</>}</> : null}</>}
@@ -219,6 +221,13 @@ function Picker({ cat, current, year, profile, allowed, onClose, onSaved, onRemo
             </button>
           )
         })}
+        {bigPhoto && (
+          <div onClick={e => { e.stopPropagation(); setBigPhoto(null) }} style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'calc(var(--kc-vh, 1vh) * 100)', zIndex: 700, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, cursor: 'zoom-out' }}>
+            <img src={bigPhoto.src} alt={bigPhoto.name} style={{ maxWidth: '92vw', maxHeight: 'calc(var(--kc-vh, 1vh) * 75)', borderRadius: 14, objectFit: 'contain' }} />
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, marginTop: 12 }}>{bigPhoto.name}</div>
+            <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Tap anywhere to close</div>
+          </div>
+        )}
         <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Why? (optional, e.g. never misses a session)" style={{ margin: '8px 0' }} />
         <div style={{ display: 'flex', gap: 8 }}>
           {current && <button className="btn" onClick={remove}>Remove</button>}
