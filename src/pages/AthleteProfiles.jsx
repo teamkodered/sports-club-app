@@ -3304,6 +3304,7 @@ export default function AthleteProfiles() {
   const [showTargetsList, setShowTargetsList] = useState(false)
   const [showTeamNotesList, setShowTeamNotesList] = useState(false)
   const [editingNoteText, setEditingNoteText] = useState('')
+  const [notePick, setNotePick] = useState(null)   // { label, lines, on: [indexes] } -- picking note lines to send to a PDP box
   const [savingNote, setSavingNote] = useState(false)
   const [allClasses, setAllClasses] = useState([])
   const [addingClassId, setAddingClassId] = useState('')
@@ -6445,14 +6446,15 @@ export default function AthleteProfiles() {
     setEditingNoteId(null)
   }
 
-  async function sendNoteToPdpCategory(note, categoryLabel) {
+  // lines: the picked lines of the note (each becomes its own PDP item); default = the whole note
+  async function sendNoteToPdpCategory(note, categoryLabel, lines = null) {
     const sectionKey = NOTE_PDP_TARGETS[categoryLabel]
     if (!sectionKey) return
     const pdpNotes = apData?.pdp_notes || {}
     const current = pdpNotes[sectionKey] || []
-    const entryText = note.note_text
-    if (current.includes(entryText)) return alert(`Already sent to ${categoryLabel}.`)
-    const updatedPdp = { ...pdpNotes, [sectionKey]: [...current, entryText] }
+    const toAdd = (lines || [note.note_text]).map(t => String(t).trim()).filter(t => t && !current.includes(t))
+    if (!toAdd.length) return alert(`Already in ${categoryLabel}.`)
+    const updatedPdp = { ...pdpNotes, [sectionKey]: [...current, ...toAdd] }
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updatedPdp }, { onConflict: 'student_id' })
     if (error) return alert('Error sending to PDP: ' + error.message)
     const sentTo = [...new Set([...(note.sent_to || []), categoryLabel])]
@@ -13850,7 +13852,7 @@ export default function AthleteProfiles() {
               return (
                 <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <button onClick={() => setEditingNoteId(null)} className="btn btn-sm">← Back</button>
+                    <button onClick={() => { setEditingNoteId(null); setNotePick(null) }} className="btn btn-sm">← Back</button>
                     <h2 style={{ fontSize: 15, fontWeight: 600 }}>{new Date(note.logged_at).toLocaleDateString('en-GB')}</h2>
                   </div>
                   <textarea autoFocus value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)}
@@ -13860,17 +13862,36 @@ export default function AthleteProfiles() {
                     {Object.keys(NOTE_PDP_TARGETS).map(label => {
                       const sent = (note.sent_to || []).includes(label)
                       return (
-                        <button key={label} className="btn btn-sm" disabled={sent}
-                          onClick={() => sendNoteToPdpCategory(note, label)}
-                          style={{ fontSize: 11, opacity: sent ? 0.5 : 1 }}
-                          title={sent ? `Already sent to ${label}` : `Send to ${label}`}>
+                        <button key={label} className={`btn btn-sm${notePick?.label === label ? ' btn-primary' : ''}`}
+                          onClick={() => { const lines = editingNoteText.split('\n').map(t => t.trim()).filter(Boolean); setNotePick(p => p?.label === label ? null : { label, lines, on: [] }) }}
+                          style={{ fontSize: 11 }}
+                          title={`Pick lines to send to ${label}`}>
                           {sent ? `✓ ${label}` : label}
                         </button>
                       )
                     })}
                   </div>
+                  {/* pick which lines go -- each line becomes its own item in that PDP box */}
+                  {notePick && (
+                    <div style={{ border: '1px solid var(--border-strong)', borderRadius: 8, padding: 10, marginBottom: 12, maxHeight: '35vh', overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <b style={{ flex: 1, fontSize: 13 }}>Send to {notePick.label}: tick the lines</b>
+                        <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setNotePick(p => ({ ...p, on: p.on.length === p.lines.length ? [] : p.lines.map((_, i) => i) }))}>{notePick.on.length === notePick.lines.length ? 'None' : 'All'}</button>
+                      </div>
+                      {notePick.lines.map((t, i) => (
+                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, padding: '4px 0', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={notePick.on.includes(i)} onChange={e => setNotePick(p => ({ ...p, on: e.target.checked ? [...p.on, i] : p.on.filter(x => x !== i) }))} />
+                          {t}
+                        </label>
+                      ))}
+                      <button className="btn btn-sm btn-primary" style={{ marginTop: 8 }} disabled={!notePick.on.length}
+                        onClick={async () => { await sendNoteToPdpCategory(note, notePick.label, notePick.on.sort((a, b) => a - b).map(i => notePick.lines[i])); setNotePick(null) }}>
+                        Send {notePick.on.length || ''} line{notePick.on.length === 1 ? '' : 's'} to {notePick.label}
+                      </button>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setEditingNoteId(null)}>Cancel</button>
+                    <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setEditingNoteId(null); setNotePick(null) }}>Cancel</button>
                     <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!editingNoteText.trim() || savingNote}
                       onClick={() => updateNote(note.id, editingNoteText)}>
                       {savingNote ? 'Saving…' : 'Save'}
