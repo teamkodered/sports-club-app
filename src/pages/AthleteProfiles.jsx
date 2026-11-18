@@ -8703,6 +8703,13 @@ export default function AthleteProfiles() {
                         <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{overall.pct}%</span>
                         <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{overall.count}/{teamCount}</span>
                         {sectionTarget && <span style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {sectionTarget.target_value}</span>}
+                        {(() => {
+                          // question targets in this section (e.g. Physical: Running 2 per 1 week) -- shown too, so
+                          // sections set up per question (Technique, Physical) show their targets like the others
+                          const qt = teamTargets.filter(t => t.section_key === section.key && t.question_label && !t.student_id)
+                          if (!qt.length) return null
+                          return <span className="coach-pillar-qtargets" style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {qt.slice(0, 2).map(t => `${t.question_label.split('::').pop()} ${t.target_value}`).join(' · ')}{qt.length > 2 ? ` +${qt.length - 2}` : ''}</span>
+                        })()}
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{isOpen ? '▲' : '▼'}</span>
                       </span>
                     </button>
