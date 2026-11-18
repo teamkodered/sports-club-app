@@ -8188,14 +8188,14 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 placeholder="Weight" style={{ flex: 1 }} />
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>kg</span>
             </div>
-            {/* 📷 scan the scales (required): photo -> the weight is read off it and kept as proof */}
+            {/* 📷 scan the scales (optional): photo -> the weight is read off it and kept as proof */}
             <input ref={scaleCamRef} type="file" accept="image/*" capture="environment" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) scanScales(f) }} />
-            <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: -4, marginBottom: 6 }} disabled={scaleBusy} onClick={() => scaleCamRef.current?.click()}>
+            <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: -4, marginBottom: 6 }} disabled={scaleBusy} onClick={() => scaleCamRef.current?.click()}>
               {scaleBusy ? 'Reading the scales…' : scalePhoto ? '📷 Scan again' : '📷 Scan the scales'}
             </button>
             {scalePhoto && <img src={scalePhoto.preview} alt="Scales photo" style={{ width: '100%', maxHeight: 120, objectFit: 'contain', borderRadius: 8, marginBottom: 6, background: '#000' }} />}
             {scaleMsg ? <div style={{ fontSize: 12, color: scalePhoto ? 'var(--text-tertiary)' : '#EF9F27', fontWeight: scalePhoto ? 400 : 700, marginBottom: 10 }}>{scaleMsg}</div>
-              : !scalePhoto && <div style={{ fontSize: 12, color: '#EF9F27', fontWeight: 700, marginBottom: 10 }}>📷 Scan the scales to save your weight (or press Skip)</div>}
+              : !scalePhoto && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Type your weight, or 📷 scan the scales to fill it in (optional)</div>}
             {showWeightCheckPrompt === 'in' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 13 }}>
                 <input type="checkbox" checked={fullKitChecked} onChange={e => setFullKitChecked(e.target.checked)} />
@@ -8207,7 +8207,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 Cancel
               </button>
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(true)} disabled={checkingIn}>Skip</button>
-              <button className="btn btn-primary" onClick={() => { if (!scalePhoto) { setScaleMsg('📷 Scan the scales first -- a photo is needed with every weigh-in.'); return } saveScalePhoto(); submitWeightCheck(false) }} disabled={checkingIn} style={{ flex: 1, justifyContent: 'center', opacity: scalePhoto ? 1 : 0.6 }}>
+              <button className="btn btn-primary" onClick={() => { if (!scalePhoto && !String(weightCheckValue || '').trim()) { setScaleMsg('Type your weight or 📷 scan the scales, then Save (or press Skip).'); return } if (scalePhoto) saveScalePhoto(); submitWeightCheck(false) }} disabled={checkingIn} style={{ flex: 1, justifyContent: 'center' }}>
                 {checkingIn ? 'Saving…' : 'Save'}
               </button>
             </div>
