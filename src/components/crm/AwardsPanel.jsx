@@ -29,6 +29,27 @@ export default function AwardsPanel() {
   const [busy, setBusy] = useState(false)
   const [listOpen, setListOpen] = useState(false)
   const [housesOpen, setHousesOpen] = useState(false)
+  const [athOpen, setAthOpen] = useState(false), [ath, setAth] = useState(null)   // 🥊 athlete league winners
+  // the athlete league = KR / KRBA athletes with an app login (left out of the club league / houses top 3)
+  async function loadAthletes() {
+    const { data: st } = await supabase.from('students').select('id, house_points, house_name, is_kr, discipline, members(first_name, last_name, status, auth_id, houses(name))')
+    const list = (st || []).filter(s => (s.members?.status || 'active') === 'active' && (s.is_kr || s.discipline === 'KRBA') && s.members?.auth_id)
+      .map(s => ({ student_id: s.id, name: `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim(), pts: s.house_points || 0,
+        house: s.members?.houses?.name || s.house_name || '', squad: s.discipline === 'KRBA' ? 'KRBA' : 'KR' }))
+      .sort((a, b) => b.pts - a.pts)
+    setAth({ top: list.slice(0, 3), kr: list.find(x => x.squad === 'KR'), krba: list.find(x => x.squad === 'KRBA'), count: list.length })
+  }
+  async function saveAthletes() {
+    if (!ath) return
+    const rows = []; let sort = 2000
+    ath.top.forEach((p, i) => rows.push({ year: cur.year, grp: 'Athlete league', grp_kind: 'house', name: `Athlete league #${i + 1}`, winner_name: p.name, winner_student_id: p.student_id, sort: sort++ }))
+    if (ath.kr) rows.push({ year: cur.year, grp: 'Athlete league', grp_kind: 'house', name: 'KR athlete league winner', winner_name: ath.kr.name, winner_student_id: ath.kr.student_id, sort: sort++ })
+    if (ath.krba) rows.push({ year: cur.year, grp: 'Athlete league', grp_kind: 'house', name: 'KRBA athlete league winner', winner_name: ath.krba.name, winner_student_id: ath.krba.student_id, sort: sort++ })
+    await supabase.from('awards_categories').delete().eq('year', cur.year).eq('grp', 'Athlete league')
+    const { error } = await supabase.from('awards_categories').insert(rows)
+    if (error) return alert('Could not save: ' + error.message)
+    load(); alert('🥊 Athlete league winners saved to the register.')
+  }
   const [showOther, setShowOther] = useState(false)   // the awards list starts closed -- press to view
   const holdT = useRef(null), held = useRef(false)
   // hold a group's header to delete that group's awards (and their nominations / votes)
@@ -140,7 +161,7 @@ export default function AwardsPanel() {
     houses.list.forEach(h => h.top.forEach((p, i) => rows.push({ year: cur.year, grp: 'Houses', grp_kind: 'house', name: `${h.name} #${i + 1}`, winner_name: p.name, winner_student_id: p.student_id, sort: sort++ })))
     rows.push({ year: cur.year, grp: 'Houses', grp_kind: 'house', name: 'House winners', winner_name: houses.winner, sort: sort++ })
     if (houses.student) rows.push({ year: cur.year, grp: 'Houses', grp_kind: 'house', name: 'Student house winner', winner_name: houses.student.name, winner_student_id: houses.student.student_id, sort: sort++ })
-    await supabase.from('awards_categories').delete().eq('year', cur.year).eq('grp_kind', 'house')
+    await supabase.from('awards_categories').delete().eq('year', cur.year).eq('grp', 'Houses')
     const { error } = await supabase.from('awards_categories').insert(rows.map(fullRow))
     if (error) return alert('Could not save: ' + error.message)
     load(); alert('🏠 House results saved to the register.')
@@ -321,13 +342,47 @@ export default function AwardsPanel() {
         )
       })}
 
+      {/* 🥊 athlete league winners (KR / KRBA athletes with an app login) -- press to show / hide */}
+      {cats.length > 0 && (
+        <div className="card" style={{ marginBottom: 8, padding: 0, overflow: 'hidden' }}>
+          <button type="button" onClick={() => { const o = !athOpen; setAthOpen(o); if (o && !ath) loadAthletes() }}
+            style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'center', padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
+            <b style={{ flex: 1 }}>🥊 Athlete league <span style={{ fontWeight: 400, color: 'var(--text-secondary)', fontSize: 12 }}>from the points</span></b>
+            {groups.find(g => g.grp === 'Athlete league') && <span style={{ fontSize: 12, color: '#1D9E75' }}>✓ saved</span>}
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{athOpen ? '▲' : '▼'}</span>
+          </button>
+          <div className={`kc-slide${athOpen ? ' open' : ''}`}><div style={{ padding: athOpen ? '0 14px 14px' : 0 }}>
+            {!ath ? <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</div> : (
+              <>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>KR and KRBA athletes using the app ({ath.count}) -- the ones left out of the club league and house top 3s.</div>
+                {ath.top.map((p, i) => (
+                  <div key={p.student_id} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 14, padding: '3px 0', borderTop: i ? 'none' : '1px solid var(--border)', paddingTop: i ? 3 : 10 }}>
+                    <span style={{ width: 22, color: ['#EF9F27', '#9CA3AF', '#B87333'][i], fontWeight: 800 }}>{i + 1}</span>
+                    <span style={{ flex: 1 }}>{p.name} <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{p.squad} · {p.house}</span></span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.pts}</span>
+                  </div>
+                ))}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 8, display: 'grid', gap: 4, fontSize: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🥇 KR athlete league winner</span><b>{ath.kr ? `${ath.kr.name} (${ath.kr.pts})` : '—'}</b></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🥇 KRBA athlete league winner</span><b>{ath.krba ? `${ath.krba.name} (${ath.krba.pts})` : '—'}</b></div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button className="btn btn-sm" onClick={loadAthletes}>🔄 Refresh</button>
+                  <button className="btn btn-sm btn-primary" onClick={saveAthletes}>Save to register</button>
+                </div>
+              </>
+            )}
+          </div></div>
+        </div>
+      )}
+
       {/* houses from the points -- press to show / hide */}
       {cats.length > 0 && (
         <div className="card" style={{ marginBottom: 8, padding: 0, overflow: 'hidden' }}>
           <button type="button" onClick={() => { const o = !housesOpen; setHousesOpen(o); if (o && !houses) loadHouses() }}
             style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'center', padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
             <b style={{ flex: 1 }}>🏠 Houses <span style={{ fontWeight: 400, color: 'var(--text-secondary)', fontSize: 12 }}>from the points</span></b>
-            {groups.find(g => g.kind === 'house') && <span style={{ fontSize: 12, color: '#1D9E75' }}>✓ saved</span>}
+            {groups.find(g => g.grp === 'Houses') && <span style={{ fontSize: 12, color: '#1D9E75' }}>✓ saved</span>}
             <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{housesOpen ? '▲' : '▼'}</span>
           </button>
           <div className={`kc-slide${housesOpen ? ' open' : ''}`}><div style={{ padding: housesOpen ? '0 14px 14px' : 0 }}>
