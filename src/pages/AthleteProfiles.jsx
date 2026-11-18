@@ -4307,6 +4307,12 @@ export default function AthleteProfiles() {
       if (d.notes && !(q === 'journal' && (d.privateJournal || true))) lines.push(d.notes)
       return { value: value || 1, lines: lines.length ? lines : ['Logged'] }
     }
+    if (sectionKey === 'physical') {
+      const fmt = e => { const sets = (e?.sets || []).filter(x => x !== '' && x != null); const name = e?.type || e?.test || e?.category || e?.name || e?.exercise || ''; return `${name}${name && sets.length ? ': ' : ''}${sets.join(', ')}` || (e?.quickLogged ? 'Quick logged' : 'Logged') }
+      if (q === 'stretch') { const l = (Array.isArray(s.stretch_flows) ? s.stretch_flows : s.stretch_flows ? [s.stretch_flows] : []).filter(Boolean).map(x => typeof x === 'string' ? x : (x.name || 'Stretch flow')); return { value: l.length, lines: l } }
+      const field = { watt_bike: 'watt_bike', bodyweight: 'bodyweight', snc: 'snc', other_session: 'other_session', running: 'running' }[q]
+      if (field) { const l = toEntries(s[field]).map(fmt); return { value: l.length, lines: l } }
+    }
     if (sectionKey === 'tactical') {
       const items = (Array.isArray(s.tactical) ? s.tactical : []).filter(t => t.category === q)
       return { value: items.length, lines: items.map(t => t.note ? `${t.item} — ${t.note}` : t.item) }
@@ -4317,6 +4323,28 @@ export default function AthleteProfiles() {
       return { value: items.length, lines: items.map(t => t.note ? `${t.technique} — ${t.note}` : t.technique) }
     }
     return { value: 0, lines: [] }
+  }
+
+  // 📊 Results for one question, shown inside its open card (latest first, in the section's colours)
+  function InlineResults({ view, limit = 8 }) {
+    if (!view?.q) return null
+    const rows = historySessions().slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
+      .map(s => ({ date: s.session_date, ...historyForSession(view, s) })).filter(r => r.value > 0 && r.lines?.length).slice(0, limit)
+    const c = view.colour || '#22B14C'
+    return (
+      <div style={{ border: `1px solid ${c}55`, borderRadius: 8, padding: '8px 10px', margin: '0 0 8px', background: c + '0d' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: rows.length ? 6 : 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: c, flex: 1 }}>📊 RESULTS · {view.label}</span>
+          {HistoryViewButton({ view, style: { fontSize: 10, padding: '1px 8px' } })}
+        </div>
+        {!rows.length ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged yet</div> : rows.map(r => (
+          <div key={r.date} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '3px 0', borderTop: '1px solid var(--border)' }}>
+            <span style={{ width: 62, flexShrink: 0, color: 'var(--text-tertiary)' }}>{new Date(r.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+            <span style={{ flex: 1, minWidth: 0, color: 'var(--text)' }}>{r.lines.join(' · ')}</span>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   // Small VIEW pill that sits inside an OPEN pillar's header, beside the title.
@@ -10436,6 +10464,7 @@ export default function AthleteProfiles() {
                   </div>
                   )}
 
+                  {showWattCards && InlineResults({ view: { sectionKey: 'physical', q: 'watt_bike', label: 'Watt bike', colour: '#E6B800' } })}
                   {showWattCards && (
                   <div ref={wattPanelRef}>
                   <WattBikePanel entries={todaysWattBike} onSaveEntries={list => savePhysicalField('watt_bike', list, setTodaysWattBike)}
@@ -10453,6 +10482,7 @@ export default function AthleteProfiles() {
                       <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Stretch flows')} />
                     )}
                   </div>
+                  {showBodyweightCards && InlineResults({ view: { sectionKey: 'physical', q: 'bodyweight', label: 'Bodyweight', colour: '#E6B800' } })}
                   {showBodyweightCards && (
                   <div ref={bodyweightPanelRef}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
@@ -10487,6 +10517,7 @@ export default function AthleteProfiles() {
                   </div>
                   )}
 
+                  {showStretchCards && InlineResults({ view: { sectionKey: 'physical', q: 'stretch', label: 'Stretch flows', colour: '#E6B800' } })}
                   {showStretchCards && (
                   <div ref={stretchPanelRef}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
@@ -10587,6 +10618,7 @@ export default function AthleteProfiles() {
                     </div>
                   </div>
                   )}
+                  {showOtherSessionCards && InlineResults({ view: { sectionKey: 'physical', q: 'other_session', label: 'Other session', colour: '#E6B800' } })}
                   {showOtherSessionCards && (
                     <div className="card" style={{ marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -10622,6 +10654,7 @@ export default function AthleteProfiles() {
                       {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
                     </div>
                   )}
+                  {showSncCards && InlineResults({ view: { sectionKey: 'physical', q: 'snc', label: 'S&C', colour: '#E6B800' } })}
                   {showSncCards && (
                     <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -10745,7 +10778,7 @@ export default function AthleteProfiles() {
                         if (expandedTechniqueCategory !== catKey) return null
                         return (
                           <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
-                            {HistoryViewButton({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' }, style: { marginBottom: 8 } })}
+                            {InlineResults({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' } })}
                             {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: { pillar: 'technique', pillarLabel: 'Technical', q: `${style}::${cat}`, label: cat }, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
                           </div>
                         )
@@ -10838,7 +10871,7 @@ export default function AthleteProfiles() {
                     if (expandedTacticalCategory !== cat) return null
                     return (
                       <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
-                        {HistoryViewButton({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' }, style: { marginBottom: 8 } })}
+                        {InlineResults({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' } })}
                         {ChecklistPicker({ draftKey: `tac:${cat}`, items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: { pillar: 'tactical', pillarLabel: 'Tactical', q: cat, label: cat }, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
                       </div>
                     )
@@ -10895,6 +10928,7 @@ export default function AthleteProfiles() {
 
                   {expandedHomeMentality && (
                     <div className="card neon-qpanel neon-q-mentality" style={{ marginBottom: 8 }}>
+                      {InlineResults({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: (MENTALITY_QUESTIONS.find(m => m.key === expandedHomeMentality) || {}).label || 'Mentality', colour: '#22B14C' } })}
                       {PdpNotes({ links: pdpInfo('mentality', expandedHomeMentality).links })}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                         {HistoryViewButton({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality, colour: '#22B14C' }, style: { marginRight: 'auto' } })}
