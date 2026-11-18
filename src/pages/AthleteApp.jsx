@@ -8194,7 +8194,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               {scaleBusy ? 'Reading the scales…' : scalePhoto ? '📷 Scan again' : '📷 Scan the scales'}
             </button>
             {scalePhoto && <img src={scalePhoto.preview} alt="Scales photo" style={{ width: '100%', maxHeight: 120, objectFit: 'contain', borderRadius: 8, marginBottom: 6, background: '#000' }} />}
-            {scaleMsg && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>{scaleMsg}</div>}
+            {scaleMsg ? <div style={{ fontSize: 12, color: scalePhoto ? 'var(--text-tertiary)' : '#EF9F27', fontWeight: scalePhoto ? 400 : 700, marginBottom: 10 }}>{scaleMsg}</div>
+              : !scalePhoto && <div style={{ fontSize: 12, color: '#EF9F27', fontWeight: 700, marginBottom: 10 }}>📷 Scan the scales to save your weight (or press Skip)</div>}
             {showWeightCheckPrompt === 'in' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 13 }}>
                 <input type="checkbox" checked={fullKitChecked} onChange={e => setFullKitChecked(e.target.checked)} />
@@ -8206,7 +8207,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 Cancel
               </button>
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(true)} disabled={checkingIn}>Skip</button>
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { if (!scalePhoto) { setScaleMsg('📷 Scan the scales first -- a photo is needed with every weigh-in.'); return } saveScalePhoto(); submitWeightCheck(false) }} disabled={checkingIn || !scalePhoto}>
+              <button className="btn btn-primary" onClick={() => { if (!scalePhoto) { setScaleMsg('📷 Scan the scales first -- a photo is needed with every weigh-in.'); return } saveScalePhoto(); submitWeightCheck(false) }} disabled={checkingIn} style={{ flex: 1, justifyContent: 'center', opacity: scalePhoto ? 1 : 0.6 }}>
                 {checkingIn ? 'Saving…' : 'Save'}
               </button>
             </div>
