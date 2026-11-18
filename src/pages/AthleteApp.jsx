@@ -54,6 +54,7 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import AthleteFightFootage from '../components/shared/AthleteFightFootage.jsx'
+import MySessionFootage from '../components/shared/MySessionFootage.jsx'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -6138,6 +6139,7 @@ export default function AthleteApp() {
 
                 return (
                   <>
+                    <MySessionFootage />
                     <AthleteFightFootage studentId={student?.id} />
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                       <TopStatCard onNavigate={() => setTab('sessions')} iconImg="/logos/neon/sessions.png" value={sessionsValue} pctValue={`${sessionsPct}%`}

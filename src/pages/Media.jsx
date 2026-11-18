@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { useAuth } from '../hooks/useAuth.jsx'
+import AthleteFootageAccess from '../components/media/AthleteFootageAccess.jsx'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useFightFootageUpload } from '../hooks/useFightFootageUpload.jsx'
@@ -28,6 +30,7 @@ export default function Media() {
   const navigate = useNavigate()
   const { upload, startUpload, startBulkUpload } = useFightFootageUpload()
 
+  const { isAdmin } = useAuth()
   const [footage, setFootage] = useState([])
   const [events, setEvents] = useState([])
   const [folders, setFolders] = useState([])
@@ -153,9 +156,11 @@ export default function Media() {
         <button className={openTab === 'uploads' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('uploads')}>⬆️ Uploads {openTab === 'uploads' ? '▾' : '▸'}</button>
         <button className={openTab === 'view-it' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('view-it')}>🥊 View IT {openTab === 'view-it' ? '▾' : '▸'}</button>
         <button className={openTab === 'study' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('study')}>📚 Study {openTab === 'study' ? '▾' : '▸'}</button>
+        {isAdmin && <button className={openTab === 'athlete-access' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('athlete-access')}>👀 Athlete access {openTab === 'athlete-access' ? '▾' : '▸'}</button>}
       </div>
 
       {openTab === 'athletes' && <AthleteMedia students={students} />}
+      {openTab === 'athlete-access' && isAdmin && <AthleteFootageAccess />}
       {openTab === 'cctv' && <CctvViewer embedded />}
       {openTab === 'uploads' && <Uploads {...sharedProps} />}
       {openTab === 'view-it' && <ViewIt embedded {...sharedProps} />}
