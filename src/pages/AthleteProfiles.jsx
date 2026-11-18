@@ -3398,6 +3398,13 @@ export default function AthleteProfiles() {
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
   const [showCompoundLifts, setShowCompoundLifts] = useState(false) // Compound Lifts: its own card under Physical
+  // only one Physical card open at a time: opening one closes the others
+  function closeOtherPhysical(keep) {
+    if (keep !== 'cat') setActivePhysicalCategory(null)
+    if (keep !== 'snc') setShowSncCards(false)
+    if (keep !== 'other') setShowOtherSessionCards(false)
+    if (keep !== 'compound') setShowCompoundLifts(false)
+  }
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
   const [fightOpen, setFightOpen] = useState(false) // KR Fight game for Gaming (combat)
   const [chessOpen, setChessOpen] = useState(false) // in-app chess game for the Chess question
@@ -6697,6 +6704,8 @@ export default function AthleteProfiles() {
     // overwrite, so any other test values already on this row survive.
     const existingRow = f2fData.find(s => s.id === sessionForm.id)
     const mergedTest = { ...(existingRow?.test || {}) }
+    // edited test results (grip, bleep, max reps...) -- emptied ones are removed
+    Object.entries(sessionForm.tests || {}).forEach(([k, v]) => { if (v === '' || v == null) delete mergedTest[k]; else mergedTest[k] = v })
     if (sessionForm.vo2max === '' || sessionForm.vo2max == null) delete mergedTest['VO2 Max']
     else mergedTest['VO2 Max'] = sessionForm.vo2max
     const payload = {
@@ -10175,7 +10184,7 @@ export default function AthleteProfiles() {
                 { key: 'wellbeing',      label: 'Foundation',      icon: '🌱' },
               ]
               const togglePhysicalLog = key => {
-                setActivePhysicalCategory(cur => cur === key ? null : key)
+                setActivePhysicalCategory(cur => { if (cur !== key) closeOtherPhysical('cat'); return cur === key ? null : key })
               }
               const handleQuickLog = key => {
                 if (key === 'running') savePhysicalField('running', [...todaysRunning, { quickLogged: true, sets: [] }], setTodaysRunning)
@@ -10523,7 +10532,7 @@ export default function AthleteProfiles() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                       overflow: 'hidden', fontFamily: 'var(--font-sans)',
                     }}>
-                      <button onClick={() => setShowSncCards(v => !v)} style={{
+                      <button onClick={() => { if (!showSncCards) closeOtherPhysical('snc'); setShowSncCards(v => !v) }} style={{
                         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
                         padding: '8px 4px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
                         minWidth: 0,
@@ -10531,7 +10540,7 @@ export default function AthleteProfiles() {
                         <span style={{ fontSize: 16 }}>🏋️</span>
                         <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>SnC</span>
                       </button>
-                      <button onClick={() => setShowSncCards(v => !v)} style={{
+                      <button onClick={() => { if (!showSncCards) closeOtherPhysical('snc'); setShowSncCards(v => !v) }} style={{
                         width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                         padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
                       }}>
@@ -10559,7 +10568,7 @@ export default function AthleteProfiles() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                       overflow: 'hidden', fontFamily: 'var(--font-sans)',
                     }}>
-                      <button onClick={() => setShowOtherSessionCards(v => !v)} style={{
+                      <button onClick={() => { if (!showOtherSessionCards) closeOtherPhysical('other'); setShowOtherSessionCards(v => !v) }} style={{
                         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
                         padding: '8px 4px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
                         minWidth: 0,
@@ -10567,7 +10576,7 @@ export default function AthleteProfiles() {
                         <span style={{ fontSize: 16 }}>🥋</span>
                         <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>Other session</span>
                       </button>
-                      <button onClick={() => setShowOtherSessionCards(v => !v)} style={{
+                      <button onClick={() => { if (!showOtherSessionCards) closeOtherPhysical('other'); setShowOtherSessionCards(v => !v) }} style={{
                         width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                         padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
                       }}>
@@ -10653,7 +10662,7 @@ export default function AthleteProfiles() {
                   {/* Compound Lifts (Weights): its own card under Physical (same exercises + saved entries as before) */}
                   {(!activePhysicalCategory || showCompoundLifts) && (() => { const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, 'compound_lifts')); return (
                     <div style={{ marginBottom: 8 }}>
-                      <button className={`neon-q neon-q-physical neon-compound${showCompoundLifts ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => setShowCompoundLifts(v => !v)}
+                      <button className={`neon-q neon-q-physical neon-compound${showCompoundLifts ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => { if (!showCompoundLifts) closeOtherPhysical('compound'); setShowCompoundLifts(v => !v) }}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '14px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Compound Lifts (Weights)</span>
                         <span style={{ fontSize: 22 }}>🏋️</span>
@@ -13272,6 +13281,7 @@ export default function AthleteProfiles() {
                                       weight_before: s.weight_before ?? '', weight_after: s.weight_after ?? '',
                                       height_cm: s.height_cm ?? '', reach_cm: s.reach_cm ?? '', notes: s.notes ?? '',
                                       vo2max: s.test?.['VO2 Max'] ?? '',
+                                      tests: Object.fromEntries(Object.entries(s.test || {}).filter(([k, v]) => k !== 'VO2 Max' && (typeof v !== 'object' || v === null)).map(([k, v]) => [k, v ?? ''])),
                                     }); setEditingSession(s) }}
                                     style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
                                     Edit
@@ -13361,6 +13371,18 @@ export default function AthleteProfiles() {
                         <label>🫁 VO2 Max (ml/kg/min)</label>
                         <input type="number" step="0.1" value={sessionForm.vo2max ?? ''} onChange={e => setSessionForm(f => ({ ...f, vo2max: e.target.value }))} />
                       </div>
+                      {sessionForm.tests && Object.keys(sessionForm.tests).length > 0 && (
+                        <div className="field">
+                          <label>📊 Test results</label>
+                          {Object.keys(sessionForm.tests).map(k => (
+                            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                              <span style={{ flex: 1, fontSize: 13, color: '#1D9E75' }}>{k}</span>
+                              <input value={sessionForm.tests[k]} onChange={e => setSessionForm(f => ({ ...f, tests: { ...f.tests, [k]: e.target.value } }))} style={{ width: 110 }} />
+                            </div>
+                          ))}
+                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Clear a box to remove that result.</div>
+                        </div>
+                      )}
                       <div className="field">
                         <label>Notes</label>
                         <textarea rows={3} value={sessionForm.notes ?? ''} onChange={e => setSessionForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: 'none' }} />
