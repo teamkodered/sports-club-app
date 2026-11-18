@@ -6440,8 +6440,12 @@ export default function AthleteProfiles() {
 
   async function updateNote(noteId, newText) {
     if (!newText.trim()) return
-    const { error } = await supabase.from('athlete_notes_log').update({ note_text: newText.trim() }).eq('id', noteId)
+    setSavingNote(true)
+    const { data, error } = await supabase.from('athlete_notes_log').update({ note_text: newText.trim() }).eq('id', noteId).select('id')
+    setSavingNote(false)
     if (error) { alert('Error saving note: ' + error.message); return }
+    // nothing changed = this login isn't allowed to edit that note (say so instead of quietly closing)
+    if (!data?.length) { alert("This note couldn't be saved -- you may not have permission to edit it (e.g. it's the athlete's own note)."); return }
     setNotesLog(prev => prev.map(n => n.id === noteId ? { ...n, note_text: newText.trim() } : n))
     setEditingNoteId(null)
   }
@@ -13893,6 +13897,7 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setEditingNoteId(null); setNotePick(null) }}>Cancel</button>
                     <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!editingNoteText.trim() || savingNote}
+                      onMouseDown={e => e.preventDefault()} onTouchEnd={e => { e.preventDefault(); if (editingNoteText.trim() && !savingNote) updateNote(note.id, editingNoteText) }}
                       onClick={() => updateNote(note.id, editingNoteText)}>
                       {savingNote ? 'Saving…' : 'Save'}
                     </button>
