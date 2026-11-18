@@ -13383,9 +13383,10 @@ export default function AthleteProfiles() {
 
                 {/* Add/edit session modal */}
                 {editingSession && isAdmin && (
-                  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-                    <div className="card" style={{ width: '100%', maxWidth: 400 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div onClick={() => setEditingSession(null)} style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'calc(var(--kc-vh, 1vh) * 100)', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 600, padding: 12 }}>
+                    {/* scrolls inside itself so Save / Cancel are always reachable, however long the entry */}
+                    <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, maxHeight: 'calc(var(--kc-vh, 1vh) * 92)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, position: 'sticky', top: -16, background: 'var(--bg-secondary, #1a1f24)', zIndex: 2, paddingTop: 4 }}>
                         <h2 style={{ fontSize: 15, fontWeight: 600 }}>{sessionForm.id ? 'Edit entry' : 'Quick entry'}</h2>
                         <button onClick={() => setEditingSession(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
                       </div>
@@ -13424,7 +13425,7 @@ export default function AthleteProfiles() {
                       <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
                         For running, watt bike, techniques and other training modules, use "+ Full session log" instead.
                       </p>
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 8, position: 'sticky', bottom: -16, background: 'var(--bg-secondary, #1a1f24)', padding: '10px 0 4px', zIndex: 2 }}>
                         <button className="btn" onClick={() => setEditingSession(null)}>Cancel</button>
                         <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={saveFit2FightSession} disabled={savingSession || !sessionForm.session_date}>
                           {savingSession ? 'Saving…' : 'Save'}
