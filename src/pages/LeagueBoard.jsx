@@ -449,6 +449,34 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
             {badges.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{badges.map(([e, t]) => <span key={t} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, border: '1px solid #F5C54266', color: '#F5C542', background: '#F5C54214' }}>{e} {t}</span>)}</div>}
           </div>
         )}
+        {/* ⭐ athlete points league standings (KR + KRBA) -- top 10 + where you are */}
+        {pd.individuals?.length > 0 && (() => {
+          const list = pd.individuals, myIdx = list.findIndex(r => r.id === meId)
+          const top = list.slice(0, 10)
+          return (
+            <div style={{ background: '#1A1F24', border: '1px solid #2A3138', borderTop: '3px solid #F5C542', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                <div style={{ ...TITLE, fontSize: 19, color: '#F5C542', flex: 1 }}>⭐ Points league</div>
+                <span style={{ fontSize: 11, color: '#9A9A9A' }}>KR + KRBA · {periodLabel}</span>
+              </div>
+              {top.map((r, i) => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px', borderRadius: 6, background: r.id === meId ? '#F5C54233' : 'transparent' }}>
+                  <span style={{ width: 22, textAlign: 'center', fontSize: i < 3 ? 15 : 12, color: '#9A9A9A' }}>{['🥇', '🥈', '🥉'][i] || i + 1}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: r.id === meId || i < 3 ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}{r.id === meId ? ' (you)' : ''}</span>
+                  <span style={{ fontSize: 11, color: HOUSE_COLOUR[r.house] || '#9A9A9A' }}>{r.house ? r.house.replace(/ House$/, '') : ''}</span>
+                  <span style={{ ...NUM, fontSize: 13, color: '#F5C542', minWidth: 40, textAlign: 'right' }}>{r.total}</span>
+                </div>
+              ))}
+              {myIdx >= 10 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px', marginTop: 4, borderTop: '1px dashed #2A3138', background: '#F5C54222', borderRadius: 6 }}>
+                  <span style={{ width: 22, textAlign: 'center', fontSize: 12, color: '#9A9A9A' }}>{myIdx + 1}</span>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>{list[myIdx].name} (you)</span>
+                  <span style={{ ...NUM, fontSize: 13, color: '#F5C542' }}>{list[myIdx].total}</span>
+                </div>
+              )}
+            </div>
+          )
+        })()}
         {grouped.length > 0 && (() => {
           // one page at a time: press (or swipe) to step Sections -> Exercise PBs -> Heart rate -> ...
           const gi = Math.min(listPage, grouped.length - 1), step = d => { setListPage((gi + d + grouped.length) % grouped.length); setOpenCard(null) }

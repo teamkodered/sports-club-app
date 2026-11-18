@@ -6123,9 +6123,14 @@ export default function AthleteApp() {
                 const f2fPct = f2fHasPct ? `${Math.round((f2fCount / f2fTargetTotal) * 100)}%` : f2fValue
 
                 // PDP card values
-                const completedCount = myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length
-                const totalSent = PDP_SECTIONS.filter(s => /_work_on$/.test(s.key) && s.key !== 'to_work_on').reduce((sum, s) =>   // only the 'Work on' items count (not maintain / notes / winning ways)
-                  sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
+                // only what the athlete can SEE counts: the 'Work on' items the coach has sent them, and of
+                // those, the ones they've ticked done (or the coach has marked completed)
+                const visibleWorkOn = PDP_SECTIONS.filter(s => /_work_on$/.test(s.key) && s.key !== 'to_work_on')
+                  .flatMap(s => (isToDoSectionKey(s.key) ? (pdp[s.key] || []) : (shared[s.key] || [])).map(t => ({ key: s.key, text: typeof t === 'string' ? t : (t?.text || '') })))
+                const doneMap = apData?.pdp_done || {}
+                const completedTexts = myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task')).map(n => n.note_text)
+                const completedCount = visibleWorkOn.filter(it => (doneMap[pdpDoneKey(it.key, it.text)] || []).length > 0 || completedTexts.some(t => t.includes(it.text))).length
+                const totalSent = visibleWorkOn.length
                 const pdpHasPct = totalSent > 0
                 const doneShown = pdpHasPct ? Math.min(completedCount, totalSent) : completedCount
                 const pdpValue = pdpHasPct ? `${doneShown}/${totalSent}` : completedCount
