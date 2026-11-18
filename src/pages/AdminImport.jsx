@@ -13,6 +13,8 @@ const XLSX = XLSXModule.utils ? XLSXModule : XLSXModule.default
 // under Psychology, Technical, Tactical, Physical, and Skill).
 const PDP_EXPORT_SECTIONS = [
   { key: 'winning_ways',          label: 'Winning ways' },
+  { key: 'winning_techniques',    label: 'Techniques' },
+  { key: 'losing_ways',           label: 'Losing ways' },
   { key: 'what_to_do',            label: 'What to do (general)' },
   { key: 'psychology_notes',      label: 'Mentality - Notes' },
   { key: 'psychology_maintain',   label: 'Mentality - Maintain' },

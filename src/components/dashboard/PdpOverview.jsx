@@ -108,7 +108,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
   const jumpTo = (id, key) => { const g = groups.find(x => x.keys.includes(key)); setView(g ? g.label : 'General'); setFocus({ id, key }) }
 
   // which section columns this view shows
-  const general = [{ key: 'winning_ways', label: 'Winning ways' }]   // General 'What to do' hidden (notes kept)
+  const general = [{ key: 'winning_ways', label: 'Winning ways' }, { key: 'winning_techniques', label: 'Techniques' }, { key: 'losing_ways', label: 'Losing ways' }]   // General 'What to do' hidden (notes kept)
   const cols = view === 'General' ? general
     : view === 'overview' ? null
     : (groups.find(g => g.label === view)?.keys || []).map((k, i) => ({ key: k, label: SUB[i]?.[1] || k }))
@@ -395,7 +395,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, rowGap: 10 }}>
                   <div>
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>Winning ways</div>
-                    <div style={{ display: 'flex', gap: 4 }}>{general.map(c => block(c.key, (pdp[c.key] || []).length, '#1D9E75', c.label))}</div>
+                    <div style={{ display: 'flex', gap: 4 }}>{general.map(c => block(c.key, (pdp[c.key] || []).length, { winning_ways: '#1D9E75', winning_techniques: '#378ADD', losing_ways: '#E24B4A' }[c.key], c.label))}</div>
                   </div>
                   {openCell?.id === s.id && general.some(c => c.key === openCell.key) && <div style={{ flexBasis: '100%' }}>{notesPanel()}</div>}
                   {groups.map(g => (

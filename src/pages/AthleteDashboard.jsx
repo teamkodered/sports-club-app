@@ -72,6 +72,8 @@ export default function AthleteDashboard() {
 
   const PDP_LABELS = {
     winning_ways: { label: '🏆 Winning ways', colour: '#1D9E75' },
+    winning_techniques: { label: '🥋 Techniques', colour: '#378ADD' },
+    losing_ways: { label: '⚠️ Losing ways', colour: '#E24B4A' },
     maintain:     { label: '✅ Maintain',      colour: '#378ADD' },
     to_work_on:   { label: '🎯 To work on',    colour: '#EF9F27' },
     what_to_do:   { label: '📋 What to do',    colour: '#8B5CF6' },

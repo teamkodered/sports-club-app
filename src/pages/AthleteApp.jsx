@@ -1219,6 +1219,8 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
 const PDP_SECTIONS = [
   { key: 'winning_ways',        label: '🏆 Winning ways',         colour: '#1D9E75' },
+  { key: 'winning_techniques',  label: '🥋 Techniques',           colour: '#378ADD' },
+  { key: 'losing_ways',         label: '⚠️ Losing ways',          colour: '#E24B4A' },
   // { key: 'what_to_do',          label: '📋 What to do (general)', colour: '#E24B4A' },   -- General hidden (Nov 2026); notes kept in the database
   // { key: 'maintain',            label: '✅ Maintain',              colour: '#1D9E75' },   -- General hidden (Nov 2026); notes kept in the database
   // { key: 'to_work_on',          label: '🎯 To work on',            colour: '#EF9F27' },   -- General hidden (Nov 2026); notes kept in the database
@@ -4824,6 +4826,21 @@ export default function AthleteApp() {
     else setLiveHrPrompt({ classId: att?.class_id || null, attendanceId: att?.id || null, whoop: (wearableConnections || []).some(c => c.provider === 'whoop') })
   }
 
+  // athlete adds / removes their OWN winning ways, techniques or losing ways (saved in their PDP notes,
+  // remembered as theirs so the coach sees 👤 and the athlete can't change the coach's ones)
+  async function saveWw(key, text, add) {
+    const t = String(text || '').trim(); if (!t || !student?.id) return
+    const cur = apData?.pdp_notes || {}
+    const list = cur[key] || [], added = { ...(cur.__athlete_added || {}) }
+    if (add && list.includes(t)) return
+    const nextList = add ? [...list, t] : list.filter(x => x !== t)
+    added[key] = add ? [...(added[key] || []), t] : (added[key] || []).filter(x => x !== t)
+    const updated = { ...cur, [key]: nextList, __athlete_added: added }
+    setApData(a => ({ ...(a || {}), pdp_notes: updated }))   // shows straight away
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Could not save: ' + error.message); setApData(a => ({ ...(a || {}), pdp_notes: cur })) }
+  }
+
   async function checkOutNow() {
     setShowWeightCheckPrompt('out')
     setWeightCheckValue('')
@@ -8196,25 +8213,17 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
           <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           {!student ? <p style={{ color: 'var(--text-secondary)' }}>No student record linked.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {(() => {
-                const wwSection = PDP_SECTIONS.find(s => s.key === 'winning_ways')
-                const wwItems = shared[wwSection.key] || []
-                return (
-                  <div className="card" style={{ borderLeft: `3px solid ${wwSection.colour}` }}>
-                    <h3 style={{ fontSize: 13, fontWeight: 600, color: wwSection.colour, margin: '0 0 8px' }}>{wwSection.label}</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {wwItems.length === 0 && (
-                        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: 0 }}>Nothing here yet</p>
-                      )}
-                      {wwItems.map((item, i) => (
-                        <div key={i} style={{ background: wwSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
-                          <span style={{ color: wwSection.colour, fontSize: 12 }}>{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
+              {/* 🏆 Winning ways / 🥋 Techniques / ⚠️ Losing ways -- what the coach has sent, plus the athlete's
+                  own (they can add and remove their own; the coach's stay as the coach wrote them) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+                {['winning_ways', 'winning_techniques', 'losing_ways'].map(key => {
+                  const sec = PDP_SECTIONS.find(s => s.key === key)
+                  const mine = (apData?.pdp_notes?.__athlete_added?.[key] || []).filter(t => (apData?.pdp_notes?.[key] || []).includes(t))
+                  const coachItems = (shared[key] || []).filter(t => !mine.includes(t))
+                  return <WwCard key={key} sec={sec} coachItems={coachItems} mine={mine}
+                    onAdd={text => saveWw(key, text, true)} onRemove={text => saveWw(key, text, false)} />
+                })}
+              </div>
 
               {PDP_SCOPES.map(scope => {
                 const notesSection = scope.notes ? PDP_SECTIONS.find(s => s.key === scope.notes) : null
@@ -9920,6 +9929,33 @@ function AthleteSearch() {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function WwCard({ sec, coachItems, mine, onAdd, onRemove }) {
+  const [text, setText] = useState('')
+  return (
+    <div className="card" style={{ borderLeft: `3px solid ${sec.colour}`, minWidth: 0 }}>
+      <h3 style={{ fontSize: 13, fontWeight: 600, color: sec.colour, margin: '0 0 8px' }}>{sec.label}</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {!coachItems.length && !mine.length && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: 0 }}>Nothing here yet</p>}
+        {coachItems.map((item, i) => (
+          <div key={'c' + i} style={{ background: sec.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
+            <span style={{ color: sec.colour, fontSize: 12 }}>{item}</span>
+          </div>
+        ))}
+        {mine.map((item, i) => (
+          <div key={'m' + i} style={{ background: sec.colour + '0d', border: `1px dashed ${sec.colour}66`, borderRadius: 'var(--radius)', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: sec.colour, fontSize: 12, flex: 1 }}>{item}</span>
+            <button type="button" onClick={() => { if (confirm(`Remove "${item}"?`)) onRemove(item) }} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12 }}>✕</button>
+          </div>
+        ))}
+      </div>
+      <form onSubmit={e => { e.preventDefault(); if (text.trim()) { onAdd(text); setText('') } }} style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+        <input value={text} onChange={e => setText(e.target.value)} placeholder="+ Add your own" style={{ flex: 1, minWidth: 0, fontSize: 12 }} />
+        {text.trim() && <button type="submit" className="btn btn-sm">Add</button>}
+      </form>
     </div>
   )
 }

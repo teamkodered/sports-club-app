@@ -1298,8 +1298,13 @@ const SECTION_ACCENT_COLOURS = {
   mentality: '#8B5CF6', wellbeing: '#1D9E75',
 }
 
+// Winning ways family -- shown side by side; athletes can add to these in their app (👤 = added by the athlete)
+const WW_KEYS = ['winning_ways', 'winning_techniques', 'losing_ways']
+
 const PDP_SECTIONS = [
   { key: 'winning_ways',          label: '🏆 Winning ways',             colour: '#1D9E75', coachOnly: false },
+  { key: 'winning_techniques',    label: '🥋 Techniques',               colour: '#378ADD', coachOnly: false },
+  { key: 'losing_ways',           label: '⚠️ Losing ways',              colour: '#E24B4A', coachOnly: false },
   // { key: 'what_to_do',            label: '📋 What to do (general)',      colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: false },   -- General hidden (Nov 2026); notes kept in the database
   { key: 'psychology_notes',      label: 'Notes',        colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'psychology_maintain',   label: 'Maintain',     colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
@@ -2293,20 +2298,17 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
         </div>
 
         {!isEditing && pickOpen === section.key && renderQuestionPicker(section)}
-        {!isEditing && (items.length > 0 || section.key === 'winning_ways') && (
-          section.key === 'winning_ways' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }} onClick={e => e.stopPropagation()}>
-              {[0, 1, 2].map(col => (
-                <div key={col} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, minHeight: 20 }}>
-                  {items.filter((_, i) => i % 3 === col).map((item) => {
-                    const i = items.indexOf(item)
-                    return (
-                      <span key={i} onClick={() => toggleHighlight(section.key, item)} title="Click to highlight"
-                        style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}</span>
-                    )
-                  })}
-                </div>
-              ))}
+        {!isEditing && (items.length > 0 || WW_KEYS.includes(section.key)) && (
+          WW_KEYS.includes(section.key) ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 20 }} onClick={e => e.stopPropagation()}>
+              {items.map((item, i) => {
+                const byAthlete = (pdp.__athlete_added?.[section.key] || []).includes(item)
+                return (
+                  <span key={i} onClick={() => toggleHighlight(section.key, item)} title={byAthlete ? 'Added by the athlete · click to highlight' : 'Click to highlight'}
+                    style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}{byAthlete ? ' 👤' : ''}</span>
+                )
+              })}
+              {!items.length && <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Nothing yet</span>}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={e => e.stopPropagation()}>
@@ -2908,13 +2910,14 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                   </div>
                 )
               } else if (section.key === 'winning_ways') {
-                // Winning ways spans the same 3-column width as the
-                // category rows below it, for visual alignment.
+                // Winning ways / Techniques / Losing ways -- three columns side by side
                 rendered.push(
-                  <div key={section.key} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
-                    <div style={{ gridColumn: '1 / -1' }}>{renderPDPSectionCard(section)}</div>
+                  <div key={section.key} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 10 }}>
+                    {WW_KEYS.map(k => { const sec = allSections.find(x => x.key === k); return sec ? <div key={k} style={{ minWidth: 0 }}>{renderPDPSectionCard(sec)}</div> : null })}
                   </div>
                 )
+              } else if (WW_KEYS.includes(section.key)) {
+                // drawn with Winning ways above
               } else {
                 rendered.push(renderPDPSectionCard(section))
               }
@@ -6168,6 +6171,8 @@ export default function AthleteProfiles() {
 
   const NOTE_PDP_TARGETS = {
     'Winning ways': 'winning_ways',
+    'Techniques': 'winning_techniques',
+    'Losing ways': 'losing_ways',
     'Mentality':    'psychology_notes',
     'Technical':    'tech_notes',
     'Tactical':     'tact_notes',
