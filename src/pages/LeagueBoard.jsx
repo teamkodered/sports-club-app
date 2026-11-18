@@ -234,7 +234,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
   const sectionPos = useSectionLeague(listMode ? student?.id : null)
   const [openCard, setOpenCard] = useState(null)
   const [listPage, setListPage] = useState(0)
-  const [gripMode, setGripMode] = useState('bw')   // grip board: bw | pctl | z | kg
+  const [gripMode, setGripMode] = useState('kg')   // grip board: kg (raw grip, default) | bw | pctl | z
   const ordS = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th')   // athlete League page: which group of boards is showing
   const myMasked = student?.members ? maskName(student.members.first_name, student.members.last_name) : null
   const ranked = (list, valueOf) => {
@@ -345,26 +345,26 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       const sortedPct = [...all].sort((a, b) => a.pct - b.pct)
       const withScores = all.map(r => ({ ...r, z: (r.pct - mean) / sd, pctl: Math.round(sortedPct.filter(x => x.pct <= r.pct).length / all.length * 100) }))
       const MODES = { bw: ['% BW', r => r.pct, r => r.pct], pctl: ['CLUB PCTL', r => r.pctl, r => ordS(r.pctl)], z: ['Z-SCORE', r => r.z, r => (r.z > 0 ? '+' : '') + r.z.toFixed(2)], kg: ['GRIP KG', r => r.grip, r => r.grip] }
-      const [label, keyOf, show] = MODES[gripMode] || MODES.bw
+      const [label, keyOf, show] = MODES[gripMode] || MODES.kg
       const list = ranked([...withScores].sort((a, b) => keyOf(b) - keyOf(a)), keyOf)
       const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
-      const nextMode = e => { e.stopPropagation(); setGripMode(m => ({ bw: 'pctl', pctl: 'z', z: 'kg', kg: 'bw' })[m] || 'bw') }
+      const nextMode = e => { e.stopPropagation(); setGripMode(m => ({ kg: 'bw', bw: 'pctl', pctl: 'z', z: 'kg' })[m] || 'kg') }
       const GripRow = ({ r, isMe }) => (
         <div className={`lb-row${isMe ? ' lb-me' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 6, background: '#1A1F24',
           border: isMe ? '1px solid #059669' : '1px solid #2A3138', boxShadow: isMe ? '0 0 10px #05966955' : 'none' }}>
           <span style={{ ...NUM, width: 22, textAlign: 'center', fontSize: 15, color: r.rank === 1 ? '#F5C542' : r.rank === 2 ? '#C9CED6' : r.rank === 3 ? '#E08A3C' : '#9A9A9A' }}>{r.rank}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 16, color: '#F2F2F2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.display_name}{isMe ? ' (you)' : ''}</div>
-            <div style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A' }}>{r.weight}KG BODY WEIGHT</div>
+            <div style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A' }}>{gripMode === 'kg' ? `${r.weight}KG BODY WEIGHT` : `${r.grip}KG GRIP`}</div>
           </div>
-          <button type="button" onClick={nextMode} title="Press to switch: % BW / percentile / Z-score / grip kg" style={{ all: 'unset', cursor: 'pointer', textAlign: 'right', minWidth: 74 }}>
+          <button type="button" onClick={nextMode} title="Press to switch: grip kg / % BW / percentile / Z-score" style={{ all: 'unset', cursor: 'pointer', textAlign: 'right', minWidth: 74 }}>
             <div style={{ ...NUM, fontSize: 8, letterSpacing: 1.5, color: '#9A9A9A' }}>{label} ⇄</div>
             <div style={{ ...NUM, fontSize: 20, color: '#059669', textShadow: '0 0 6px #05966966' }}>{show(r)}</div>
           </button>
         </div>
       )
       return (
-        <Slide title="Grip test" colour="#059669" emoji="✊" sub={gripMode === 'kg' ? 'Best hand · grip strength' : gripMode === 'bw' ? 'Best hand as a % of body weight' : `Best hand as a % of body weight · ${gripMode === 'z' ? 'Z-score' : 'percentile'} within the club`} fixedPeriod>
+        <Slide title="Grip test" colour="#059669" emoji="✊" sub={gripMode === 'kg' ? 'Best hand · grip strength (kg)' : gripMode === 'bw' ? 'Best hand as a % of body weight' : `Best hand as a % of body weight · ${gripMode === 'z' ? 'Z-score' : 'percentile'} within the club`} fixedPeriod>
           {top.map(r => <GripRow key={r.student_id} r={r} isMe={r.student_id === meId} />)}
           {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><GripRow r={me} isMe /></>}
         </Slide>
@@ -430,7 +430,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       const r1 = rankIn([...wr].sort((a, b) => b.avg_pct - a.avg_pct), r => Number(r.avg_pct)); if (r1 && r1 <= 10) badges.push(['🔥', `${ord(r1)} · Workrate`])
       const r2 = rankIn([...wr].sort((a, b) => b.above_team - a.above_team), r => Number(r.above_team)); if (r2 && r2 <= 10) badges.push(['🔥', `${ord(r2)} · Above club average`])
       const rp = rankIn([...(pd.pdp || [])].sort((a, b) => b.done - a.done), r => r.done); if (rp && rp <= 10) badges.push(['🎯', `${ord(rp)} · PDP`])
-      if (Array.isArray(pd.grip)) { const rg = rankIn([...pd.grip].sort((a, b) => b.pct - a.pct), r => Number(r.pct)); if (rg && rg <= 10) badges.push([['🥇', '🥈', '🥉'][rg - 1] || '🏅', `${ord(rg)} · Grip (% BW)`]) }
+      if (Array.isArray(pd.grip)) { const rg = rankIn([...pd.grip].sort((a, b) => Number(b.grip) - Number(a.grip)), r => Number(r.grip)); if (rg && rg <= 10) badges.push([['🥇', '🥈', '🥉'][rg - 1] || '🏅', `${ord(rg)} · Grip strength`]) }
       const hr = pd.hr || []
       const r3 = rankIn([...hr].sort((a, b) => (b.best_avg_pct || 0) - (a.best_avg_pct || 0)), r => r.best_avg_pct); if (r3 && r3 <= 10) badges.push(['❤️', `${ord(r3)} · Heart rate average`])
       { const rr = ranked(runCounts(pd), r => r.value).find(r => r.name === myMasked); if (rr && rr.rank <= 10) badges.push([['🥇', '🥈', '🥉'][rr.rank - 1] || '🏅', `${ord(rr.rank)} · Most runs`]) }
