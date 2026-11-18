@@ -40,8 +40,9 @@ export const CATEGORIES = [
     extract: r => toEntries(r.running).map(e => ({ value: Math.max(...setValues(e.sets), 0), sub: e.category || e.test || 'Running' })),
   },
   {
-    key: 'bodyweight', label: '💪 Bodyweight', unit: ' reps', colour: '#EF9F27',
-    extract: r => toEntries(r.bodyweight).map(e => ({ value: Math.max(...setValues(e.sets), 0), sub: e.type || 'Bodyweight' })),
+    // ranked by how many SETS of bodyweight exercises are done (not reps), added up
+    key: 'bodyweight', label: '💪 Bodyweight', unit: ' sets', colour: '#EF9F27', countSets: true, sumLabel: 'sets done',
+    extract: r => toEntries(r.bodyweight).map(e => ({ value: setValues(e.sets).filter(v => v > 0).length || (Array.isArray(e.sets) ? e.sets.filter(x => String(x ?? '').trim() !== '').length : 0), sub: e.type || 'Bodyweight' })),
   },
   {
     key: 'techniques', label: '🥋 Techniques', unit: ' reps', colour: '#E24B4A',
@@ -109,7 +110,7 @@ export function buildLeaderboard(cat, rows, limit = 10) {
     const name = maskName(r.first_name, r.last_name)
     cat.extract(r).forEach(({ value, sub, note }) => {
       if (!value) return
-      if (cat.aggregate === 'sum') {
+      if (cat.aggregate === 'sum' || cat.countSets) {
         if (!perAthlete[name]) perAthlete[name] = { name, value: 0, sub: cat.sumLabel || '' }
         perAthlete[name].value += value
         return

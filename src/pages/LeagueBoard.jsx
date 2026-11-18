@@ -407,9 +407,11 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       )
     }
     if (s.kind === 'exercise') {
-      const cat = s.cat, list = buildLeaderboard(cat, exRows, cfg.topBoard)
+      // bodyweight: sets done in the period (added up); the others: personal bests (all time)
+      const inPeriod = r => { const d = String(r.session_date || '').slice(0, 10); return !d || ((!pd.from || d >= pd.from) && (!pd.to || d <= pd.to)) }
+      const cat = s.cat, list = buildLeaderboard(cat, cat.countSets ? (exRows || []).filter(inPeriod) : exRows, cfg.topBoard)
       return (
-        <Slide title={cat.label.replace(/^\S+\s/, '')} colour={cat.colour} emoji={cat.label.split(' ')[0]} sub="Personal bests" fixedPeriod>
+        <Slide title={cat.label.replace(/^\S+\s/, '')} colour={cat.colour} emoji={cat.label.split(' ')[0]} sub={cat.countSets ? `Most sets done · ${periodLabel}` : 'Personal bests'} fixedPeriod={!cat.countSets}>
           {list.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} sub={r.sub} value={r.value} unit={cat.unit} colour={cat.colour} note={r.note} me={!!myMasked && r.name === myMasked} />)}
         </Slide>
       )
