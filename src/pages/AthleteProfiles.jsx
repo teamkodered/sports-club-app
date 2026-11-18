@@ -7305,11 +7305,11 @@ export default function AthleteProfiles() {
                             setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
                           }}>🎯 {targets.length ? 'Add another target' : 'Set target'}</button>
                           <button className="btn" style={big} onClick={() => setShowSetDatePopup(c.key)}>📅 Set dates</button>
-                          <button className="btn" style={{ ...big, gridColumn: '1 / -1', borderColor: accent[c.key], color: accent[c.key] }} onClick={() => {
+                          {c.key !== 'pdp' && <button className="btn" style={{ ...big, gridColumn: '1 / -1', borderColor: accent[c.key], color: accent[c.key] }} onClick={() => {
                             if (c.key === 'all_sessions') navigate('/registers')
                             else if (c.key === 'pdp') setDashboardTab('pdp')
                             else if (c.key === 'f2f_sessions') { setGroupLoggerRestrictIds(null); setShowGroupLogger(true) }
-                          }}>{c.key === 'all_sessions' ? '📋 Open register' : c.key === 'pdp' ? '🎯 Open PDP' : '+ Log a session'}</button>
+                          }}>{c.key === 'all_sessions' ? '📋 Open register' : '+ Log a session'}</button>}
                         </div>
                         {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && <div style={{ marginTop: 10 }}>{renderInlineTargetForm()}</div>}
                       </div>

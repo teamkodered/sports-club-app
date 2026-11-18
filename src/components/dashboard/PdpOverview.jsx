@@ -257,9 +257,30 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                         </div>
                         {adding && adding.id === s.id && adding.key === c.key && (
                           <div style={{ marginTop: 4 }}>
-                            <textarea rows={2} autoFocus value={addText} onChange={e => setAddText(e.target.value)} placeholder="New note (one per line)"
+                            <textarea rows={2} autoFocus value={addText} onChange={e => setAddText(e.target.value)} placeholder="Type to find a question, or a new note (one per line)"
                               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const lines = addText.split('\n').map(x => x.trim()).filter(Boolean); if (lines.length) pasteInto([s.id], c.key, lines).then(() => setAdding(null)) } if (e.key === 'Escape') setAdding(null) }}
                               style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: 6, borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'inherit' }} />
+                            {/* the section's questions to choose from (typing narrows them; no match -> saved as typed) */}
+                            {(() => {
+                              const pillar = pillarOfKey(c.key)
+                              if (!pillar) return null
+                              const disc = s.discipline === 'KRBA' ? 'Boxing' : 'Kickboxing'
+                              const all = [...(questionCatalog?.(pillar) || []).filter(x => pillar !== 'technique' || String(x.q).startsWith(disc + '::')).filter(x => !qHidden(qcfg, pillar, x.label)),
+                                ...qCustom(qcfg, pillar).map(x => ({ q: `custom:${x.key}`, label: x.label, group: 'Added' }))]
+                              const words = addText.trim().toLowerCase().split(/\s+/).filter(Boolean)
+                              const shown = all.filter(x => !words.length || words.every(w => qName(qcfg, pillar, x.label).toLowerCase().includes(w))).slice(0, 40)
+                              return (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4, maxHeight: 150, overflowY: 'auto' }}>
+                                  {shown.map(x => (
+                                    <button key={x.q} type="button" className="btn btn-sm" disabled={busy} style={{ padding: '1px 8px', fontSize: 11, borderColor: '#EF9F27aa' }}
+                                      onClick={async () => { const t = qName(qcfg, pillar, x.label); await pasteInto([s.id], c.key, [t]); await linkNote(s.id, c.key, t, pillar, x.q); setAdding(null) }}>
+                                      {qName(qcfg, pillar, x.label)}{x.group && x.group !== 'Added' && pillar === 'physical' ? <small> · {x.group}</small> : null}
+                                    </button>
+                                  ))}
+                                  {words.length > 0 && !shown.length && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching question -- Save adds it as typed</span>}
+                                </div>
+                              )
+                            })()}
                             <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
                               <button className="btn btn-sm btn-primary" disabled={busy || !addText.trim()} style={{ padding: '0 8px', fontSize: 11 }}
                                 onClick={() => { const lines = addText.split('\n').map(x => x.trim()).filter(Boolean); pasteInto([s.id], c.key, lines).then(() => setAdding(null)) }}>Save</button>
