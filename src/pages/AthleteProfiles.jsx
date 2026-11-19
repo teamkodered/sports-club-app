@@ -4036,14 +4036,20 @@ export default function AthleteProfiles() {
   )
   // results card: the result to track per day (best that day)
   const RESULT_BEST_UNIT = { watt_bike: 'W', bodyweight: ' reps' }
-  function resultBest(q, sess) {
+  function resultBest(q, sess, metric = 'w') {
     const field = { watt_bike: 'watt_bike', bodyweight: 'bodyweight' }[q]
     if (!field || !sess) return null
     const nums = []
-    for (const e of toEntries(sess[field])) for (const x of (e?.sets || [])) {
-      const v = x && typeof x === 'object' ? (q === 'watt_bike' ? (x.watts ?? x.output ?? x.power ?? x.value) : (x.reps ?? x.count ?? x.value)) : x
-      const n = parseFloat(v)
-      if (Number.isFinite(n) && (q !== 'watt_bike' || n >= 30)) nums.push(n)   // watts only (not km)
+    for (const e of toEntries(sess[field])) {
+      const distEntry = /distance|km/i.test(`${e?.type || ''} ${e?.interval_mode || ''} ${e?.category || ''}`)
+      for (const x of (e?.sets || [])) {
+        let v
+        if (q === 'bodyweight') v = x && typeof x === 'object' ? (x.reps ?? x.count ?? x.value) : x
+        else if (x && typeof x === 'object') v = metric === 'd' ? (x.distance ?? x.dist ?? x.km) : (x.wattage ?? x.watts ?? x.output ?? x.power)
+        else { const n = parseFloat(x); v = metric === 'd' ? ((distEntry || n < 30) ? x : null) : ((!distEntry && n >= 30) ? x : null) }
+        const n = parseFloat(v)
+        if (Number.isFinite(n) && n > 0) nums.push(n)
+      }
     }
     return nums.length ? Math.max(...nums) : null
   }
@@ -4060,7 +4066,8 @@ export default function AthleteProfiles() {
     if (!next.length) setResultDetail(null)
   }
   const [resultsRange, setResultsRange] = useState({})   // results card: range per question
-  const [resultsOpen, setResultsOpen] = useState({})     // results card: list slid open per question
+  const [resultsOpen, setResultsOpen] = useState({})
+  const [resultsMetric, setResultsMetric] = useState({})   // Watt bike results: track wattage (w) or distance (d)     // results card: list slid open per question
   const [resultDetail, setResultDetail] = useState(null)   // results card: { q, date } shown in a pop-up
   const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
   const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
@@ -4386,7 +4393,7 @@ export default function AthleteProfiles() {
     }
     if (sectionKey === 'physical') {
       const setStr = x => { if (x == null || typeof x !== 'object') return x
-        const w = x.watts ?? x.output ?? x.power ?? x.value, d = x.distance ?? x.dist ?? x.km, r = x.reps ?? x.count, t = x.time ?? x.seconds
+        const w = x.wattage ?? x.watts ?? x.output ?? x.power ?? x.value, d = x.distance ?? x.dist ?? x.km, r = x.reps ?? x.count, t = x.time ?? x.seconds
         const parts = [w != null && w !== '' ? `${w}W` : null, d != null && d !== '' ? `${d}${/[a-z]/i.test(String(d)) ? '' : ' km'}` : null, r != null && r !== '' ? `${r} reps` : null, t != null && t !== '' ? `${t}s` : null].filter(Boolean)
         return parts.length ? parts.join(' / ') : Object.values(x).filter(v => v !== '' && v != null && typeof v !== 'object').join(' / ') }
       const fmt = e => { const sets = (e?.sets || []).filter(x => x !== '' && x != null).map(setStr).filter(x => x !== '' && x != null); const name = e?.type || e?.test || e?.category || e?.name || e?.exercise || ''; return `${name}${name && sets.length ? ': ' : ''}${sets.join(', ')}` || (e?.quickLogged ? 'Quick logged' : 'Logged') }
@@ -4411,7 +4418,7 @@ export default function AthleteProfiles() {
     if (!view?.q) return null
     const all = historySessions().slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
       .map(s => ({ date: s.session_date, sess: s, ...historyForSession(view, s) })).filter(r => r.value > 0 && r.lines?.length)
-      .map(r => ({ ...r, best: resultBest(view.q, r.sess) }))
+      .map(r => ({ ...r, best: resultBest(view.q, r.sess, view.q === 'watt_bike' ? (resultsMetric[view.q] || 'w') : 'w') }))
     // range filter (like the View sheet had): 7 days / 30 days / 3 months / 12 months / all
     const RANGES = [['7', '7 days', 7], ['30', '30 days', 30], ['90', '3 months', 91], ['365', '12 months', 365], ['all', 'All', 0]]
     const rk = resultsRange[view.q] || 'all', rdays = (RANGES.find(r => r[0] === rk) || RANGES[4])[2]
@@ -4421,7 +4428,8 @@ export default function AthleteProfiles() {
     const rows = listOpen ? inRange : []
     const c = view.colour || '#22B14C'
     // track the result (best watts / reps that day) where there is one, otherwise how many were logged
-    const unitOf = RESULT_BEST_UNIT[view.q], useBest = !!unitOf && inRange.some(r => r.best != null)
+    const metric = resultsMetric[view.q] || 'w'
+    const unitOf = view.q === 'watt_bike' && metric === 'd' ? ' km' : RESULT_BEST_UNIT[view.q], useBest = !!unitOf && inRange.some(r => r.best != null)
     const barVal = r => useBest ? (r.best || 0) : r.value
     const bars = inRange.slice(0, 24).reverse(), max = Math.max(1, ...bars.map(barVal))
     const total = inRange.reduce((n, r) => n + r.value, 0)
@@ -4439,6 +4447,12 @@ export default function AthleteProfiles() {
           {RANGES.map(([k, l]) => <button key={k} type="button" onClick={() => setResultsRange(r => ({ ...r, [view.q]: k }))}
             style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, cursor: 'pointer', border: 'none', fontFamily: 'inherit', background: rk === k ? c : 'var(--bg-secondary)', color: rk === k ? '#000' : 'var(--text-secondary)' }}>{l.toUpperCase()}</button>)}
         </div>
+        {view.q === 'watt_bike' && (
+          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+            {[['w', '⚡ WATTAGE'], ['d', '📏 DISTANCE']].map(([k, l]) => <button key={k} type="button" onClick={() => setResultsMetric(m => ({ ...m, [view.q]: k }))}
+              style={{ flex: 1, fontSize: 11, fontWeight: 800, padding: '5px 8px', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${c}`, background: metric === k ? c : 'transparent', color: metric === k ? '#000' : c }}>{l}</button>)}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>{useBest && <span>BEST <b style={{ color: c }}>{bestAll}{unitOf}</b></span>}<span>{useBest ? 'SESSIONS' : 'TOTAL'} <b style={{ color: c }}>{total}</b></span><span>ACTIVE DAYS <b style={{ color: c }}>{inRange.length}</b></span></div>
         {!inRange.length ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged in this period</div> : <>
           {/* graph -- tap a bar to see that day's result */}
