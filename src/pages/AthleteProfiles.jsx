@@ -4577,9 +4577,9 @@ export default function AthleteProfiles() {
     const fmtD = ds => new Date(ds + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     return (
       <div role="dialog" aria-modal="true" aria-label={`${historyView.label} history`} onClick={() => setHistoryView(null)}
-        style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, maxHeight: 'calc(var(--kc-vh, 1vh) * 88)', overflowY: 'auto', boxSizing: 'border-box',
-          padding: '16px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderRadius: '14px 14px 0 0', background: '#111518', border: `1px solid ${colour}`, borderBottom: 'none', boxShadow: `0 -6px 24px ${colour}55`, color: '#F2F2F2' }}>
+        style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, maxHeight: 'calc(var(--kc-vh, 1vh) * 80)', overflowY: 'auto', boxSizing: 'border-box',
+          padding: '16px 16px 20px', borderRadius: 14, background: '#111518', border: `1px solid ${colour}`, boxShadow: `0 -6px 24px ${colour}55`, color: '#F2F2F2' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
             <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 24, letterSpacing: 1, lineHeight: 1, color: colour, textTransform: 'uppercase' }}>{historyView.label}</div>
             <button type="button" aria-label="Close" onClick={() => setHistoryView(null)} style={{ background: 'none', border: 'none', color: '#9A9A9A', fontSize: 22, cursor: 'pointer', padding: '4px 8px' }}>✕</button>
