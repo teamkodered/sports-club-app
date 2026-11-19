@@ -14,6 +14,7 @@ const secLabel = t => t.split(/(\d+)s\b/).map((part, i) => i % 2 ? <span key={i}
 const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n }
 
 export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries, history = [], groups, presets, normalize = m => m, singleTests = [], todaysTest = {}, onSaveTest, saving, pdpNotesFor, groupLabel }) {
+  const [secKey, setSecKey] = useState(null)   // which section of options is showing
   const entries = Array.isArray(entriesRaw) ? entriesRaw : (entriesRaw && typeof entriesRaw === 'object' && Object.keys(entriesRaw).length ? [entriesRaw] : [])
   const [sel, setSel] = useState(null) // effort key | '__new__'
   const [single, setSingle] = useState(null) // single-set test name
@@ -81,23 +82,28 @@ export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries,
       )}
       {pdpNotesFor && !single && mode && pdpNotesFor(groupOf(mode))}
 
-      {/* one list: every interval, grouped */}
-      {groups.map(g => (
-        <div key={g.key} style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{g.icon} {groupLabel ? groupLabel(g) : g.label}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {(presets[g.key] || []).map(m => <span key={m}>{chip(!single && mode === m, secLabel(m.replace(' seconds on ', 's on ').replace(' seconds off', 's off').replace('1 min 30 sec', '90s')), () => pickInterval(m))}</span>)}
+      {/* sections in a swipe selector: one at a time (Output / Standard / Distance / Single set) -- every option still there */}
+      {(() => {
+        const secs = [...groups.map(g => ({ key: g.key, label: `${g.icon} ${groupLabel ? groupLabel(g) : g.label}` })), ...(singleTests.length ? [{ key: '__single', label: '1️⃣ Single set' }] : [])]
+        const cur = secs.find(x => x.key === secKey) || secs.find(x => (x.key === '__single' && single) || (mode && groupOf(mode) === x.key)) || secs[0]
+        const ci = secs.indexOf(cur), go = d => setSecKey(secs[(ci + d + secs.length) % secs.length].key)
+        return (
+          <div style={{ marginBottom: 10 }}>
+            <div onTouchStart={e => { e.currentTarget.dataset.x = e.touches[0].clientX }} onTouchEnd={e => { const dx = e.changedTouches[0].clientX - Number(e.currentTarget.dataset.x || 0); if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <button type="button" className="btn btn-sm" onClick={() => go(-1)} aria-label="Previous section">‹</button>
+              <button type="button" onClick={() => go(1)} style={{ flex: 1, height: 38, borderRadius: 8, border: '1px solid #E6B800', background: '#E6B8001a', color: '#F2F2F2', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{cur.label}</button>
+              <button type="button" className="btn btn-sm" onClick={() => go(1)} aria-label="Next section">›</button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 8 }}>{secs.map(x => <i key={x.key} style={{ width: x.key === cur.key ? 14 : 6, height: 6, borderRadius: 3, background: x.key === cur.key ? '#E6B800' : '#2A3138' }} />)}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+              {cur.key === '__single'
+                ? singleTests.map(t => <span key={t.name}>{chip(single === t.name, SINGLE_SHORT[t.name] || t.name, () => setSingle(single === t.name ? null : t.name))}</span>)
+                : (presets[cur.key] || []).map(m => <span key={m}>{chip(!single && mode === m, secLabel(m.replace(' seconds on ', 's on ').replace(' seconds off', 's off').replace('1 min 30 sec', '90s')), () => pickInterval(m))}</span>)}
+            </div>
           </div>
-        </div>
-      ))}
-      {singleTests.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>1️⃣ Single set</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {singleTests.map(t => <span key={t.name}>{chip(single === t.name, SINGLE_SHORT[t.name] || t.name, () => setSingle(single === t.name ? null : t.name))}</span>)}
-          </div>
-        </div>
-      )}
+        )
+      })()}
       {!single && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
           <input value={other} onChange={e => setOther(e.target.value)} placeholder="Other interval… e.g. 45s on 45s off" style={{ flex: 1, minWidth: 0 }} />
