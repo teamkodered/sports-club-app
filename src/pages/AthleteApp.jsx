@@ -3725,6 +3725,36 @@ export default function AthleteApp() {
       `⌚ Sleep filled in from ${providerLabel(d.provider)} — tap Confirm on Sleep`)
   }, [student, sessionsLoaded, wearableDaily, todaysWellbeing, wearableDismissed])
 
+  // ⌚ Workouts fill themselves in (like sleep): a run from the wearable -> Physical · Running,
+  // any other non-club activity (football, padel, cycling…) -> Physical · Other session.
+  // Club sports (boxing, kickboxing, martial arts…) are left to the check-in suggestion.
+  const workoutAutoRef = useRef(new Set())
+  useEffect(() => {
+    if (!student || !sessionsLoaded) return
+    const todayStr = new Date().toISOString().split('T')[0]
+    const todaySess = sessions.find(x => x.session_date === todayStr) || {}
+    const runList = toEntries(todaySess.running), otherList = toEntries(todaySess.other_session)
+    const have = new Set([...runList, ...otherList].map(e => e?.wearable_id).filter(Boolean))
+    const CLUB = /box|kick|martial|mma|muay|jiu|judo|karate|taekwondo|wrestl|functional|power ?lift|weight/i
+    const add = { running: [], other_session: [] }
+    for (const w of whoopSessions || []) {
+      if (!w.start_time || workoutDate(w) !== todayStr) continue
+      const key = `workout:${w.provider}:${w.provider_workout_id || w.id}`
+      if (have.has(key) || wearableDismissed.includes(key) || workoutAutoRef.current.has(key)) continue
+      const sport = String(w.sport_name || 'Workout'), { s, e } = workoutRange(w)
+      const mins = Math.max(1, Math.round((e - s) / 60000))
+      if (/run|jog|treadmill/i.test(sport)) add.running.push({ type: sport, sets: [`${mins} min`], source: w.provider, wearable_id: key, unconfirmed: true })
+      else if (!CLUB.test(sport)) add.other_session.push({ type: sport, sets: [`${mins} min`, `${fmtTime(s)}–${fmtTime(e)}`], source: w.provider, wearable_id: key, unconfirmed: true })
+      else continue
+      workoutAutoRef.current.add(key)
+    }
+    ;(async () => {   // one after the other, so today's session row isn't created twice
+      if (add.running.length) await savePhysicalField('running', [...runList, ...add.running], setTodaysRunning)
+      if (add.other_session.length) await savePhysicalField('other_session', [...otherList, ...add.other_session], () => {})
+    })()
+    if (add.running.length || add.other_session.length) flashSaved(`⌚ ${[...add.running, ...add.other_session].map(x => x.type).join(', ')} added from your wearable`)
+  }, [student, sessionsLoaded, whoopSessions, wearableDismissed])
+
   // ⌚ Check-in from a wearable: a club-sport workout (boxing, kickboxing, functional, box fitness,
   // powerlifting…) overlapping one of the athlete's classes today or yesterday, with no attendance
   // for that class yet -> suggest checking in. Nothing happens unless they tap Check in.
