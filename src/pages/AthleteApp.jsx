@@ -4648,8 +4648,9 @@ export default function AthleteApp() {
         )}
         {!editing && avail.length > 0 && (
           <>
-            <label>Choose (tap all that apply)</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            <label>Choose (tap all that apply){avail.length > 1 ? ` · swipe for more (${avail.length})` : ''}{sel.length ? ` · ${sel.length} picked` : ''}</label>
+            {/* one option at a time -- swipe left / right (snaps); every option still there */}
+            <div className={avail.length > 1 ? 'opt-swipe' : undefined} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {avail.map(i => {
                 const on = sel.includes(i)
                 return (

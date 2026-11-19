@@ -2138,3 +2138,9 @@ button.ffd-avatar { padding: 0; color: inherit; }
 .q-swipe::-webkit-scrollbar { display: none; }
 .q-swipe > * { scroll-snap-align: start; min-width: 0; }
 .q-swipe > :nth-child(4n+1) { scroll-snap-align: start; }
+
+/* question options: one at a time, swipe left / right (snaps); the edge shows there's more */
+.opt-swipe { flex-wrap: nowrap !important; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: 6px;
+  -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+.opt-swipe::-webkit-scrollbar { display: none; }
+.opt-swipe > .neon-opt { flex: 0 0 86%; scroll-snap-align: start; white-space: normal; min-height: 64px; justify-content: center; text-align: center; }
