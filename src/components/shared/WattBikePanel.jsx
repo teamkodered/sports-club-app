@@ -8,7 +8,7 @@ import { newRunId, runKey, EffortSwitcher } from './RunEfforts.jsx'
 // as before (watt_bike entries: { id, group, interval_mode, sets: [{ wattage, distance }] }
 // and the Single set test values), so history, PBs, bars and Results all carry on.
 
-const SINGLE_SHORT = { 'Watt bike 10 second (output)': '10 sec output', 'Watt bike 30 sec (distance)': '30 sec distance', 'Watt bike 1 min (distance)': '1 min distance', 'Watt bike 2 min (distance)': '2 min distance', 'Watt bike 3 min (distance)': '3 min distance' }
+const SINGLE_SHORT = { 'Watt bike 10 second (output)': '10 sec output', 'Watt bike 10 second (distance)': '10 sec distance', 'Watt bike 30 sec (output)': '30 sec output', 'Watt bike 30 sec (distance)': '30 sec distance', 'Watt bike 1 min (output)': '1 min output', 'Watt bike 1 min (distance)': '1 min distance', 'Watt bike 2 min (output)': '2 min output', 'Watt bike 2 min (distance)': '2 min distance', 'Watt bike 3 min (output)': '3 min output', 'Watt bike 3 min (distance)': '3 min distance' }
 // '10s on 90s off' -> the s after each number in black so the numbers stand out
 const secLabel = t => t.split(/(\d+)s\b/).map((part, i) => i % 2 ? <span key={i}>{part}<span style={{ color: '#000', textShadow: 'none' }}>s</span></span> : part)
 const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n }
