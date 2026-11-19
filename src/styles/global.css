@@ -2127,5 +2127,6 @@ button.ffd-avatar { padding: 0; color: inherit; }
 @media (max-width: 640px) {
   .phys-cards { grid-template-columns: 1fr !important; }
   .phys-cards > * { min-width: 0; }
-  .phys-cards .neon-snc-row { margin-bottom: 0 !important; }
+  .phys-cards .neon-snc-row { margin-bottom: 0 !important; grid-template-columns: 1fr !important; }
+  .phys-cards .neon-snc-row > * { min-width: 0; grid-column: auto !important; }
 }
