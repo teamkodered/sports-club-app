@@ -14,7 +14,8 @@ const secLabel = t => t.split(/(\d+)s\b/).map((part, i) => i % 2 ? <span key={i}
 const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n }
 
 export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries, history = [], groups, presets, normalize = m => m, singleTests = [], todaysTest = {}, onSaveTest, saving, pdpNotesFor, groupLabel }) {
-  const [secKey, setSecKey] = useState(null)   // which section of options is showing
+  const [secKey, setSecKey] = useState(null)
+  const [savedAt, setSavedAt] = useState(null)   // which section of options is showing
   const entries = Array.isArray(entriesRaw) ? entriesRaw : (entriesRaw && typeof entriesRaw === 'object' && Object.keys(entriesRaw).length ? [entriesRaw] : [])
   const [sel, setSel] = useState(null) // effort key | '__new__'
   const [single, setSingle] = useState(null) // single-set test name
@@ -142,6 +143,18 @@ export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries,
             <button type="button" className="btn btn-sm" disabled={!rows.length} onClick={() => { const last = rows[rows.length - 1]; if (last) commit([...rows, { ...last }]) }}>↻ Same as last</button>
             {rows.length > 0 && <button type="button" className="btn btn-sm" onClick={() => commit(rows.slice(0, -1))}>Remove last rep</button>}
           </div>
+          {/* 💾 Save -- makes saving clear (reps also save when you leave a box) */}
+          {(() => {
+            const saved = JSON.stringify((entry.sets || []).map(r => [String(r.wattage ?? ''), String(r.distance ?? '')]))
+            const now = JSON.stringify(rows.filter(r => r.wattage !== '' || r.distance !== '').map(r => [String(r.wattage ?? ''), String(r.distance ?? '')]))
+            const dirty = saved !== now
+            return (
+              <button type="button" className={dirty ? 'btn btn-primary' : 'btn'} style={{ width: '100%', justifyContent: 'center', marginTop: 10, height: 44 }}
+                onClick={() => { document.activeElement?.blur?.(); commit(rows); setSavedAt(new Date()) }}>
+                {dirty ? '💾 Save reps' : `✓ Saved${savedAt ? ` ${savedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''} · ${rows.filter(r => r.wattage !== '' || r.distance !== '').length} rep${rows.length === 1 ? '' : 's'}`}
+              </button>
+            )
+          })()}
           {ghost.length > 0 && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 0' }}>Faint numbers = last time on this interval · ⭐ = beats your best</p>}
           {saving && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>Saving…</p>}
         </div>
