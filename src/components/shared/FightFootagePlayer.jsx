@@ -149,6 +149,35 @@ function CastIcon({ connected, size = 20 }) {
 const playerHandoff = { open: 0, timer: null }
 
 export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, onNext, onPrev, autoPlay = false, startAt = 0, onClipSwipe, swipeHint }) {
+  // ── CCTV protection: watermark with the viewer's name + time, pause when the app goes to the
+  // background, and a view log (who watched which clip, when) ──
+  const [wmName, setWmName] = useState('')
+  const [wmNow, setWmNow] = useState(() => new Date())
+  const [wmPos, setWmPos] = useState([50, 50])
+  const viewLogged = useRef(false)
+  useEffect(() => {
+    if (!cctvClipId) return
+    let gone = false
+    supabase.auth.getUser().then(async ({ data }) => {
+      const u = data?.user; if (!u || gone) return
+      const { data: m } = await supabase.from('members').select('first_name, last_name').eq('auth_id', u.id).limit(1)
+      const nm = m?.[0] ? `${m[0].first_name || ''} ${m[0].last_name || ''}`.trim() : (u.email || '')
+      if (!gone) setWmName(nm || u.email || 'Viewer')
+    })
+    const t = setInterval(() => { setWmNow(new Date()); setWmPos([15 + Math.random() * 70, 15 + Math.random() * 70]) }, 15000)
+    const onHide = () => { if (document.hidden) videoRef.current?.pause?.() }
+    document.addEventListener('visibilitychange', onHide)
+    return () => { gone = true; clearInterval(t); document.removeEventListener('visibilitychange', onHide) }
+  }, [cctvClipId])
+  const wmText = wmName ? `${wmName} · ${wmNow.toLocaleDateString('en-GB')} ${wmNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''
+  useEffect(() => {
+    if (!cctvClipId || viewLogged.current) return
+    viewLogged.current = true
+    supabase.auth.getUser().then(({ data }) => {
+      const u = data?.user; if (!u) return
+      supabase.from('footage_views').insert({ clip_id: String(cctvClipId), storage_path: storagePath || null, viewer_auth_id: u.id, viewer_name: wmName || u.email || null }).then(() => {}, () => {})
+    })
+  }, [cctvClipId])   // eslint-disable-line react-hooks/exhaustive-deps
   // onClipSwipe(dir, currentTime): with the controls hidden, swipe left/right = 'next'/'prev' file, up/down = 'camUp'/'camDown'
   // startAt: seconds into the video to start from (e.g. the class start inside a long CCTV recording)
   // Markers can belong to either a View IT fight_footage row or a CCTV
@@ -1567,12 +1596,22 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             playsInline
             webkit-playsinline="true"
             disablePictureInPicture
-            controlsList="nofullscreen noremoteplayback"
+            controlsList="nofullscreen noremoteplayback nodownload"
+            onContextMenu={e => { if (cctvClipId) e.preventDefault() }}
             onPointerDown={handlePointerDown}
             onPointerMove={handleVideoPointerMove}
             onPointerUp={handlePointerUp}
             onPointerLeave={() => { if (isHoldingRef.current) handlePointerUp({ clientX: 0 }) }}
           />
+          {cctvClipId && wmText && (
+            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 3 }}>
+              <div style={{ position: 'absolute', left: `${wmPos[0]}%`, top: `${wmPos[1]}%`, transform: 'translate(-50%, -50%) rotate(-18deg)', whiteSpace: 'nowrap',
+                fontSize: 'clamp(11px, 2.6vw, 18px)', fontWeight: 700, color: 'rgba(255,255,255,0.22)', textShadow: '0 0 2px rgba(0,0,0,0.5)', transition: 'left 2s linear, top 2s linear', fontFamily: 'sans-serif' }}>
+                {wmText}
+              </div>
+              <div style={{ position: 'absolute', right: 8, bottom: 8, fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'sans-serif' }}>{wmText}</div>
+            </div>
+          )}
           {frozenPhoto && (
             <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img src={frozenPhoto.photo_data_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
