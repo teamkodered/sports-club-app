@@ -10469,7 +10469,7 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'physical', pillarLabel: 'Physical' })}
                     {FocusPicker({ sec: 'physical', colour: '#E6B800', options: BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts').map(g => g.label) })}
                     {AddedQuestions({ sec: 'physical' })}
-                  <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div className="phys-cards" style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
                       <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Running')} />
                     )}
@@ -10590,7 +10590,7 @@ export default function AthleteProfiles() {
                   </div>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'bodyweight' || activePhysicalCategory === 'stretch') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div className="phys-cards" style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'bodyweight' || activePhysicalCategory === 'stretch') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     {(!activePhysicalCategory || activePhysicalCategory === 'bodyweight') && (
                       <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Bodyweight')} />
                     )}
@@ -10601,7 +10601,7 @@ export default function AthleteProfiles() {
                   {showBodyweightCards && InlineResults({ view: { sectionKey: 'physical', q: 'bodyweight', label: 'Bodyweight', colour: '#E6B800' } })}
                   {showBodyweightCards && (
                   <div ref={bodyweightPanelRef}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
+                  <div className="phys-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
                     {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts' && !qHidden(qcfg, 'physical', g.label)).sort(qSort(qcfg, 'physical', g => g.label)).map(grp => {
                       const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                       const active = expandedHomeBodyweight === grp.key
@@ -10672,7 +10672,7 @@ export default function AthleteProfiles() {
                   )}
 
                   {!activePhysicalCategory && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div className="phys-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     <div className="neon-snc-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     <div className="neon-snc-bar" style={{
                       display: 'flex', alignItems: 'stretch', width: '100%',

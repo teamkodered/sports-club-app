@@ -2122,3 +2122,10 @@ button.ffd-avatar { padding: 0; color: inherit; }
 
 /* section card: points this month where the dash was */
 .neon-sec-pts { display: block; font-family: 'Orbitron', sans-serif; font-style: normal; font-weight: 800; font-size: 13px; letter-spacing: 1px; color: inherit; margin-top: 4px; }
+
+/* coach view Physical cards: one column on phones so nothing is squashed or overlapping */
+@media (max-width: 640px) {
+  .phys-cards { grid-template-columns: 1fr !important; }
+  .phys-cards > * { min-width: 0; }
+  .phys-cards .neon-snc-row { margin-bottom: 0 !important; }
+}
