@@ -4046,6 +4046,8 @@ export default function AthleteProfiles() {
     setF2fData(d => (d || []).map(x => x.id === sess.id ? { ...x, [field]: val } : x))
     if (!next.length) setResultDetail(null)
   }
+  const [resultsRange, setResultsRange] = useState({})   // results card: range per question
+  const [resultsOpen, setResultsOpen] = useState({})     // results card: list slid open per question
   const [resultDetail, setResultDetail] = useState(null)   // results card: { q, date } shown in a pop-up
   const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
   const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
@@ -4396,9 +4398,16 @@ export default function AthleteProfiles() {
     if (!view?.q) return null
     const all = historySessions().slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
       .map(s => ({ date: s.session_date, sess: s, ...historyForSession(view, s) })).filter(r => r.value > 0 && r.lines?.length)
-    const rows = all.slice(0, limit)
+    // range filter (like the View sheet had): 7 days / 30 days / 3 months / 12 months / all
+    const RANGES = [['7', '7 days', 7], ['30', '30 days', 30], ['90', '3 months', 91], ['365', '12 months', 365], ['all', 'All', 0]]
+    const rk = resultsRange[view.q] || 'all', rdays = (RANGES.find(r => r[0] === rk) || RANGES[4])[2]
+    const fromD = rdays ? new Date(Date.now() - rdays * 86400000).toISOString().split('T')[0] : '0000'
+    const inRange = all.filter(r => r.date >= fromD)
+    const listOpen = !!resultsOpen[view.q]
+    const rows = listOpen ? inRange : []
     const c = view.colour || '#22B14C'
-    const bars = all.slice(0, 16).reverse(), max = Math.max(1, ...bars.map(b => b.value))
+    const bars = inRange.slice(0, 24).reverse(), max = Math.max(1, ...bars.map(b => b.value))
+    const total = inRange.reduce((n, r) => n + r.value, 0)
     const dshort = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     const dlong = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
     const open = resultDetail && resultDetail.q === view.q ? all.find(r => r.date === resultDetail.date) : null
@@ -4406,9 +4415,14 @@ export default function AthleteProfiles() {
       <div style={{ border: `1px solid ${c}55`, borderRadius: 8, padding: '8px 10px', margin: '0 0 8px', background: c + '0d' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: rows.length ? 8 : 0 }}>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: c, flex: 1 }}>📊 RESULTS · {view.label}</span>
-          {HistoryViewButton({ view, style: { fontSize: 10, padding: '1px 8px' } })}
+          <button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 8px' }} onClick={() => setResultsOpen(o => ({ ...o, [view.q]: !o[view.q] }))}>📈 {listOpen ? 'Hide' : 'View'}</button>
         </div>
-        {!rows.length ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged yet</div> : <>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+          {RANGES.map(([k, l]) => <button key={k} type="button" onClick={() => setResultsRange(r => ({ ...r, [view.q]: k }))}
+            style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, cursor: 'pointer', border: 'none', fontFamily: 'inherit', background: rk === k ? c : 'var(--bg-secondary)', color: rk === k ? '#000' : 'var(--text-secondary)' }}>{l.toUpperCase()}</button>)}
+        </div>
+        <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}><span>TOTAL <b style={{ color: c }}>{total}</b></span><span>ACTIVE DAYS <b style={{ color: c }}>{inRange.length}</b></span></div>
+        {!inRange.length ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged in this period</div> : <>
           {/* graph -- tap a bar to see that day's result */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 70, padding: '0 2px', borderBottom: '1px solid var(--border)' }}>
             {bars.map(b => (
@@ -4418,7 +4432,7 @@ export default function AthleteProfiles() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-tertiary)', margin: '3px 0 8px' }}><span>{dshort(bars[0].date)}</span><span>{dshort(bars[bars.length - 1].date)}</span></div>
           {/* entry cards, latest first */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {listOpen && <div style={{ display: 'flex', flexDirection: 'column', gap: 6, animation: 'kcSlideDown 0.2s ease' }}>
             {rows.map(r => (
               <button key={r.date} type="button" onClick={() => setResultDetail({ q: view.q, date: r.date })}
                 style={{ textAlign: 'left', background: 'var(--bg-secondary)', border: 'none', borderLeft: `3px solid ${c}`, borderRadius: 6, padding: '7px 10px', cursor: 'pointer', color: 'var(--text)', fontFamily: 'inherit' }}>
@@ -4426,7 +4440,7 @@ export default function AthleteProfiles() {
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.lines.join(' · ')}</div>
               </button>
             ))}
-          </div>
+          </div>}
         </>}
         {open && (
           <div role="dialog" aria-modal="true" onClick={() => setResultDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 480, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
