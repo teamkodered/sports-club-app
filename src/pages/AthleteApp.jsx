@@ -6677,7 +6677,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           {style} Techniques
                           <QuestionProgressBadge sectionKey="technique" questionLabel={style} />
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
+                        <div className={expandedTechniqueCategory ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                           {Object.keys(categories).filter(cat => !qHidden(qcfg, 'technique', cat)).sort(qSort(qcfg, 'technique', c => c)).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                             const catKey = `${style}::${cat}`
                             const active = expandedTechniqueCategory === catKey
@@ -6744,7 +6744,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
                       {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
                       {AddedQuestions({ sec: 'tactical' })}
-                    <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
+                    <div className={expandedTacticalCategory ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                       {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !qHidden(qcfg, 'tactical', cat === '__videoAnalysis__' ? 'Video analysis' : cat)).sort(qSort(qcfg, 'tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                         if (cat === '__videoAnalysis__') {
                           const active = expandedTacticalCategory === cat
@@ -6834,7 +6834,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {PillarPdpList({ pillar: 'mentality', pillarLabel: 'Mentality' })}
                       {FocusPicker({ sec: 'mentality', colour: '#22B14C', options: MENTALITY_QUESTIONS.map(q => q.label) })}
                       {AddedQuestions({ sec: 'mentality' })}
-                    <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
+                    <div className={expandedHomeMentality ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                       {MENTALITY_QUESTIONS.filter(q => !qHidden(qcfg, 'mentality', q.label)).sort(qSort(qcfg, 'mentality', q => q.label)).filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                         const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                         const active = expandedHomeMentality === q.key
@@ -7175,7 +7175,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     }}>
                     {FocusPicker({ sec: 'wellbeing', colour: '#C93BFF', options: WELLBEING_QUESTIONS.map(q => q.label) })}
                     {AddedQuestions({ sec: 'wellbeing' })}
-                    <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
+                    <div className={expandedHomeWb ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                       {WELLBEING_QUESTIONS.filter(q => !qHidden(qcfg, 'wellbeing', q.label)).sort(qSort(qcfg, 'wellbeing', q => q.label)).filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                         const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                         const active = expandedHomeWb === q.key

@@ -2130,3 +2130,11 @@ button.ffd-avatar { padding: 0; color: inherit; }
   .phys-cards .neon-snc-row { margin-bottom: 0 !important; grid-template-columns: 1fr !important; }
   .phys-cards .neon-snc-row > * { min-width: 0; grid-column: auto !important; }
 }
+
+/* question cards in swipe sets: 2 x 2 per page, swipe left / right for the next set */
+.q-swipe { grid-template-columns: none !important; grid-template-rows: repeat(2, auto); grid-auto-flow: column; grid-auto-columns: calc(50% - 4px);
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: 6px;
+  background: linear-gradient(90deg, transparent calc(100% - 18px), rgba(255,255,255,0.04)); }
+.q-swipe::-webkit-scrollbar { display: none; }
+.q-swipe > * { scroll-snap-align: start; min-width: 0; }
+.q-swipe > :nth-child(4n+1) { scroll-snap-align: start; }
