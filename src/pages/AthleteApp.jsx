@@ -1095,6 +1095,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   // PB for the sub-type currently shown (swipe to change type)
   const { pb: typePb } = noNumericStat ? { pb: null } : computeModuleStats(sorted, b.key, currentSubType)
   const swipeStart = useRef(null)
+  const swipeStartY = useRef(null), holdXY = useRef(null)
   const holdTimer = useRef(null)
   const heldRef = useRef(false)
 
@@ -1113,11 +1114,12 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
   return (
     <div className="neon-module"
-      onTouchStart={e => { if (canCycle) swipeStart.current = e.touches[0].clientX }}
+      onTouchStart={e => { if (canCycle) { swipeStart.current = e.touches[0].clientX; swipeStartY.current = e.touches[0].clientY } }}
       onTouchEnd={e => {
         if (!canCycle || swipeStart.current == null) return
-        const delta = e.changedTouches[0].clientX - swipeStart.current
-        if (Math.abs(delta) > 40) cycleType(delta < 0 ? 1 : -1)
+        const delta = e.changedTouches[0].clientX - swipeStart.current, dy = e.changedTouches[0].clientY - (swipeStartY.current ?? 0)
+        // only a mostly-sideways swipe changes the card -- scrolling up / down never does
+        if (Math.abs(delta) > 50 && Math.abs(delta) > Math.abs(dy) * 1.5) cycleType(delta < 0 ? 1 : -1)
         swipeStart.current = null
       }}
       style={{
@@ -1147,14 +1149,18 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           logging). Other modules keep cycling sub-type on tap too,
           alongside the swipe/arrows above. */}
       <button
-        onPointerDown={() => {
+        onPointerDown={e => {
           if (!isPhysicalModule || !onQuickLog) return
           heldRef.current = false
+          holdXY.current = [e.clientX, e.clientY]
           holdTimer.current = setTimeout(() => {
             heldRef.current = true
             onQuickLog(b.key)
           }, 500)
         }}
+        // moving the finger (scrolling / swiping) cancels the hold, so a scroll never quick-logs
+        onPointerMove={e => { const [x0, y0] = holdXY.current || [e.clientX, e.clientY]; if (Math.abs(e.clientX - x0) > 8 || Math.abs(e.clientY - y0) > 8) clearTimeout(holdTimer.current) }}
+        onPointerCancel={() => clearTimeout(holdTimer.current)} onPointerLeave={() => clearTimeout(holdTimer.current)}
         onPointerUp={() => clearTimeout(holdTimer.current)}
         onClick={() => {
           if (heldRef.current) { heldRef.current = false; return } // already handled by the hold
@@ -1165,7 +1171,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
         padding: large ? '12px 8px' : '6px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
         cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
-        minWidth: 0, touchAction: isPhysicalModule ? 'none' : undefined,
+        minWidth: 0, touchAction: isPhysicalModule ? 'pan-y' : undefined,   // sideways swipe changes the card; up / down still scrolls the page
       }}>
         {questionProgressByPeriod && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 18, flexShrink: 0 }}>
