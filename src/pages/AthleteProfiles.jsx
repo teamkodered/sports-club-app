@@ -4456,7 +4456,7 @@ export default function AthleteProfiles() {
     const dlong = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
     const open = resultDetail && resultDetail.q === view.q ? all.find(r => r.date === resultDetail.date) : null
     return (
-      <div style={{ border: `1px solid ${c}55`, borderRadius: 8, padding: '8px 10px', margin: '0 0 8px', background: c + '0d' }}>
+      <div className="kc-results" style={{ border: `1px solid ${c}55`, borderRadius: 8, padding: '8px 10px', margin: '0 0 8px', background: c + '0d' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: c, flex: 1 }}>📊 RESULTS · {view.label}</span>
           <button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 8px' }} onClick={() => setResultsOpen(o => ({ ...o, [view.q]: !o[view.q] }))}>📈 {listOpen ? 'Hide' : 'View'}</button>
@@ -11010,7 +11010,7 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
                     {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
                     {AddedQuestions({ sec: 'tactical' })}
-                    {/* 📊 results card for the open question (same as Physical) */}{expandedTacticalCategory && expandedTacticalCategory !== '__videoAnalysis__' && InlineResults({ view: { sectionKey: 'tactical', q: expandedTacticalCategory, label: expandedTacticalCategory, colour: '#E24B4A' } })}
+                    {/* 📊 results card for the open question (same as Physical) */}{expandedTacticalCategory && InlineResults({ view: expandedTacticalCategory === '__videoAnalysis__' ? { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#E24B4A' } : { sectionKey: 'tactical', q: expandedTacticalCategory, label: expandedTacticalCategory, colour: '#E24B4A' } })}
                   <div className={expandedTacticalCategory ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !qHidden(qcfg, 'tactical', cat === '__videoAnalysis__' ? 'Video analysis' : cat)).sort(qSort(qcfg, 'tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
@@ -11055,7 +11055,6 @@ export default function AthleteProfiles() {
                       {PdpNotes({ links: pdpInfo('tactical', '__videoAnalysis__').links })}
                       {PdpAddButton({ target: { pillar: 'tactical', pillarLabel: 'Tactical', q: '__videoAnalysis__', item: null, label: 'Video Analysis' }, style: { marginBottom: 8 } })}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                        {HistoryViewButton({ view: { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#FF2A2A' }, style: { marginRight: 'auto' } })}
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>
                       </div>
                       {MultiSessionTypeLogger({ field: 'videoAnalysis', options: VIDEO_ANALYSIS_OPTIONS })}
@@ -11126,7 +11125,6 @@ export default function AthleteProfiles() {
                       {InlineResults({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: (MENTALITY_QUESTIONS.find(m => m.key === expandedHomeMentality) || {}).label || 'Mentality', colour: '#22B14C' } })}
                       {PdpNotes({ links: pdpInfo('mentality', expandedHomeMentality).links })}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                        {HistoryViewButton({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality, colour: '#22B14C' }, style: { marginRight: 'auto' } })}
                         {PdpAddButton({ target: { pillar: 'mentality', pillarLabel: 'Mentality', q: expandedHomeMentality, item: null, label: MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality }, style: { marginRight: 8 } })}
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                       </div>
@@ -11438,7 +11436,6 @@ export default function AthleteProfiles() {
                     <div className="card neon-qpanel neon-q-foundation" style={{ marginBottom: 8 }}>
                       {expandedHomeWb && (
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                          {HistoryViewButton({ view: { sectionKey: 'wellbeing', q: expandedHomeWb, label: WELLBEING_QUESTIONS.find(q => q.key === expandedHomeWb)?.label || expandedHomeWb, colour: '#C93BFF' }, style: { marginRight: 'auto' } })}
                           <button type="button" className="btn btn-sm" onClick={() => clearWellbeingQuestion(expandedHomeWb)} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
                       )}

@@ -2144,3 +2144,6 @@ button.ffd-avatar { padding: 0; color: inherit; }
   -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
 .opt-swipe::-webkit-scrollbar { display: none; }
 .opt-swipe > .neon-opt { flex: 0 0 86%; scroll-snap-align: start; white-space: normal; min-height: 64px; justify-content: center; text-align: center; }
+
+/* results card inside a question panel: keep clear of the big 'x today' counter at the top */
+.neon-qpanel:has(.neon-q-count) .kc-results { margin-top: 40px !important; }
