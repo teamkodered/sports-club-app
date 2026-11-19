@@ -5136,9 +5136,8 @@ export default function AthleteApp() {
       </div>
     )
   }
-  function QuestionMediaUpload(props) {
-    return <>{QuestionMediaUploadInner(props)}<QuestionToTimetable questionLabel={props.questionLabel} /></>
-  }
+  // photo / video attach and 'Add to timetable' taken off the question panels (cleaner); media still via Media / Notes
+  function QuestionMediaUpload() { return null }
   function QuestionMediaUploadInner({ sectionKey, questionLabel }) {
     if (uploadsBlocked) return null // under 18 (or no date of birth): no photo / video uploads
     const todayStr = new Date().toISOString().split('T')[0]

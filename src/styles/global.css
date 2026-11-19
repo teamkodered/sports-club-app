@@ -2161,3 +2161,6 @@ button.ffd-avatar { padding: 0; color: inherit; }
 .neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> span:nth-child(4) > .btn) > * { flex: 0 0 auto; scroll-snap-align: start; }
 /* zoom-to-header lands just below the menu button */
 .neon-q, .neon-qpanel, [data-zoom-open] { scroll-margin-top: 76px; }
+
+/* question panels: just the number for 'x today' (no 'conversations today' text) */
+.neon-qpanel .neon-q-count span { display: none !important; }
