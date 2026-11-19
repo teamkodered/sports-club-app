@@ -6,7 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
-import { shortLevel, shortDivision } from '../lib/divisions.js'
+import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
 import HrrTestTool from '../components/shared/HrrTestTool.jsx'
 import { saveTestResults } from '../lib/testResults.js'
 import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
@@ -4420,7 +4420,7 @@ export default function AthleteProfiles() {
         const w = x.wattage ?? x.watts ?? x.output ?? x.power ?? x.value, d = x.distance ?? x.dist ?? x.km, r = x.reps ?? x.count, t = x.time ?? x.seconds
         const parts = [w != null && w !== '' ? `${w}W` : null, d != null && d !== '' ? `${d}${/[a-z]/i.test(String(d)) ? '' : ' km'}` : null, r != null && r !== '' ? `${r} reps` : null, t != null && t !== '' ? `${t}s` : null].filter(Boolean)
         return parts.length ? parts.join(' / ') : Object.values(x).filter(v => v !== '' && v != null && typeof v !== 'object').join(' / ') }
-      const fmt = e => { const sets = (e?.sets || []).filter(x => x !== '' && x != null).map(setStr).filter(x => x !== '' && x != null); const name = e?.type || e?.test || e?.category || e?.name || e?.exercise || ''; return `${name}${name && sets.length ? ': ' : ''}${sets.join(', ')}` || (e?.quickLogged ? 'Quick logged' : 'Logged') }
+      const fmt = e => { const sets = (e?.sets || []).filter(x => x !== '' && x != null).map(setStr).filter(x => x !== '' && x != null); const name = shortInterval(e?.type || e?.test || e?.category || e?.name || e?.exercise || ''); return `${name}${name && sets.length ? ': ' : ''}${sets.join(', ')}` || (e?.quickLogged ? 'Quick logged' : 'Logged') }
       if (q === 'stretch') { const l = (Array.isArray(s.stretch_flows) ? s.stretch_flows : s.stretch_flows ? [s.stretch_flows] : []).filter(Boolean).map(x => typeof x === 'string' ? x : (x.name || 'Stretch flow')); return { value: l.length, lines: l } }
       const field = { watt_bike: 'watt_bike', bodyweight: 'bodyweight', snc: 'snc', other_session: 'other_session', running: 'running' }[q]
       if (field) { const l = toEntries(s[field]).map(fmt); return { value: l.length, lines: l } }
@@ -10634,7 +10634,7 @@ export default function AthleteProfiles() {
                           {runPk.bar}
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                             {presets.map(t => (
-                              <button key={t} type="button" onClick={() => runPk.picking ? runPk.pick(t) : upsertSetup({ test: t })}
+                              <button key={shortInterval(t)} type="button" onClick={() => runPk.picking ? runPk.pick(t) : upsertSetup({ test: t })}
                                 className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined, ...(runPk.gold.has(t) && entry.test !== t ? pdpGoldStyle(true) : {}) }}>{(t => isSuicideTest(t) ? t.replace(/^Suicides\s*/i, '1 m pyramid suicides · ').replace(' seconds on ', 's on / ').replace(' seconds off', 's off') : t)(t)}</button>
                             ))}
                             <SavableField defaultValue={presets.includes(entry.test) ? '' : (entry.test || '')}

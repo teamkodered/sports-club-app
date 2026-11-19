@@ -126,3 +126,13 @@ export function shortDivision(dob, discipline, level) {
   const SHOW = { J: 'JNR', JUN: 'JNR', S: 'SNR', SDV: 'S-DEV', V: 'VET', MIN: 'MNR' }   // name card: Junior / Senior / Senior Development written as JNR / SNR / S-DEV
   return SHOW[div?.key] || div?.key || ''
 }
+
+// Interval / test names written short for buttons and lists:
+// '10 seconds on 10 seconds jog track distance' -> '10 secs on 10 secs off'
+export function shortInterval(t) {
+  if (!t || typeof t !== 'string') return t
+  let s = t.replace(/\bjog track distance\b|\btrack distance\b|\bjog\b|\brest\b/gi, 'off')
+  s = s.replace(/(\d+(?:\.\d+)?)\s*seconds?\b/gi, '$1 secs').replace(/(\d+(?:\.\d+)?)\s*minutes?\b/gi, '$1 mins')
+  s = s.replace(/\boff\s+off\b/gi, 'off').replace(/\s{2,}/g, ' ').trim()
+  return s
+}

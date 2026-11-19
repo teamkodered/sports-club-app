@@ -11,7 +11,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
-import { shortLevel, shortDivision } from '../lib/divisions.js'
+import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
 import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
 import { divisionsForAge } from '../lib/divisions.js'
 import { AbsenceRequestAthlete } from '../components/shared/AbsenceRequests.jsx'
@@ -6376,7 +6376,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             {runPk.bar}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                               {sprintPresets.map(t => (
-                                <button key={t} type="button" onClick={() => runPk.picking ? runPk.pick(t) : upsertSetup({ test: t })}
+                                <button key={shortInterval(t)} type="button" onClick={() => runPk.picking ? runPk.pick(t) : upsertSetup({ test: t })}
                                   className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined, ...(runPk.gold.has(t) && entry.test !== t ? pdpGoldStyle(true) : {}) }}>{(t => isSuicideTest(t) ? t.replace(/^Suicides\s*/i, '1 m pyramid suicides · ').replace(' seconds on ', 's on / ').replace(' seconds off', 's off') : t)(t)}</button>
                               ))}
                               <input ref={sprintTestOtherRef} defaultValue={sprintPresets.includes(entry.test) ? '' : (entry.test || '')}
