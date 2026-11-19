@@ -2147,3 +2147,15 @@ button.ffd-avatar { padding: 0; color: inherit; }
 
 /* results card inside a question panel: keep clear of the big 'x today' counter at the top */
 .neon-qpanel:has(.neon-q-count) .kc-results { margin-top: 40px !important; }
+
+/* every option list inside a question panel (4+ buttons): one swipeable row instead of a wrapping list */
+.neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> .btn:nth-child(4)),
+.neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> span:nth-child(4) > .btn) {
+  flex-wrap: nowrap !important; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none;
+  padding-bottom: 6px; justify-content: flex-start !important;
+  -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent); mask-image: linear-gradient(90deg, #000 90%, transparent);
+}
+.neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> .btn:nth-child(4))::-webkit-scrollbar,
+.neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> span:nth-child(4) > .btn)::-webkit-scrollbar { display: none; }
+.neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> .btn:nth-child(4)) > *,
+.neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> span:nth-child(4) > .btn) > * { flex: 0 0 auto; scroll-snap-align: start; }
