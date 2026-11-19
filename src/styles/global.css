@@ -2159,3 +2159,5 @@ button.ffd-avatar { padding: 0; color: inherit; }
 .neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> span:nth-child(4) > .btn)::-webkit-scrollbar { display: none; }
 .neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> .btn:nth-child(4)) > *,
 .neon-qpanel div[style*="flex-wrap: wrap"]:not(.opt-swipe):has(> span:nth-child(4) > .btn) > * { flex: 0 0 auto; scroll-snap-align: start; }
+/* zoom-to-header lands just below the menu button */
+.neon-q, .neon-qpanel, [data-zoom-open] { scroll-margin-top: 76px; }
