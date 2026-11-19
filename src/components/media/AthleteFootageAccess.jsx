@@ -53,9 +53,20 @@ export default function AthleteFootageAccess() {
               <input type="checkbox" checked={chosen.has(c.id)} onChange={e => tick([c.id], e.target.checked)} />
               <span style={{ width: 90, color: 'var(--text-secondary)' }}>{c.day_of_week} {String(c.start_time || '').slice(0, 5)}</span>
               <span style={{ flex: 1 }}>{c.name}</span>
+              {chosen.has(c.id) && [['1', 'Bags'], ['2', 'Ring'], ['3', 'Main']].map(([k, l]) => {
+                const hidden = (cfg.hidden_cams?.[c.id] || []).includes(k)
+                return (
+                  <button key={k} type="button" title={hidden ? `${l} camera hidden from athletes for this class -- press to show` : `Press to hide the ${l} camera from athletes for this class`}
+                    onClick={e => { e.preventDefault(); const cur = cfg.hidden_cams?.[c.id] || []; set({ hidden_cams: { ...(cfg.hidden_cams || {}), [c.id]: hidden ? cur.filter(x => x !== k) : [...cur, k] } }) }}
+                    style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer', background: hidden ? '#E24B4A22' : 'transparent', color: hidden ? '#E24B4A' : 'var(--text-secondary)', textDecoration: hidden ? 'line-through' : 'none' }}>
+                    {l}
+                  </button>
+                )
+              })}
             </label>
           ))}
         </div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '-4px 0 10px' }}>Bags / Ring / Main next to a ticked class: press a camera to hide it from athletes for that class only (red = hidden).</div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 6, cursor: 'pointer' }}>
           <input type="checkbox" checked={!!cfg.day_checkins} onChange={e => set({ day_checkins: e.target.checked })} /> Include their own daytime check-ins outside a session (Mon–Fri)
         </label>
