@@ -4065,6 +4065,7 @@ export default function AthleteProfiles() {
     setF2fData(d => (d || []).map(x => x.id === sess.id ? { ...x, [field]: val } : x))
     if (!next.length) setResultDetail(null)
   }
+  const [f2fListAll, setF2fListAll] = useState(false)   // Fit II Fight entries: first 5, press to view all
   const [resultsRange, setResultsRange] = useState({})   // results card: range per question
   const [resultsOpen, setResultsOpen] = useState({})
   const [resultsMetric, setResultsMetric] = useState({})   // Watt bike results: track wattage (w) or distance (d)     // results card: list slid open per question
@@ -13105,7 +13106,11 @@ export default function AthleteProfiles() {
                     { key: 'other', label: '📦 Other' },
                   ]
                   function cycleGraphSection(direction) {
+                    const y = window.scrollY
                     setResultsGraphSection(s => (s + direction + GRAPH_SECTIONS.length) % GRAPH_SECTIONS.length)
+                    setF2fListAll(false)
+                    // keep the page where it was (the content height changes between categories)
+                    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: y })))
                   }
                   return (
                     <div
@@ -13416,7 +13421,7 @@ export default function AthleteProfiles() {
                   <div className="empty-state"><p>{f2fData.length === 0 ? 'No Fit II Fight sessions logged yet.' : `No ${GRAPH_SECTION_LABELS[resultsGraphSection]} results in this date range.`}</p></div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {resultsListFiltered.map((s, i) => {
+                    {(f2fListAll ? resultsListFiltered : resultsListFiltered.slice(0, 5)).map((s, i) => {
                       const change = s.weight_before && s.weight_after
                         ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null
                       const exercises = [
@@ -13536,7 +13541,8 @@ export default function AthleteProfiles() {
                           {s.heart_rate?.avg_bpm && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
                             ❤️ Avg: {s.heart_rate.avg_bpm} BPM{s.heart_rate.peak_bpm ? ` · Peak: ${s.heart_rate.peak_bpm} BPM` : ''}
                           </div>}
-                          {s.test && Object.entries(s.test).map(([k, v]) => (
+                          {s.test && Object.entries(s.test).filter(([k]) => { const g = GRAPH_SECTION_KEYS[resultsGraphSection], lk = k.toLowerCase()
+                            return g === 'bleep' ? lk.includes('bleep') : g === 'grip' ? lk.includes('grip') : g === 'circuit' ? lk.includes('fixed load circuit') : true }).map(([k, v]) => (
                             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#1d9e75', fontWeight: 600, marginTop: 4 }}>
                               <span>📊 {k}: {v}</span>
                               {isAdmin && (
@@ -13548,6 +13554,7 @@ export default function AthleteProfiles() {
                         </div>
                       )
                     })}
+                    {resultsListFiltered.length > 5 && <button type="button" className="btn" style={{ justifyContent: 'center' }} onClick={() => setF2fListAll(v => !v)}>{f2fListAll ? '▲ Show less' : `▼ View all (${resultsListFiltered.length})`}</button>}
                   </div>
                 )}
 
