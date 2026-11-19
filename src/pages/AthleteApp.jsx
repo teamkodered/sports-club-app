@@ -1114,6 +1114,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
   return (
     <div className="neon-module"
+      data-zoom-head="1"   // tapping this card opens its panel underneath -> scroll this card to the top
       onTouchStart={e => { if (canCycle) { swipeStart.current = e.touches[0].clientX; swipeStartY.current = e.touches[0].clientY } }}
       onTouchEnd={e => {
         if (!canCycle || swipeStart.current == null) return
