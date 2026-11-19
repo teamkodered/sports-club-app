@@ -4996,7 +4996,6 @@ export default function AthleteProfiles() {
         )}
         {!editing && avail.length > 0 && (
           <>
-            <label>Choose (tap all that apply){avail.length > 1 ? ` · swipe for more (${avail.length})` : ''}{sel.length ? ` · ${sel.length} picked` : ''}</label>
             {/* one option at a time -- swipe left / right (snaps); every option still there */}
             <div className={avail.length > 1 ? 'opt-swipe' : undefined} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {avail.map(i => {
@@ -10926,7 +10925,6 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'technique', pillarLabel: 'Technical' })}
                     {FocusPicker({ sec: 'technique', colour: '#2F6BFF', options: [...new Set(TECHNIQUE_STYLES.filter(({ style }) => selected?.discipline === 'KRBA' ? style === 'Boxing' : selected?.is_kr ? style === 'Kickboxing' : true).flatMap(({ categories }) => Object.keys(categories)))] })}
                     {AddedQuestions({ sec: 'technique' })}
-                    {/* 📊 results card for the open question (same as Physical) */}{expandedTechniqueCategory && InlineResults({ view: { sectionKey: 'technique', q: expandedTechniqueCategory, label: expandedTechniqueCategory.split('::').pop(), colour: '#378ADD' } })}
                   {TECHNIQUE_STYLES.filter(({ style }) => {
                     // KRBA athletes only need Boxing questions, KR
                     // Kickboxing athletes only need Kickboxing ones --
@@ -11010,7 +11008,7 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
                     {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
                     {AddedQuestions({ sec: 'tactical' })}
-                    {/* 📊 results card for the open question (same as Physical) */}{expandedTacticalCategory && InlineResults({ view: expandedTacticalCategory === '__videoAnalysis__' ? { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#E24B4A' } : { sectionKey: 'tactical', q: expandedTacticalCategory, label: expandedTacticalCategory, colour: '#E24B4A' } })}
+                    {expandedTacticalCategory === '__videoAnalysis__' && InlineResults({ view: { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#E24B4A' } })}
                   <div className={expandedTacticalCategory ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !qHidden(qcfg, 'tactical', cat === '__videoAnalysis__' ? 'Video analysis' : cat)).sort(qSort(qcfg, 'tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
@@ -11100,7 +11098,6 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'mentality', pillarLabel: 'Mentality' })}
                     {FocusPicker({ sec: 'mentality', colour: '#22B14C', options: MENTALITY_QUESTIONS.map(q => q.label) })}
                     {AddedQuestions({ sec: 'mentality' })}
-                    {/* 📊 results card for the open question (same as Physical) */}{expandedHomeMentality && expandedHomeMentality !== 'alterEgo' && InlineResults({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: (MENTALITY_QUESTIONS.find(x => x.key === expandedHomeMentality) || {}).label || 'Mentality', colour: '#8B5CF6' } })}
                   <div className={expandedHomeMentality ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                     {MENTALITY_QUESTIONS.filter(q => !qHidden(qcfg, 'mentality', q.label)).sort(qSort(qcfg, 'mentality', q => q.label)).filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
