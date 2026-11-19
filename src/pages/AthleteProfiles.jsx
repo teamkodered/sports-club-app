@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import SaveBar from '../components/shared/SaveBar.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
 import HrrTestTool from '../components/shared/HrrTestTool.jsx'
 import { saveTestResults } from '../lib/testResults.js'
@@ -130,6 +131,7 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
         ))}
       </div>
       <button type="button" className="btn btn-sm" onClick={add} style={{ fontSize: 11 }}>+ Add set</button>
+      <SaveBar />
     </div>
   )
 }
@@ -172,6 +174,7 @@ function DualSetInput({ sets, onChange, fields }) {
         ))}
       </div>
       <button type="button" className="btn btn-sm" onClick={add} style={{ fontSize: 11 }}>+ Add set</button>
+      <SaveBar />
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import SaveBar from '../components/shared/SaveBar.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
 import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
 import { divisionsForAge } from '../lib/divisions.js'
@@ -165,6 +166,7 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
         ))}
       </div>
       <button type="button" className="btn btn-sm" onClick={add} style={{ fontSize: 11 }}>+ Add set</button>
+      <SaveBar />
     </div>
   )
 }
@@ -236,6 +238,7 @@ function TimedSprintsInput({ sets, mode, fixedValue, onChange }) {
         ))}
       </div>
       <button type="button" className="btn btn-sm" onClick={add} style={{ fontSize: 11, marginBottom: 10 }}>+ Add set</button>
+      <SaveBar />
       <div style={{ display: 'flex', gap: 14, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
         <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total time: <strong style={{ color: 'var(--text)' }}>{totalTime != null ? `${totalTime}sec` : '—'}</strong></span>
         <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total distance: <strong style={{ color: 'var(--text)' }}>{totalDistance != null ? `${totalDistance}m` : '—'}</strong></span>
@@ -290,6 +293,7 @@ function DualSetInput({ sets, onChange, fields }) {
         ))}
       </div>
       <button type="button" className="btn btn-sm" onClick={add} style={{ fontSize: 11 }}>+ Add set</button>
+      <SaveBar />
     </div>
   )
 }
