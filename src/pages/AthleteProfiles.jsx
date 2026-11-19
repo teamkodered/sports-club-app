@@ -4034,6 +4034,18 @@ export default function AthleteProfiles() {
   const SectionPoints = ({ sec }) => (
     <span className="neon-sec-pts" title="Points earned in this section this month">{sectionPts[sec] ? `${sectionPts[sec]} PTS` : '0 PTS'}</span>
   )
+  const RESULT_FIELD = { watt_bike: 'watt_bike', bodyweight: 'bodyweight', snc: 'snc', other_session: 'other_session', running: 'running' }
+  async function deleteResultEntry(q, sess, idx) {
+    const field = RESULT_FIELD[q]; if (!field || !sess?.id) return
+    const list = toEntries(sess[field])
+    if (!list[idx] || !confirm('Delete this entry? This can\u2019t be undone.')) return
+    const next = list.filter((_, i) => i !== idx)
+    const val = next.length ? next : null
+    const { error } = await supabase.from('fit2fight_sessions').update({ [field]: val }).eq('id', sess.id)
+    if (error) { alert('Could not delete: ' + error.message); return }
+    setF2fData(d => (d || []).map(x => x.id === sess.id ? { ...x, [field]: val } : x))
+    if (!next.length) setResultDetail(null)
+  }
   const [resultDetail, setResultDetail] = useState(null)   // results card: { q, date } shown in a pop-up
   const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
   const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
@@ -4383,7 +4395,7 @@ export default function AthleteProfiles() {
   function InlineResults({ view, limit = 8 }) {
     if (!view?.q) return null
     const all = historySessions().slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
-      .map(s => ({ date: s.session_date, ...historyForSession(view, s) })).filter(r => r.value > 0 && r.lines?.length)
+      .map(s => ({ date: s.session_date, sess: s, ...historyForSession(view, s) })).filter(r => r.value > 0 && r.lines?.length)
     const rows = all.slice(0, limit)
     const c = view.colour || '#22B14C'
     const bars = all.slice(0, 16).reverse(), max = Math.max(1, ...bars.map(b => b.value))
@@ -4423,7 +4435,15 @@ export default function AthleteProfiles() {
                 <b style={{ flex: 1, fontSize: 15 }}>{view.label} · {dlong(open.date)}</b>
                 <button type="button" className="btn btn-sm" onClick={() => setResultDetail(null)}>✕</button>
               </div>
-              {open.lines.map((l, k) => <div key={k} style={{ fontSize: 13, padding: '5px 0', borderTop: k ? '1px solid var(--border)' : 'none' }}>{l}</div>)}
+              {open.lines.map((l, k) => (
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '5px 0', borderTop: k ? '1px solid var(--border)' : 'none' }}>
+                  <span style={{ flex: 1 }}>{l}</span>
+                  {/* 🗑 delete this entry (Physical logs: Watt bike, Bodyweight, Running, S&C, Other session) */}
+                  {isAdmin && RESULT_FIELD[view.q] && open.sess?.id && (
+                    <button type="button" className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteResultEntry(view.q, open.sess, k)}>🗑</button>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
