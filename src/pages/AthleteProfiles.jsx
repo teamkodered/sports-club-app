@@ -4070,6 +4070,7 @@ export default function AthleteProfiles() {
   const [resultsOpen, setResultsOpen] = useState({})
   const [resultsMetric, setResultsMetric] = useState({})   // Watt bike results: track wattage (w) or distance (d)     // results card: list slid open per question
   const [resultDetail, setResultDetail] = useState(null)   // results card: { q, date } shown in a pop-up
+  const [pdpOpenCol, setPdpOpenCol] = useState({})   // section PDP: which list (Work on / Maintain …) is open
   const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
   const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
   const PDP_COL_ORDER = [['work_on', 'Work on', '#EF9F27'], ['what_to_do', 'To do', '#E24B4A'], ['maintain', 'Maintain', '#1D9E75'], ['notes', 'Notes', '#9A9A9A']]
@@ -4197,11 +4198,32 @@ export default function AthleteProfiles() {
   function PillarPdpList({ pillar, pillarLabel }) {
     const lines = pillarPdpLines(pillar)
     if (!lines.length) return null
+    // compact blocks (one per list: Work on / To do / Maintain …) -- press one to see its notes
+    const COLS = [['work_on', 'Work on', '#EF9F27'], ['what_to_do', 'To do', '#E24B4A'], ['maintain', 'Maintain', '#1D9E75'], ['notes', 'Notes', '#9A9A9A']]
+    const colOf = sk => (COLS.find(([k]) => String(sk).endsWith(k)) || ['other', 'Other', '#666'])
+    const groups = []
+    for (const l of lines) { const [k, label, colour] = colOf(l.sectionKey); let g = groups.find(x => x.k === k); if (!g) groups.push(g = { k, label, colour, n: 0 }); g.n++ }
+    groups.sort((a, b) => COLS.findIndex(c => c[0] === a.k) - COLS.findIndex(c => c[0] === b.k))
+    const openK = pdpOpenCol[pillar] || null
+    const shownLines = lines.filter(l => colOf(l.sectionKey)[0] === openK)
+    const blocks = (
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {groups.map(g => (
+          <button key={g.k} type="button" onClick={() => setPdpOpenCol(o => ({ ...o, [pillar]: o[pillar] === g.k ? null : g.k }))}
+            style={{ minWidth: 64, padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+              border: `1px solid ${g.colour}`, background: openK === g.k ? g.colour : g.colour + '1f', color: openK === g.k ? '#000' : g.colour }}>
+            <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{g.n}</div>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, marginTop: 2 }}>{g.label.toUpperCase()} {openK === g.k ? '▲' : '▼'}</div>
+          </button>
+        ))}
+      </div>
+    )
     const today = new Date().toISOString().split('T')[0]
     return (
       <div className="neon-pdp-list" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
         {PdpAddButtonFree(pillar, pillarLabel)}
-        {lines.map(l => {
+        {blocks}
+        {shownLines.map(l => {
           const dates = (apData?.pdp_done || {})[pdpDoneKey(l.sectionKey, l.text)] || []
           const doneToday = dates.includes(today)
           const linkName = l.link?.pillar ? (l.link.item || (l.link.q || '').split('::').pop().replace(/^(run|watt|bw):/, '')) : null
