@@ -3910,7 +3910,7 @@ export default function AthleteApp() {
     if (cur) return null   // once locked in, the question card's 🎯 FOCUS tag shows it -- no message box
     return (
       <div className="kc-focus" style={{ '--c': colour }}>
-        <span>🎯 Pick your <b>{monthName} focus</b> -- open a question and press <b>Set as my focus</b> (+1 point). It locks in for the month. <b>No points for this section's questions until you pick one</b> -- then your focus question scores +{athleteHousePoints.f2f_focus ?? 3} each day.</span>
+        <span>🎯 Pick your <b>{monthName} focus</b> -- open a question and press <b>Set as my focus</b>.</span>
       </div>
     )
   }
