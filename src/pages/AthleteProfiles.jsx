@@ -3998,6 +3998,7 @@ export default function AthleteProfiles() {
   // the count builds up. Only coaches mark a line complete.
   const [pillarView, setPillarView] = useState({}) // pillar -> 'questions' | 'pdp'
   const [ptsAllTime, setPtsAllTime] = useState(false)   // name card: points chip shows this month or all time
+  const [resultDetail, setResultDetail] = useState(null)   // results card: { q, date } shown in a pop-up
   const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
   const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
   const PDP_COL_ORDER = [['work_on', 'Work on', '#EF9F27'], ['what_to_do', 'To do', '#E24B4A'], ['maintain', 'Maintain', '#1D9E75'], ['notes', 'Notes', '#9A9A9A']]
@@ -4309,7 +4310,11 @@ export default function AthleteProfiles() {
       return { value: value || 1, lines: lines.length ? lines : ['Logged'] }
     }
     if (sectionKey === 'physical') {
-      const fmt = e => { const sets = (e?.sets || []).filter(x => x !== '' && x != null); const name = e?.type || e?.test || e?.category || e?.name || e?.exercise || ''; return `${name}${name && sets.length ? ': ' : ''}${sets.join(', ')}` || (e?.quickLogged ? 'Quick logged' : 'Logged') }
+      const setStr = x => { if (x == null || typeof x !== 'object') return x
+        const w = x.watts ?? x.output ?? x.power ?? x.value, d = x.distance ?? x.dist ?? x.km, r = x.reps ?? x.count, t = x.time ?? x.seconds
+        const parts = [w != null && w !== '' ? `${w}W` : null, d != null && d !== '' ? `${d}${/[a-z]/i.test(String(d)) ? '' : ' km'}` : null, r != null && r !== '' ? `${r} reps` : null, t != null && t !== '' ? `${t}s` : null].filter(Boolean)
+        return parts.length ? parts.join(' / ') : Object.values(x).filter(v => v !== '' && v != null && typeof v !== 'object').join(' / ') }
+      const fmt = e => { const sets = (e?.sets || []).filter(x => x !== '' && x != null).map(setStr).filter(x => x !== '' && x != null); const name = e?.type || e?.test || e?.category || e?.name || e?.exercise || ''; return `${name}${name && sets.length ? ': ' : ''}${sets.join(', ')}` || (e?.quickLogged ? 'Quick logged' : 'Logged') }
       if (q === 'stretch') { const l = (Array.isArray(s.stretch_flows) ? s.stretch_flows : s.stretch_flows ? [s.stretch_flows] : []).filter(Boolean).map(x => typeof x === 'string' ? x : (x.name || 'Stretch flow')); return { value: l.length, lines: l } }
       const field = { watt_bike: 'watt_bike', bodyweight: 'bodyweight', snc: 'snc', other_session: 'other_session', running: 'running' }[q]
       if (field) { const l = toEntries(s[field]).map(fmt); return { value: l.length, lines: l } }
@@ -4329,21 +4334,51 @@ export default function AthleteProfiles() {
   // 📊 Results for one question, shown inside its open card (latest first, in the section's colours)
   function InlineResults({ view, limit = 8 }) {
     if (!view?.q) return null
-    const rows = historySessions().slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
-      .map(s => ({ date: s.session_date, ...historyForSession(view, s) })).filter(r => r.value > 0 && r.lines?.length).slice(0, limit)
+    const all = historySessions().slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
+      .map(s => ({ date: s.session_date, ...historyForSession(view, s) })).filter(r => r.value > 0 && r.lines?.length)
+    const rows = all.slice(0, limit)
     const c = view.colour || '#22B14C'
+    const bars = all.slice(0, 16).reverse(), max = Math.max(1, ...bars.map(b => b.value))
+    const dshort = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    const dlong = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    const open = resultDetail && resultDetail.q === view.q ? all.find(r => r.date === resultDetail.date) : null
     return (
       <div style={{ border: `1px solid ${c}55`, borderRadius: 8, padding: '8px 10px', margin: '0 0 8px', background: c + '0d' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: rows.length ? 6 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: rows.length ? 8 : 0 }}>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: c, flex: 1 }}>📊 RESULTS · {view.label}</span>
           {HistoryViewButton({ view, style: { fontSize: 10, padding: '1px 8px' } })}
         </div>
-        {!rows.length ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged yet</div> : rows.map(r => (
-          <div key={r.date} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '3px 0', borderTop: '1px solid var(--border)' }}>
-            <span style={{ width: 62, flexShrink: 0, color: 'var(--text-tertiary)' }}>{new Date(r.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-            <span style={{ flex: 1, minWidth: 0, color: 'var(--text)' }}>{r.lines.join(' · ')}</span>
+        {!rows.length ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged yet</div> : <>
+          {/* graph -- tap a bar to see that day's result */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 70, padding: '0 2px', borderBottom: '1px solid var(--border)' }}>
+            {bars.map(b => (
+              <button key={b.date} type="button" title={dshort(b.date)} onClick={() => setResultDetail({ q: view.q, date: b.date })}
+                style={{ flex: 1, maxWidth: 22, height: `${Math.max(10, b.value / max * 100)}%`, background: open?.date === b.date ? '#fff' : c, border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', padding: 0, boxShadow: `0 0 6px ${c}66` }} />
+            ))}
           </div>
-        ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-tertiary)', margin: '3px 0 8px' }}><span>{dshort(bars[0].date)}</span><span>{dshort(bars[bars.length - 1].date)}</span></div>
+          {/* entry cards, latest first */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {rows.map(r => (
+              <button key={r.date} type="button" onClick={() => setResultDetail({ q: view.q, date: r.date })}
+                style={{ textAlign: 'left', background: 'var(--bg-secondary)', border: 'none', borderLeft: `3px solid ${c}`, borderRadius: 6, padding: '7px 10px', cursor: 'pointer', color: 'var(--text)', fontFamily: 'inherit' }}>
+                <div style={{ display: 'flex', fontSize: 12, fontWeight: 700 }}><span style={{ flex: 1 }}>{dlong(r.date)}</span><span style={{ color: c }}>{r.value}</span></div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.lines.join(' · ')}</div>
+              </button>
+            ))}
+          </div>
+        </>}
+        {open && (
+          <div role="dialog" aria-modal="true" onClick={() => setResultDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 480, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, padding: 16, borderTop: `3px solid ${c}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                <b style={{ flex: 1, fontSize: 15 }}>{view.label} · {dlong(open.date)}</b>
+                <button type="button" className="btn btn-sm" onClick={() => setResultDetail(null)}>✕</button>
+              </div>
+              {open.lines.map((l, k) => <div key={k} style={{ fontSize: 13, padding: '5px 0', borderTop: k ? '1px solid var(--border)' : 'none' }}>{l}</div>)}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
