@@ -4457,10 +4457,12 @@ export default function AthleteProfiles() {
     const open = resultDetail && resultDetail.q === view.q ? all.find(r => r.date === resultDetail.date) : null
     return (
       <div style={{ border: `1px solid ${c}55`, borderRadius: 8, padding: '8px 10px', margin: '0 0 8px', background: c + '0d' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: rows.length ? 8 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: c, flex: 1 }}>📊 RESULTS · {view.label}</span>
           <button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 8px' }} onClick={() => setResultsOpen(o => ({ ...o, [view.q]: !o[view.q] }))}>📈 {listOpen ? 'Hide' : 'View'}</button>
         </div>
+        {/* starts folded: just the title + View; View opens the ranges, graph and list */}
+        {listOpen && <>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '10px 0 8px' }}>
           {RANGES.map(([k, l]) => <button key={k} type="button" onClick={() => setResultsRange(r => ({ ...r, [view.q]: k }))}
             style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, cursor: 'pointer', border: 'none', fontFamily: 'inherit', background: rk === k ? c : 'var(--bg-secondary)', color: rk === k ? '#000' : 'var(--text-secondary)' }}>{l.toUpperCase()}</button>)}
@@ -4499,6 +4501,7 @@ export default function AthleteProfiles() {
               </button>
             ))}
           </div>}
+        </>}
         </>}
         {open && (
           <div role="dialog" aria-modal="true" onClick={() => setResultDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 480, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
