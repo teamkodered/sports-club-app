@@ -3998,6 +3998,18 @@ export default function AthleteProfiles() {
   // the count builds up. Only coaches mark a line complete.
   const [pillarView, setPillarView] = useState({}) // pillar -> 'questions' | 'pdp'
   const [ptsAllTime, setPtsAllTime] = useState(false)   // name card: points chip shows this month or all time
+  const pdpHoldT = useRef(null)
+  const [pdpMoveKey, setPdpMoveKey] = useState(null)   // 'sectionKey::text' of the PDP note being moved
+  async function movePdpNote(sectionKey, text, dir) {
+    const notes = { ...(apData?.pdp_notes || {}) }, list = [...(notes[sectionKey] || [])]
+    const i = list.indexOf(text), j = i + dir
+    if (i < 0 || j < 0 || j >= list.length) return
+    ;[list[i], list[j]] = [list[j], list[i]]
+    notes[sectionKey] = list
+    setApData(a => ({ ...(a || {}), pdp_notes: notes }))
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: notes }, { onConflict: 'student_id' })
+    if (error) alert('Could not move it: ' + error.message)
+  }
   const [resultDetail, setResultDetail] = useState(null)   // results card: { q, date } shown in a pop-up
   const qcfg = useQuestionConfig()   // Settings -> Questions (rename / hide / order / added questions)
   const MENTALITY_KEYSET = new Set(MENTALITY_QUESTIONS.map(q => q.key))
@@ -4135,13 +4147,25 @@ export default function AthleteProfiles() {
           const doneToday = dates.includes(today)
           const linkName = l.link?.pillar ? (l.link.item || (l.link.q || '').split('::').pop().replace(/^(run|watt|bw):/, '')) : null
           return (
-            <div key={l.sectionKey + l.text} style={{ padding: '10px 12px', borderRadius: 6, background: '#1A1F24',
+            <div key={l.sectionKey + l.text}
+              // press & hold a note to move it up / down its list (same order in the coach view and the athlete app)
+              onPointerDown={() => { clearTimeout(pdpHoldT.current); pdpHoldT.current = setTimeout(() => { setPdpMoveKey(`${l.sectionKey}::${l.text}`); navigator.vibrate?.(30) }, 550) }}
+              onPointerUp={() => clearTimeout(pdpHoldT.current)} onPointerLeave={() => clearTimeout(pdpHoldT.current)} onContextMenu={e => e.preventDefault()}
+              style={{ padding: '10px 12px', borderRadius: 6, background: '#1A1F24', ...(pdpMoveKey === `${l.sectionKey}::${l.text}` ? { outline: '2px dashed #F5C542' } : {}),
               border: `1px solid ${doneToday ? '#22B14C' : (linkName ? PDP_GOLD : '#2A3138')}`, boxShadow: doneToday ? '0 0 8px rgba(34,177,76,0.45)' : (linkName ? `0 0 8px ${PDP_GOLD}44` : 'none') }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, letterSpacing: 1.5, color: l.colColour }}>{l.colLabel.toUpperCase()}</span>
                 {l.coachOnly && <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 7, letterSpacing: 1, color: '#9A9A9A' }}>SET BY COACH</span>}
                 {linkName && <button type="button" onClick={() => openLinkedQuestion(pillar, l.link)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: PDP_GOLD, fontSize: 11, cursor: 'pointer', padding: 0 }}>★ {linkName} ›</button>}
               </div>
+              {pdpMoveKey === `${l.sectionKey}::${l.text}` && (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }} onPointerDown={e => e.stopPropagation()}>
+                  <span style={{ fontSize: 11, color: '#F5C542', flex: 1 }}>Move this note</span>
+                  <button type="button" className="btn btn-sm" onClick={() => movePdpNote(l.sectionKey, l.text, -1)}>▲ Up</button>
+                  <button type="button" className="btn btn-sm" onClick={() => movePdpNote(l.sectionKey, l.text, 1)}>▼ Down</button>
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => setPdpMoveKey(null)}>✓ Done</button>
+                </div>
+              )}
               <div role="button" tabIndex={0} title="Edit / move" onClick={() => setHomePdpEditor({ sectionKey: l.sectionKey, text: l.text })}
                 style={{ fontSize: 14, lineHeight: 1.35, color: '#F2F2F2', marginBottom: 8, cursor: 'pointer' }}>
                 {(() => {
