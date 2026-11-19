@@ -13047,9 +13047,7 @@ export default function AthleteProfiles() {
                     return (
                       <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
                         <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
-                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, marginTop: 0 }}>
-                          📋 How many sections were completed each day — {totalEntries} total {totalEntries === 1 ? 'entry' : 'entries'} in this date range. Use the ◀▶ arrows to jump to a specific category instead.
-                        </p>
+                        <div style={{ height: 28 }} />
                         {entryData.length > 1 ? (
                           <LineChart data={entryData} lines={[{ key: 'entries', label: 'Entries', colour: '#378ADD' }]} title="Entries completed per day" unit="" />
                         ) : (
@@ -13365,21 +13363,19 @@ export default function AthleteProfiles() {
                           outline: highlightedEntryId === s.id ? '2px solid #EF9F27' : 'none',
                           transition: 'outline 0.3s',
                         }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontWeight: 600, fontSize: 13 }}>
-                                {new Date(s.session_date).toLocaleDateString('en-GB')}
-                              </span>
-                              <span className="badge" style={{ fontSize: 9, background: 'var(--bg-secondary)' }}>
-                                {isWeightOnly ? '⚖️ Check-in' : '💪 Fit II Fight'}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', gap: 12, fontSize: 12, alignItems: 'center' }}>
-                              {s.weight_before && <span>⚖️ Before: <strong>{s.weight_before}kg</strong></span>}
-                              {s.weight_after  && <span>After: <strong>{s.weight_after}kg</strong></span>}
-                              {change && <span style={{ fontWeight: 700, color: change < 0 ? '#1d9e75' : '#a32d2d' }}>
-                                {change > 0 ? '+' : ''}{change}kg
-                              </span>}
+                          {/* fixed columns so every row keeps the same shape: date · before · after · change · buttons */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr) auto', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                            <span style={{ fontWeight: 600, fontSize: 13 }}>{new Date(s.session_date).toLocaleDateString('en-GB')}</span>
+                            {(s.weight_before || s.weight_after) ? (
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 52px', gap: 6, fontSize: 12, alignItems: 'center' }}>
+                                <span>{s.weight_before ? <>⚖️ <strong>{s.weight_before}kg</strong></> : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}</span>
+                                <span>{s.weight_after ? <>→ <strong>{s.weight_after}kg</strong></> : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}</span>
+                                <span style={{ fontWeight: 700, textAlign: 'right', color: change < 0 ? '#1d9e75' : '#a32d2d' }}>{change ? `${change > 0 ? '+' : ''}${change}kg` : ''}</span>
+                              </div>
+                            ) : (
+                              <span><span className="badge" style={{ fontSize: 9, background: 'var(--bg-secondary)' }}>💪 Fit II Fight</span></span>
+                            )}
+                            <div style={{ display: 'flex', gap: 12, fontSize: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
                               {isAdmin && (
                                 <div style={{ display: 'flex', gap: 4 }}>
                                   <button onClick={() => { setSessionForm({
