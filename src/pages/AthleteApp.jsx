@@ -5128,33 +5128,32 @@ export default function AthleteApp() {
     const active = athleteTimetableModal?.fromQuestion && athleteTimetableModal.item === questionLabel
     const already = !!timetableEntry('what_to_do', questionLabel)
     return (
-      <div style={{ marginTop: 8 }}>
-        <button type="button" className="btn btn-sm" onClick={() => {
+      <div>
+        <button type="button" className="btn btn-sm neon-media-btn" title={already ? 'On your timetable -- change' : 'Add to timetable'} aria-label="Add to timetable" onClick={() => {
           setSchedWizardStep('days'); setSchedWizardDays([]); setSchedWizardTime('')
           setAthleteTimetableModal(active ? null : { sectionKey: 'what_to_do', item: questionLabel, fromQuestion: true })
-        }}>📅 {already ? 'On your timetable · change' : 'Add to timetable'}</button>
+        }}>📅{already ? ' ✓' : ''}</button>
         {active && <div style={{ marginTop: 8 }}>{ScheduleWizardPanel()}</div>}
       </div>
     )
   }
-  // photo / video attach and 'Add to timetable' taken off the question panels (cleaner); media still via Media / Notes
-  function QuestionMediaUpload() { return null }
+  // photo / video attach + Add to timetable as small icon buttons only (no text)
+  function QuestionMediaUpload(props) {
+    return <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>{QuestionMediaUploadInner(props)}<QuestionToTimetable questionLabel={props.questionLabel} /></div>
+  }
   function QuestionMediaUploadInner({ sectionKey, questionLabel }) {
     if (uploadsBlocked) return null // under 18 (or no date of birth): no photo / video uploads
     const todayStr = new Date().toISOString().split('T')[0]
     const busy = false // uploads run in the background -- buttons stay usable
     const attached = (apData?.media_files || []).filter(f => f.section_key === sectionKey && f.question_label === questionLabel && f.session_date === todayStr)
     return (
-      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Attach photo/video</label>
+      <div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} title="Photos, Files, Dropbox, Drive…" onClick={() => openMediaPicker(sectionKey, questionLabel, 'files')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-            Upload <span style={{ fontSize: 10, opacity: 0.7 }}>photos · files · Dropbox</span>
           </button>
           <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, true)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
-            Take photo / video
           </button>
 
         </div>
