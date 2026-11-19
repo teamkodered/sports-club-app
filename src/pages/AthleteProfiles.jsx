@@ -4454,7 +4454,15 @@ export default function AthleteProfiles() {
           </div>
         )}
         <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>{useBest && <span>BEST <b style={{ color: c }}>{bestAll}{unitOf}</b></span>}<span>{useBest ? 'SESSIONS' : 'TOTAL'} <b style={{ color: c }}>{total}</b></span><span>ACTIVE DAYS <b style={{ color: c }}>{inRange.length}</b></span></div>
-        {!inRange.length ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged in this period</div> : <>
+        {!inRange.length ? (
+          <div>
+            {/* empty graph frame, so it's always there */}
+            <div style={{ position: 'relative', height: 70, borderBottom: '1px solid var(--border)', backgroundImage: `repeating-linear-gradient(to top, transparent 0 22px, ${c}14 22px 23px)` }}>
+              <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged in this period yet</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-tertiary)', margin: '3px 0 0' }}><span>{rdays ? new Date(Date.now() - rdays * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</span><span>Today</span></div>
+          </div>
+        ) : <>
           {/* graph -- tap a bar to see that day's result */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 70, padding: '0 2px', borderBottom: '1px solid var(--border)' }}>
             {bars.map(b => (
@@ -10896,6 +10904,7 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'technique', pillarLabel: 'Technical' })}
                     {FocusPicker({ sec: 'technique', colour: '#2F6BFF', options: [...new Set(TECHNIQUE_STYLES.filter(({ style }) => selected?.discipline === 'KRBA' ? style === 'Boxing' : selected?.is_kr ? style === 'Kickboxing' : true).flatMap(({ categories }) => Object.keys(categories)))] })}
                     {AddedQuestions({ sec: 'technique' })}
+                    {/* 📊 results card for the open question (same as Physical) */}{expandedTechniqueCategory && InlineResults({ view: { sectionKey: 'technique', q: expandedTechniqueCategory, label: expandedTechniqueCategory.split('::').pop(), colour: '#378ADD' } })}
                   {TECHNIQUE_STYLES.filter(({ style }) => {
                     // KRBA athletes only need Boxing questions, KR
                     // Kickboxing athletes only need Kickboxing ones --
@@ -10979,6 +10988,7 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
                     {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
                     {AddedQuestions({ sec: 'tactical' })}
+                    {/* 📊 results card for the open question (same as Physical) */}{expandedTacticalCategory && expandedTacticalCategory !== '__videoAnalysis__' && InlineResults({ view: { sectionKey: 'tactical', q: expandedTacticalCategory, label: expandedTacticalCategory, colour: '#E24B4A' } })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !qHidden(qcfg, 'tactical', cat === '__videoAnalysis__' ? 'Video analysis' : cat)).sort(qSort(qcfg, 'tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
@@ -11069,6 +11079,7 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'mentality', pillarLabel: 'Mentality' })}
                     {FocusPicker({ sec: 'mentality', colour: '#22B14C', options: MENTALITY_QUESTIONS.map(q => q.label) })}
                     {AddedQuestions({ sec: 'mentality' })}
+                    {/* 📊 results card for the open question (same as Physical) */}{expandedHomeMentality && expandedHomeMentality !== 'alterEgo' && InlineResults({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: (MENTALITY_QUESTIONS.find(x => x.key === expandedHomeMentality) || {}).label || 'Mentality', colour: '#8B5CF6' } })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                     {MENTALITY_QUESTIONS.filter(q => !qHidden(qcfg, 'mentality', q.label)).sort(qSort(qcfg, 'mentality', q => q.label)).filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
@@ -11381,6 +11392,7 @@ export default function AthleteProfiles() {
                   }}>
                   {FocusPicker({ sec: 'wellbeing', colour: '#C93BFF', options: WELLBEING_QUESTIONS.map(q => q.label) })}
                   {AddedQuestions({ sec: 'wellbeing' })}
+                  {/* 📊 results card for the open question (same as Physical) */}{expandedHomeWb && InlineResults({ view: { sectionKey: 'wellbeing', q: expandedHomeWb, label: (WELLBEING_QUESTIONS.find(x => x.key === expandedHomeWb) || {}).label || 'Foundation', colour: '#1D9E75' } })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                     {WELLBEING_QUESTIONS.filter(q => !qHidden(qcfg, 'wellbeing', q.label)).sort(qSort(qcfg, 'wellbeing', q => q.label)).filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
