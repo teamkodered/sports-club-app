@@ -4575,8 +4575,11 @@ export default function AthleteApp() {
     const save = () => { if (!ok) return; onAdd(n); setPickDraft(p => ({ ...p, [draftKey]: '' })) }
     return (
       <div className="neon-picker field" style={{ width: '100%', minWidth: 0, marginBottom: 8 }}>
-        <label>Add</label>
-        {presets.length > 0 && (
+        {/* counts (no unit): one ✓ DONE button -- each press adds 1 and saves straight away, press again for more */}
+        {!unit && step >= 1 ? (
+          <button type="button" className="btn neon-save" style={{ width: '100%', justifyContent: 'center', height: 46, fontSize: 16, marginBottom: 8 }} onClick={() => onAdd(1)}>✓ DONE <small style={{ opacity: 0.7, marginLeft: 6 }}>+1 each press</small></button>
+        ) : <label>Add</label>}
+        {presets.length > 0 && (unit || step < 1) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {presets.map(v => {
               const on = false // the + buttons add to the amount box
