@@ -4034,6 +4034,19 @@ export default function AthleteProfiles() {
   const SectionPoints = ({ sec }) => (
     <span className="neon-sec-pts" title="Points earned in this section this month">{sectionPts[sec] ? `${sectionPts[sec]} PTS` : '0 PTS'}</span>
   )
+  // results card: the result to track per day (best that day)
+  const RESULT_BEST_UNIT = { watt_bike: 'W', bodyweight: ' reps' }
+  function resultBest(q, sess) {
+    const field = { watt_bike: 'watt_bike', bodyweight: 'bodyweight' }[q]
+    if (!field || !sess) return null
+    const nums = []
+    for (const e of toEntries(sess[field])) for (const x of (e?.sets || [])) {
+      const v = x && typeof x === 'object' ? (q === 'watt_bike' ? (x.watts ?? x.output ?? x.power ?? x.value) : (x.reps ?? x.count ?? x.value)) : x
+      const n = parseFloat(v)
+      if (Number.isFinite(n) && (q !== 'watt_bike' || n >= 30)) nums.push(n)   // watts only (not km)
+    }
+    return nums.length ? Math.max(...nums) : null
+  }
   const RESULT_FIELD = { watt_bike: 'watt_bike', bodyweight: 'bodyweight', snc: 'snc', other_session: 'other_session', running: 'running' }
   async function deleteResultEntry(q, sess, idx) {
     const field = RESULT_FIELD[q]; if (!field || !sess?.id) return
@@ -4398,6 +4411,7 @@ export default function AthleteProfiles() {
     if (!view?.q) return null
     const all = historySessions().slice().sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
       .map(s => ({ date: s.session_date, sess: s, ...historyForSession(view, s) })).filter(r => r.value > 0 && r.lines?.length)
+      .map(r => ({ ...r, best: resultBest(view.q, r.sess) }))
     // range filter (like the View sheet had): 7 days / 30 days / 3 months / 12 months / all
     const RANGES = [['7', '7 days', 7], ['30', '30 days', 30], ['90', '3 months', 91], ['365', '12 months', 365], ['all', 'All', 0]]
     const rk = resultsRange[view.q] || 'all', rdays = (RANGES.find(r => r[0] === rk) || RANGES[4])[2]
@@ -4406,8 +4420,12 @@ export default function AthleteProfiles() {
     const listOpen = !!resultsOpen[view.q]
     const rows = listOpen ? inRange : []
     const c = view.colour || '#22B14C'
-    const bars = inRange.slice(0, 24).reverse(), max = Math.max(1, ...bars.map(b => b.value))
+    // track the result (best watts / reps that day) where there is one, otherwise how many were logged
+    const unitOf = RESULT_BEST_UNIT[view.q], useBest = !!unitOf && inRange.some(r => r.best != null)
+    const barVal = r => useBest ? (r.best || 0) : r.value
+    const bars = inRange.slice(0, 24).reverse(), max = Math.max(1, ...bars.map(barVal))
     const total = inRange.reduce((n, r) => n + r.value, 0)
+    const bestAll = useBest ? Math.max(0, ...inRange.map(r => r.best || 0)) : null
     const dshort = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     const dlong = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
     const open = resultDetail && resultDetail.q === view.q ? all.find(r => r.date === resultDetail.date) : null
@@ -4417,17 +4435,17 @@ export default function AthleteProfiles() {
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: c, flex: 1 }}>📊 RESULTS · {view.label}</span>
           <button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 8px' }} onClick={() => setResultsOpen(o => ({ ...o, [view.q]: !o[view.q] }))}>📈 {listOpen ? 'Hide' : 'View'}</button>
         </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '10px 0 8px' }}>
           {RANGES.map(([k, l]) => <button key={k} type="button" onClick={() => setResultsRange(r => ({ ...r, [view.q]: k }))}
             style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, cursor: 'pointer', border: 'none', fontFamily: 'inherit', background: rk === k ? c : 'var(--bg-secondary)', color: rk === k ? '#000' : 'var(--text-secondary)' }}>{l.toUpperCase()}</button>)}
         </div>
-        <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}><span>TOTAL <b style={{ color: c }}>{total}</b></span><span>ACTIVE DAYS <b style={{ color: c }}>{inRange.length}</b></span></div>
+        <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>{useBest && <span>BEST <b style={{ color: c }}>{bestAll}{unitOf}</b></span>}<span>{useBest ? 'SESSIONS' : 'TOTAL'} <b style={{ color: c }}>{total}</b></span><span>ACTIVE DAYS <b style={{ color: c }}>{inRange.length}</b></span></div>
         {!inRange.length ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Nothing logged in this period</div> : <>
           {/* graph -- tap a bar to see that day's result */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 70, padding: '0 2px', borderBottom: '1px solid var(--border)' }}>
             {bars.map(b => (
               <button key={b.date} type="button" title={dshort(b.date)} onClick={() => setResultDetail({ q: view.q, date: b.date })}
-                style={{ flex: 1, maxWidth: 22, height: `${Math.max(10, b.value / max * 100)}%`, background: open?.date === b.date ? '#fff' : c, border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', padding: 0, boxShadow: `0 0 6px ${c}66` }} />
+                style={{ flex: 1, maxWidth: 22, height: `${Math.max(6, barVal(b) / max * 100)}%`, background: open?.date === b.date ? '#fff' : c, border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', padding: 0, boxShadow: `0 0 6px ${c}66` }} />
             ))}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-tertiary)', margin: '3px 0 8px' }}><span>{dshort(bars[0].date)}</span><span>{dshort(bars[bars.length - 1].date)}</span></div>
@@ -4436,7 +4454,7 @@ export default function AthleteProfiles() {
             {rows.map(r => (
               <button key={r.date} type="button" onClick={() => setResultDetail({ q: view.q, date: r.date })}
                 style={{ textAlign: 'left', background: 'var(--bg-secondary)', border: 'none', borderLeft: `3px solid ${c}`, borderRadius: 6, padding: '7px 10px', cursor: 'pointer', color: 'var(--text)', fontFamily: 'inherit' }}>
-                <div style={{ display: 'flex', fontSize: 12, fontWeight: 700 }}><span style={{ flex: 1 }}>{dlong(r.date)}</span><span style={{ color: c }}>{r.value}</span></div>
+                <div style={{ display: 'flex', fontSize: 12, fontWeight: 700 }}><span style={{ flex: 1 }}>{dlong(r.date)}</span><span style={{ color: c }}>{useBest && r.best != null ? `${r.best}${unitOf}` : r.value}</span></div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.lines.join(' · ')}</div>
               </button>
             ))}
