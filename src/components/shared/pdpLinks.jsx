@@ -75,13 +75,19 @@ export function PdpNotes({ links, onlyItem }) {
 }
 
 // Coach: "+ PDP" pop-up -- choose column (Work on by default), write the note, Save.
-export function PdpAddModal({ target, onClose, onSave }) {
+export function PdpAddModal({ target, onClose, onSave, options = [] }) {
   const [column, setColumn] = useState('work_on')
   const [note, setNote] = useState('')
+  const [chosen, setChosen] = useState(null)   // a preset picked from the suggestions (= '+ PDP item')
   const [saving, setSaving] = useState(false)
   if (!target) return null
-  const name = target.item || target.label
-  const save = async () => { setSaving(true); try { await onSave({ ...target, column, note: note.trim() }) } finally { setSaving(false) } }
+  const item = chosen || target.item
+  const name = item || target.label
+  const save = async () => { setSaving(true); try { await onSave({ ...target, item, column, note: note.trim() }) } finally { setSaving(false) } }
+  // typing finds the question's presets -- tap one to make it the PDP item
+  const optName = o => typeof o === 'string' ? o : (o?.name || o?.label || '')
+  const q = note.trim().toLowerCase()
+  const matches = q && !chosen ? options.map(optName).filter(Boolean).filter(o => o.toLowerCase().includes(q)).slice(0, 6) : []
   return (
     <div role="dialog" aria-modal="true" aria-label="Add to PDP" onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 460, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -102,7 +108,20 @@ export function PdpAddModal({ target, onClose, onSave }) {
           ))}
         </div>
         <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder={name ? `Note for ${name} (optional)` : 'Write the PDP note'}
-          style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 6, border: '1px solid #2A3138', background: '#0B0F12', color: '#FFFFFF', fontSize: 14, fontFamily: 'inherit', marginBottom: 12 }} />
+          style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 6, border: '1px solid #2A3138', background: '#0B0F12', color: '#FFFFFF', fontSize: 14, fontFamily: 'inherit', marginBottom: matches.length || chosen ? 6 : 12 }} />
+        {matches.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            <span style={{ width: '100%', fontSize: 11, color: '#9A9A9A' }}>Presets -- tap to set as the PDP item:</span>
+            {matches.map(m => <button key={m} type="button" onClick={() => { setChosen(m); setNote('') }}
+              style={{ padding: '6px 10px', borderRadius: 6, border: `1px solid ${PDP_GOLD}`, background: PDP_GOLD + '1a', color: '#F2F2F2', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{m}</button>)}
+          </div>
+        )}
+        {chosen && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, color: PDP_GOLD }}>
+            <span style={{ flex: 1 }}>🎯 PDP item: <b>{chosen}</b> -- add a note above if you like</span>
+            <button type="button" onClick={() => setChosen(null)} style={{ background: 'none', border: '1px solid #3A3F46', borderRadius: 6, color: '#9A9A9A', padding: '2px 8px', cursor: 'pointer' }}>✕</button>
+          </div>
+        )}
         <button type="button" disabled={saving} onClick={save}
           style={{ width: '100%', height: 46, border: 'none', cursor: 'pointer', clipPath: 'polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%)', background: PDP_GOLD, color: '#0A0A0A', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 20, letterSpacing: 2, opacity: saving ? 0.6 : 1 }}>
           {saving ? 'SAVING…' : 'ADD TO PDP'}

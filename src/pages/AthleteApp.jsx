@@ -3835,12 +3835,7 @@ export default function AthleteApp() {
     return {
       gold: info.items, picking,
       pick: item => setPdpAddTarget({ pillar, pillarLabel, q, item, label }),
-      bar: PDP_COACH ? (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, margin: '0 0 8px' }}>
-          {picking && <span style={{ fontSize: 11, color: PDP_GOLD, flex: 1 }}>Tap an item to add it to the PDP</span>}
-          <button type="button" className="btn btn-sm neon-pdp-btn" aria-pressed={picking} onClick={() => setPdpPickMode(picking ? null : pickKey)} style={{ fontSize: 11 }}>{picking ? 'Cancel' : '+ PDP item'}</button>
-        </div>
-      ) : null,
+      bar: null,   // '+ PDP item' removed -- type in the + PDP pop-up to find a preset instead
     }
   }
   const pdpGoldStyle = on => on ? { borderColor: PDP_GOLD, boxShadow: `0 0 0 1px ${PDP_GOLD}, 0 0 8px ${PDP_GOLD}66` } : {}
