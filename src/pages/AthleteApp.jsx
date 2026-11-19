@@ -2718,7 +2718,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
-    else flashSaved(`✓ ${field.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())} logged`)
+    else { flashSaved(`✓ ${field.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())} logged`); offerUndo('Quick log', () => savePhysicalField(field, currentEntries, setter)) }
   }
 
   function handleNoteMediaSelect(e) {
@@ -3266,17 +3266,17 @@ export default function AthleteApp() {
     setF2fQuickLogSaving(true)
     try {
       if (sectionKey === 'technique') {
-        await savePhysicalField('techniques', [...todaysTechniques, { style: questionLabel, category: 'Quick log', technique: 'Quick log', note: '', quickLogged: true }], setTodaysTechniques)
+        { const prevQ = todaysTechniques; await savePhysicalField('techniques', [...todaysTechniques, { style: questionLabel, category: 'Quick log', technique: 'Quick log', note: '', quickLogged: true }], setTodaysTechniques); offerUndo('Quick log', () => savePhysicalField('techniques', prevQ, setTodaysTechniques)) }
       } else if (sectionKey === 'tactical') {
-        await savePhysicalField('tactical', [...todaysTactical, { category: questionLabel, item: 'Quick log', note: '', quickLogged: true }], setTodaysTactical)
+        { const prevQ = todaysTactical; await savePhysicalField('tactical', [...todaysTactical, { category: questionLabel, item: 'Quick log', note: '', quickLogged: true }], setTodaysTactical); offerUndo('Quick log', () => savePhysicalField('tactical', prevQ, setTodaysTactical)) }
       } else if (sectionKey === 'physical') {
         if (RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
-          await savePhysicalField('running', [...todaysRunning, { category: RUN_CATEGORY_TARGET_LABELS[questionLabel], sets: [], quickLogged: true }], setTodaysRunning)
+          { const prevQ = todaysRunning; await savePhysicalField('running', [...todaysRunning, { category: RUN_CATEGORY_TARGET_LABELS[questionLabel], sets: [], quickLogged: true }], setTodaysRunning); offerUndo('Quick log', () => savePhysicalField('running', prevQ, setTodaysRunning)) }
         } else {
           const field = PHYSICAL_FIELD_TARGET_LABELS[questionLabel]
-          if (field === 'running') await savePhysicalField('running', [...todaysRunning, { sets: [], quickLogged: true }], setTodaysRunning)
-          else if (field === 'watt_bike') await savePhysicalField('watt_bike', [...todaysWattBike, { sets: [], quickLogged: true }], setTodaysWattBike)
-          else if (field === 'bodyweight') await savePhysicalField('bodyweight', [...todaysBodyweight, { sets: [], quickLogged: true }], setTodaysBodyweight)
+          if (field === 'running') { const prevQ = todaysRunning; await savePhysicalField('running', [...todaysRunning, { sets: [], quickLogged: true }], setTodaysRunning); offerUndo('Quick log', () => savePhysicalField('running', prevQ, setTodaysRunning)) }
+          else if (field === 'watt_bike') { const prevQ = todaysWattBike; await savePhysicalField('watt_bike', [...todaysWattBike, { sets: [], quickLogged: true }], setTodaysWattBike); offerUndo('Quick log', () => savePhysicalField('watt_bike', prevQ, setTodaysWattBike)) }
+          else if (field === 'bodyweight') { const prevQ = todaysBodyweight; await savePhysicalField('bodyweight', [...todaysBodyweight, { sets: [], quickLogged: true }], setTodaysBodyweight); offerUndo('Quick log', () => savePhysicalField('bodyweight', prevQ, setTodaysBodyweight)) }
           else if (field === 'stretch_flows') {
             const next = [...todaysStretches]
             const emptyIdx = next.findIndex(v => !v)
@@ -3284,7 +3284,7 @@ export default function AthleteApp() {
             if (emptyIdx !== -1) next[emptyIdx] = label; else next[0] = label
             await savePhysicalField('stretch_flows', next, setTodaysStretches)
           } else if (field === 'snc') {
-            await savePhysicalField('snc', [...todaysSnc, { routine: SNC_ROUTINE_PRESETS[0], description: '', sets: [], quickLogged: true }], setTodaysSnc)
+            { const prevQ = todaysSnc; await savePhysicalField('snc', [...todaysSnc, { routine: SNC_ROUTINE_PRESETS[0], description: '', sets: [], quickLogged: true }], setTodaysSnc); offerUndo('Quick log', () => savePhysicalField('snc', prevQ, setTodaysSnc)) }
           }
         }
       } else if (sectionKey === 'wellbeing') {
