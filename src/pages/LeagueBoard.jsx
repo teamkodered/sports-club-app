@@ -130,8 +130,9 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       const from = bFrom || iso(new Date(now.getFullYear(), now.getMonth(), 1, 12))
       const to = bTo ? (bTo < today ? bTo : today) : today
       const monthFrom = iso(new Date(now.getFullYear(), now.getMonth(), 1, 12))
-      const c = { from, to, monthFrom, today, club: sm.club_name || 'KR Centre',
-        topHouse: parseInt(sm.board_topn_house) || parseInt(sm.league_topn_house) || 10, // board's own 'show top per house', else the main league's topIndiv: parseInt(sm.league_topn_individual) || 10,
+      const c = { from, to, endSet: bTo || null, monthFrom, today, club: sm.club_name || 'KR Centre',
+        topHouse: parseInt(sm.board_topn_house) || parseInt(sm.league_topn_house) || 10, // board's own 'show top per house', else the main league's
+        topIndiv: parseInt(sm.league_topn_individual) || 10,
         topBoard: parseInt(sm.board_topn) || 10, seconds: parseInt(sm.board_seconds) || 8 }
       const [league, month, ex, notes] = await Promise.all([
         loadPeriod(from, to), loadPeriod(monthFrom, today),
@@ -171,7 +172,12 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
   const liveTakeover = tv && liveCount >= 3 && periodMode !== 'live'
   const perView = () => (tv && tall && !liveTakeover ? 2 : 1)
   const periodLabel = period === 'league'
-    ? `League · ${cfg.from ? new Date(cfg.from + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''} – ${cfg.to ? new Date(cfg.to + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}`
+    ? (() => {
+        // the set range (e.g. 1 Oct – 1 Jan); while it's still running, points are counted up to today
+        const f = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+        const end = cfg.endSet || cfg.to
+        return `League · ${cfg.from ? f(cfg.from) : ''} – ${end ? f(end) : ''}${cfg.endSet && cfg.endSet > cfg.to ? ` (so far, to ${f(cfg.to)})` : ''}`
+      })()
     : `This month · ${new Date().toLocaleDateString('en-GB', { month: 'long' })}`
 
   const slides = useMemo(() => {
