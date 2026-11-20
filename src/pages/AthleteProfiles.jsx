@@ -4076,7 +4076,7 @@ export default function AthleteProfiles() {
   const f2fTabRef = useRef(null)
   useEffect(() => {
     let x0 = null, y0 = null
-    const start = e => { const t = e.target; if (f2fTabRef.current !== 'fit2fight' || !t.closest?.('svg, .recharts-wrapper, .f2f-graph')) { x0 = null; return } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY }
+    const start = e => { const t = e.target; if (f2fTabRef.current !== 'fit2fight' || !t.closest?.('[id^="f2f-chart-"], svg, .recharts-wrapper, .f2f-graph')) { x0 = null; return } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY }
     const end = e => {
       if (x0 == null) return
       const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0
