@@ -1258,11 +1258,13 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           </div>
         )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 0 }}>
+          {/* emoji above the name, so long names (Bodyweight, Stretch flows) never run into it */}
+          {isPhysicalModule && <span style={{ fontSize: large ? 26 : 16, lineHeight: 1 }}>{b.icon}</span>}
           {b.key !== 'test' && <span style={{ fontSize: large ? 14 : 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{b.label}</span>}
           {b.key !== 'test' && currentSubType && <span style={{ fontSize: large ? 10 : 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{shortSubType(currentSubType)}</span>}
           {canCycle && <span className="neon-type-dots" aria-hidden="true">{subTypeOptions.map(o => <i key={o} className={o === currentSubType ? 'on' : ''} />)}</span>}
         </div>
-        <span style={{ fontSize: large ? 26 : 16, flexShrink: 0 }}>{b.icon}</span>
+        {!isPhysicalModule && <span style={{ fontSize: large ? 26 : 16, flexShrink: 0 }}>{b.icon}</span>}
       </button>
 
       {/* Right: recent/PB (or last-logged), tap to view results --
@@ -4181,9 +4183,12 @@ export default function AthleteProfiles() {
     const cur = myFocus[sec]
     const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' })
     return (
-      <div className={`kc-focus${cur ? ' kc-focus-set' : ''}`} style={{ '--c': colour }}>
-        <span>🎯 {cur ? <b>{monthName} focus: {cur}</b> : <>No <b>{monthName} focus</b> chosen yet</>}</span>
-        <select value={cur || ''} onChange={e => setAthleteFocus(sec, e.target.value || null)} title="Coach: set or change their focus">
+      // just a 🎯 (tap it to set / change their focus); shows the focus name once set
+      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 6, margin: '0 0 8px', padding: '4px 10px', borderRadius: 16,
+        border: `1px ${cur ? 'solid' : 'dashed'} ${colour}`, background: cur ? colour + '1f' : 'transparent', fontSize: 13 }} title={`${monthName} focus -- tap to ${cur ? 'change' : 'set'} it`}>
+        <span style={{ fontSize: 18 }}>🎯</span>{cur && <b>{cur}</b>}
+        <select value={cur || ''} onChange={e => setAthleteFocus(sec, e.target.value || null)} aria-label={`${monthName} focus`}
+          style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}>
           <option value="">{cur ? 'Clear focus' : 'Set for them…'}</option>
           {opts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>

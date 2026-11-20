@@ -1197,11 +1197,13 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           </div>
         )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 0 }}>
+          {/* emoji above the name, so long names (Bodyweight, Stretch flows) never run into it */}
+          {isPhysicalModule && <span style={{ fontSize: large ? 26 : 16, lineHeight: 1 }}>{b.icon}</span>}
           {b.key !== 'test' && <span style={{ fontSize: large ? 14 : 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{b.label}</span>}
           {b.key !== 'test' && currentSubType && <span style={{ fontSize: large ? 10 : 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{shortSubType(currentSubType)}</span>}
           {canCycle && <span className="neon-type-dots" aria-hidden="true">{subTypeOptions.map(o => <i key={o} className={o === currentSubType ? 'on' : ''} />)}</span>}
         </div>
-        <span style={{ fontSize: large ? 26 : 16, flexShrink: 0 }}>{b.icon}</span>
+        {!isPhysicalModule && <span style={{ fontSize: large ? 26 : 16, flexShrink: 0 }}>{b.icon}</span>}
       </button>
 
       {/* Right: recent/PB (or last-logged), tap to view results --
