@@ -506,7 +506,7 @@ export default function StudentDatabase() {
           ) })}
         </div>
       )}
-      {tab !== 'Archived athletes' && <div className="card kc-sticky-head" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(var(--kc-vh, 1vh) * 100 - 140px)', zoom: `${studentsZoom * displayScale.table}%` }}>
+      {tab !== 'Archived athletes' && <div className="card kc-sticky-head" style={{ padding: 0, overflow: 'auto', maxHeight: `calc((var(--kc-vh, 1vh) * 100 - 140px) * 100 / ${studentsZoom * displayScale.table})`, zoom: `${studentsZoom * displayScale.table}%` }}>   {/* height kept to the screen whatever the zoom */}
         <table>
           <thead>
             <tr>
