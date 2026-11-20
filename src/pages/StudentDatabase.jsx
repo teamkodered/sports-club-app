@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useDisplayScale } from '../lib/displayScale.js'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import MessagePrompt, { recipientFromStudent } from '../components/crm/MessagePrompt.jsx'
 import { supabase } from '../lib/supabase.js'
@@ -123,7 +124,8 @@ export default function StudentDatabase() {
   const [stopping, setStopping]       = useState(null)
   const [roleEdit, setRoleEdit]       = useState(null)
   const [sortKey, setSortKey]         = useState('last_name')
-  const [studentsZoom, setStudentsZoom] = useSyncedPreference('students_zoom', 100)
+  const [studentsZoom, setStudentsZoom] = useSyncedPreference('students_zoom_v2', 100)   // 100% = the old 150% on a PC
+  const displayScale = useDisplayScale()
   const [sortDir, setSortDir]         = useState('asc')
   const [visibleCols, setVisibleCols] = useSyncedPreference('students_visible_cols', DEFAULT_VISIBLE)
   const [showColPicker, setShowColPicker] = useState(false)
@@ -504,7 +506,7 @@ export default function StudentDatabase() {
           ) })}
         </div>
       )}
-      {tab !== 'Archived athletes' && <div className="card kc-sticky-head" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(var(--kc-vh, 1vh) * 100 - 140px)', zoom: `${studentsZoom}%` }}>
+      {tab !== 'Archived athletes' && <div className="card kc-sticky-head" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(var(--kc-vh, 1vh) * 100 - 140px)', zoom: `${studentsZoom * displayScale.table}%` }}>
         <table>
           <thead>
             <tr>

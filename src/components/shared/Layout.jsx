@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useDisplayScale } from '../../lib/displayScale.js'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { useFightFootageUpload } from '../../hooks/useFightFootageUpload.jsx'
@@ -98,7 +99,9 @@ export default function Layout() {
     : '?'
 
   const close = () => setMobileOpen(false)
-  const sidebarW = expanded ? SIDEBAR_FULL : SIDEBAR_ICON
+  const displayScale = useDisplayScale()   // bigger menu on a PC
+  const sidebarBase = expanded ? SIDEBAR_FULL : SIDEBAR_ICON
+  const sidebarW = sidebarBase * displayScale.menu   // the space it takes on screen
 
   const NAV_ITEMS = [
     { section: 'Main' },
@@ -134,8 +137,9 @@ export default function Layout() {
         onMouseLeave={handleMouseLeave}
         className={`app-sidebar${mobileOpen ? ' sidebar-open' : ''}`}
         style={{
-          width: sidebarW,
-          minWidth: sidebarW,
+          width: sidebarBase,
+          minWidth: sidebarBase,
+          zoom: displayScale.menu,   // everything in the menu drawn bigger on a PC
           background: 'var(--bg)',
           borderRight: '1px solid var(--border)',
           display: 'flex',
@@ -143,7 +147,7 @@ export default function Layout() {
           flexShrink: 0,
           position: 'fixed',
           top: 0, left: 0,
-          height: '100vh',
+          height: `${100 / displayScale.menu}vh`,
           zIndex: 30,
           overflowX: 'hidden',
           overflowY: 'auto',

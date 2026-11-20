@@ -71,6 +71,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
 }
 
 import { useEffect, useState, useRef } from 'react'
+import { useDisplayScale } from '../lib/displayScale.js'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { matchClass, workoutRange, fmtTime, isClubSport } from '../lib/sessionMatch.js'
@@ -339,7 +340,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [adhocPills, setAdhocPills]     = useState([]) // { id, name, student_ref }
   const oneOffStudentsRef = useRef([]) // full student objects added via "one-off" this session -- kept separately so a reload (date/regType change, or a slow fetch resolving after they were added) can never silently wipe them back out
   const tableRef = useRef(null)
-  const [registerZoom, setRegisterZoom] = useSyncedPreference('register_zoom', 100)
+  const [registerZoom, setRegisterZoom] = useSyncedPreference('register_zoom_v2', 100)   // 100% = the old 150% on a PC
+  const displayScale = useDisplayScale()
   // Distinguishes a horizontal swipe (to see other columns) from a
   // genuine tap-to-select -- mobile browsers can still fire a click
   // after a touch that moved a little, so this tracks the actual
@@ -1768,7 +1770,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const isKR = regType === 'kr'
 
   return (
-    <div className={`reg-root${mShowTable ? ' reg-force-table' : ''}${pmOn ? ' reg-pm-active' : ''}`} style={{ zoom: `${registerZoom}%` }} onClick={e => {
+    <div className={`reg-root${mShowTable ? ' reg-force-table' : ''}${pmOn ? ' reg-pm-active' : ''}`} style={{ zoom: `${registerZoom * displayScale.table}%` }} onClick={e => {
       if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select') && !e.target.closest('.reg-m-card') && !e.target.closest('.reg-m-bulk') && !e.target.closest('.reg-award-modal'))
         setSelectedStudents([])
       if (groupFilterOpen) setGroupFilterOpen(false)
