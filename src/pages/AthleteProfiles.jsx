@@ -4070,7 +4070,22 @@ export default function AthleteProfiles() {
     setF2fData(d => (d || []).map(x => x.id === sess.id ? { ...x, [field]: val } : x))
     if (!next.length) setResultDetail(null)
   }
-  const [f2fListAll, setF2fListAll] = useState(false)   // Fit II Fight entries: first 5, press to view all
+  const [f2fListAll, setF2fListAll] = useState(false)
+  // Fit II Fight: swipe left / right on a graph to change category (the ◀ ▶ arrows are gone)
+  const f2fCycleRef = useRef(null)
+  const f2fTabRef = useRef(null)
+  useEffect(() => {
+    let x0 = null, y0 = null
+    const start = e => { const t = e.target; if (f2fTabRef.current !== 'fit2fight' || !t.closest?.('svg, .recharts-wrapper, .f2f-graph')) { x0 = null; return } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY }
+    const end = e => {
+      if (x0 == null) return
+      const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0
+      x0 = null
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) f2fCycleRef.current?.(dx < 0 ? 1 : -1)
+    }
+    document.addEventListener('touchstart', start, { passive: true }); document.addEventListener('touchend', end, { passive: true })
+    return () => { document.removeEventListener('touchstart', start); document.removeEventListener('touchend', end) }
+  }, [])   // Fit II Fight entries: first 5, press to view all
   const [resultsRange, setResultsRange] = useState({})   // results card: range per question
   const [resultsOpen, setResultsOpen] = useState({})
   const [resultsMetric, setResultsMetric] = useState({})   // Watt bike results: track wattage (w) or distance (d)     // results card: list slid open per question
@@ -13133,6 +13148,7 @@ export default function AthleteProfiles() {
                     { key: 'techniques', label: '🥋 Techniques' },
                     { key: 'other', label: '📦 Other' },
                   ]
+                  f2fCycleRef.current = d => cycleGraphSection(d); f2fTabRef.current = tab
                   function cycleGraphSection(direction) {
                     const y = window.scrollY
                     setResultsGraphSection(s => (s + direction + GRAPH_SECTIONS.length) % GRAPH_SECTIONS.length)
@@ -13151,9 +13167,11 @@ export default function AthleteProfiles() {
                       }}
                       style={{ marginBottom: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <button className="btn btn-sm" onClick={() => cycleGraphSection(-1)}>◀</button>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>{GRAPH_SECTIONS[resultsGraphSection].label}</span>
-                        <button className="btn btn-sm" onClick={() => cycleGraphSection(1)}>▶</button>
+                        {/* no arrows: swipe left / right on the title or the graph to change category */}
+                        <span style={{ flex: 1, textAlign: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{GRAPH_SECTIONS[resultsGraphSection].label}</span>
+                          <span style={{ display: 'flex', justifyContent: 'center', gap: 3, marginTop: 4 }}>{GRAPH_SECTIONS.map((g, i) => <i key={g.key} style={{ width: i === resultsGraphSection ? 10 : 4, height: 4, borderRadius: 2, background: i === resultsGraphSection ? 'var(--text)' : 'var(--border-strong)' }} />)}</span>
+                        </span>
                       </div>
                     </div>
                   )
