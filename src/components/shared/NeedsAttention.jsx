@@ -23,6 +23,7 @@ async function inAll(table, select, ids, extra = q => q) {
 export default function NeedsAttention({ athletes = [], onOpen }) {
   const [data, setData] = useState(null)
   const [open, setOpen] = useState({})
+  const [shown, setShown] = useState(false)   // whole card folded until pressed
   // Low attendance threshold (team setting): press the 📉 to change it (slider or type), press again to save
   const [lowAtt, setLowAtt] = useState(LOW_ATT)
   const [editLow, setEditLow] = useState(false)
@@ -110,11 +111,13 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
   const total = lists ? groups.reduce((n, [k]) => n + (lists[k]?.length || 0), 0) : null
   return (
     <div className="card coach-attention" style={{ marginBottom: 12, padding: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+      {/* starts folded -- press the header to slide the groups down */}
+      <button type="button" onClick={() => setShown(v => !v)} aria-expanded={shown}
+        style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', width: '100%', marginBottom: shown ? 8 : 0 }}>
         <span className="coach-attention-title">⚠ Needs attention</span>
-        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{data == null ? 'Checking…' : total === 0 ? 'All good 👍' : `${total} to follow up`}</span>
-      </div>
-      {data && groups.map(([k, label, sub, c]) => {
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{data == null ? 'Checking…' : total === 0 ? 'All good 👍' : `${total} to follow up`} {shown ? '▲' : '▼'}</span>
+      </button>
+      {shown && data && groups.map(([k, label, sub, c]) => {
         const list = lists[k] || []
         if (!list.length && k !== 'low') return null
         const isOpen = !!open[k] // all groups start collapsed
