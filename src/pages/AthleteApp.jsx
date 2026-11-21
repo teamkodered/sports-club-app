@@ -7523,15 +7523,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                   <span className="neon-emoji" style={{ fontSize: 24 }}>🥊</span><NeonTileIcon name="Opponents" />
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#E24B4A' }}>Opponents</span>
                 </button>
-                <button onClick={() => setTab('reports')} className="neon-tile" style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                  padding: '14px 8px', background: '#378ADD12',
-                  border: '1px solid #378ADD30', borderRadius: 'var(--border-radius-lg)',
-                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                }}>
-                  <span className="neon-emoji" style={{ fontSize: 24 }}>📄</span><NeonTileIcon name="Reports" />
-                  <span style={{ fontSize: 12, fontWeight: 500, color: '#378ADD' }}>Results</span>
-                </button>
+                {/* Results tile removed -- the RESULTS card at the top opens the same results page */}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
