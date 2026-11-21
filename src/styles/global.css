@@ -2183,3 +2183,18 @@ body.kc-bh.kc-bh-open .neon-pillar-quad, body.kc-bh.kc-bh-open .neon-foundation-
 body.kc-bh .neon-pillar-quad { display: block !important; }
 /* everything after the sections (Check in and below) starts under the squares */
 body.kc-bh .neon-foundation-wrap ~ * { clear: both; }
+
+/* New home -- open section shown as the mockup's card: level with its square, coloured edge,
+   compact header (icon, name, VIEW, points, this week, quote); slides out of the square, then down */
+body.kc-bh.kc-bh-open :is(.neon-pillar-quad > div, .neon-foundation-wrap):has(> .neon-pillar.is-open) {
+  margin-top: var(--kc-bh-top, 0px); border: 1px solid var(--kc-bh-c); border-left: 4px solid var(--kc-bh-c); border-radius: 0 10px 12px 12px;
+  background: #111518; padding: 8px; box-sizing: border-box; animation: kcBhOpen .6s ease both; }
+body.kc-bh :is(.neon-pillar-quad > div, .neon-foundation-wrap).kc-closing { animation: kcBhClose .5s ease both !important; }
+@keyframes kcBhOpen { 0% { clip-path: inset(0 100% calc(100% - 80px) 0); } 45% { clip-path: inset(0 0 calc(100% - 80px) 0); } 100% { clip-path: inset(0 0 0 0); } }
+@keyframes kcBhClose { 0% { clip-path: inset(0 0 0 0); } 50% { clip-path: inset(0 0 calc(100% - 80px) 0); } 100% { clip-path: inset(0 100% calc(100% - 80px) 0); } }
+body.kc-bh .neon-pillar.is-open { min-height: 0 !important; aspect-ratio: auto !important; padding: 6px 4px 8px !important; margin-bottom: 6px !important;
+  border: none !important; box-shadow: none !important; background: transparent !important; gap: 4px !important; }
+body.kc-bh .neon-pillar.is-open::before, body.kc-bh .neon-pillar.is-open::after { display: none !important; }
+body.kc-bh .neon-pillar.is-open .neon-pillar-icon { position: static !important; height: 34px !important; width: auto !important; max-width: none !important; }
+body.kc-bh .neon-pillar.is-open [style*="Anton"] { position: static !important; font-size: 22px !important; }
+body.kc-bh .neon-pillar.is-open .neon-title-text { font-size: 22px !important; }

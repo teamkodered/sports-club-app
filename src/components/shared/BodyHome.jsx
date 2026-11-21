@@ -23,7 +23,11 @@ const tileEl = s => document.querySelector(`.neon-pillar.${s.tile}`)
 export default function BodyHome({ sessions = [], gender, openKey }) {
   const [busy, setBusy] = useState(false)
   useEffect(() => { document.body.classList.add('kc-bh'); return () => document.body.classList.remove('kc-bh', 'kc-bh-open') }, [])
-  useEffect(() => { document.body.classList.toggle('kc-bh-open', !!openKey) }, [openKey])
+  useEffect(() => {
+    document.body.classList.toggle('kc-bh-open', !!openKey)
+    const i = SECS.findIndex(x => x.key === openKey)
+    if (i >= 0) { document.body.style.setProperty('--kc-bh-top', `${i * 62}px`); document.body.style.setProperty('--kc-bh-c', SECS[i].colour) }
+  }, [openKey])
 
   // this week's progress per section: days (Mon -> today) with something logged, out of 5
   const prog = useMemo(() => {
@@ -36,13 +40,19 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
   }, [sessions])
   const overall = Math.round(SECS.reduce((a, s) => a + prog[s.key], 0) / SECS.length * 100)
 
-  // opens / closes straight away (no slide animation): press the section's own tile
+  // like the mockup: the section comes out of its square (slides out, then down); closing plays it
+  // backwards (slides up, then in) before the section's own tile is pressed to shut it
   const open = s => {
     if (busy) return
     const cur = SECS.find(x => x.key === openKey)
     if (!cur) { tileEl(s)?.click(); return }
-    setBusy(true); tileEl(cur)?.click()
-    setTimeout(() => { if (cur.key !== s.key) tileEl(s)?.click(); setBusy(false) }, 30)
+    const wrap = tileEl(cur)?.parentElement
+    setBusy(true); wrap?.classList.add('kc-closing')
+    setTimeout(() => {
+      wrap?.classList.remove('kc-closing'); tileEl(cur)?.click()
+      if (cur.key !== s.key) setTimeout(() => tileEl(s)?.click(), 30)
+      setBusy(false)
+    }, 520)
   }
   const fig = gender === 'F' ? '/figures/boxer-female.png' : '/figures/boxer-male.png'
   const glow = SECS.find(x => x.key === openKey)?.colour || '#F5C542'
