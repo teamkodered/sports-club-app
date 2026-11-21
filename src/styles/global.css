@@ -2179,12 +2179,7 @@ button.ffd-avatar { padding: 0; color: inherit; }
 /* closed sections' tiles are replaced by the squares; the open one sits beside the squares */
 body.kc-bh .neon-pillar-quad > div:not(:has(> .neon-pillar.is-open)) { display: none !important; }
 body.kc-bh .neon-foundation-wrap:not(:has(> .neon-pillar.is-open)) { display: none !important; }
-body.kc-bh.kc-bh-open .neon-pillar-quad, body.kc-bh.kc-bh-open .neon-foundation-wrap { margin-left: 62px; }
+body.kc-bh.kc-bh-open .neon-pillar-quad, body.kc-bh.kc-bh-open .neon-foundation-wrap { margin-left: 62px; width: auto !important; max-width: calc(100% - 62px); box-sizing: border-box; overflow-x: hidden; }
 body.kc-bh .neon-pillar-quad { display: block !important; }
-/* open: slides out of its square, then down; closing plays it backwards */
-body.kc-bh :is(.neon-pillar-quad > div, .neon-foundation-wrap):has(> .neon-pillar.is-open) { animation: kcBhOpen .6s ease both; }
-body.kc-bh :is(.neon-pillar-quad > div, .neon-foundation-wrap).kc-closing { animation: kcBhClose .5s ease both; }
-@keyframes kcBhOpen { 0% { clip-path: inset(0 100% calc(100% - 70px) 0); } 45% { clip-path: inset(0 0 calc(100% - 70px) 0); } 100% { clip-path: inset(0 0 0 0); } }
-@keyframes kcBhClose { 0% { clip-path: inset(0 0 0 0); } 50% { clip-path: inset(0 0 calc(100% - 70px) 0); } 100% { clip-path: inset(0 100% calc(100% - 70px) 0); } }
 /* everything after the sections (Check in and below) starts under the squares */
 body.kc-bh .neon-foundation-wrap ~ * { clear: both; }

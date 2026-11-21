@@ -36,18 +36,13 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
   }, [sessions])
   const overall = Math.round(SECS.reduce((a, s) => a + prog[s.key], 0) / SECS.length * 100)
 
+  // opens / closes straight away (no slide animation): press the section's own tile
   const open = s => {
     if (busy) return
     const cur = SECS.find(x => x.key === openKey)
     if (!cur) { tileEl(s)?.click(); return }
-    // close the open one backwards (slide up, slide in), then open the next
-    const wrap = tileEl(cur)?.parentElement
-    setBusy(true); wrap?.classList.add('kc-closing')
-    setTimeout(() => {
-      wrap?.classList.remove('kc-closing'); tileEl(cur)?.click()
-      if (cur.key !== s.key) setTimeout(() => tileEl(s)?.click(), 30)
-      setBusy(false)
-    }, 520)
+    setBusy(true); tileEl(cur)?.click()
+    setTimeout(() => { if (cur.key !== s.key) tileEl(s)?.click(); setBusy(false) }, 30)
   }
   const fig = gender === 'F' ? '/figures/boxer-female.png' : '/figures/boxer-male.png'
   const glow = SECS.find(x => x.key === openKey)?.colour || '#F5C542'
