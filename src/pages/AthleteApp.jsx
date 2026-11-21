@@ -6231,7 +6231,7 @@ export default function AthleteApp() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                       <TopStatCard onNavigate={() => setTab('sessions')} iconImg="/logos/neon/sessions.png" value={sessionsValue} pctValue={`${sessionsPct}%`}
                         hasPct={possibleSessions > 0} label="Sessions" colour={colour} />
-                      <TopStatCard onNavigate={() => setTab('fit2fight')} iconImg="/logos/f2f-logo-red.png" value={f2fValue} pctValue={f2fPct}
+                      <TopStatCard onNavigate={() => setTab('fit2fight')} iconImg="/logos/neon/results.svg" value={f2fValue} pctValue={f2fPct}
                         hasPct={f2fHasPct} label="Results" colour="#378ADD" />
                       <TopStatCard onNavigate={() => setTab('pdp')} iconImg="/logos/neon/pdp.png" value={pdpValue} pctValue={pdpPct}
                         hasPct={pdpHasPct} label="PDP" colour="#EF9F27" />
