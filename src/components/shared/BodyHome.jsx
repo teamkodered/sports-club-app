@@ -102,10 +102,11 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
   const portals = cur && slots ? (
     <>
       {createPortal(
-        <div className="kc-bh-hd" style={{ '--c': cur.colour }}>
+        <div className="kc-bh-hd" style={{ '--c': cur.colour, cursor: 'pointer' }} role="button" aria-label={`Close ${cur.label}`}
+          onPointerDown={press} onClick={() => open(cur)} title="Tap to close">
           <div className="kc-bh-hrow"><img src={cur.icon} alt="" /><b>{cur.label}</b><span>{slots.pts}</span></div>
           <div className="kc-bh-hrow2">
-            {slots.viewEl && <button type="button" className="kc-bh-chip" onClick={e => { e.stopPropagation(); slots.viewEl.click() }}>📈 VIEW</button>}
+            {slots.viewEl && <button type="button" className="kc-bh-chip" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); slots.viewEl.click() }}>📈 VIEW</button>}
             <span>THIS WEEK · {(prog.__days?.[cur.key] || []).filter(Boolean).length} done</span>
           </div>
           <div className="kc-bh-week">{(prog.__days?.[cur.key] || []).map((d, i) => <i key={i} className={d ? 'd' : ''} />)}</div>
