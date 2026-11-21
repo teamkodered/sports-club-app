@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // New athlete home (Nov 2026): a boxer figure that fills with each section's colour as the week's
 // progress grows, and a column of square section buttons. A square opens that section exactly as the
@@ -34,8 +35,13 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     const now = new Date(), mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7)); mon.setHours(0, 0, 0, 0)
     const from = mon.toISOString().split('T')[0]
     const week = (sessions || []).filter(s => s.session_date >= from)
-    const out = {}
-    for (const s of SECS) out[s.key] = Math.min(1, week.filter(w => s.fields.some(f => has(w[f]))).length / 5)
+    const out = {}, days = {}
+    for (const s of SECS) {
+      const hit = week.filter(w => s.fields.some(f => has(w[f])))
+      out[s.key] = Math.min(1, hit.length / 5)
+      days[s.key] = [0, 1, 2, 3, 4, 5, 6].map(i => { const d = new Date(mon); d.setDate(mon.getDate() + i); const k = d.toISOString().split('T')[0]; return hit.some(w => w.session_date === k) })
+    }
+    out.__days = days
     return out
   }, [sessions])
   const overall = Math.round(SECS.reduce((a, s) => a + prog[s.key], 0) / SECS.length * 100)
@@ -54,11 +60,44 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
       setBusy(false)
     }, 520)
   }
+  const [slots, setSlots] = useState(null)
+  useEffect(() => {
+    const s = SECS.find(x => x.key === openKey)
+    if (!s) { setSlots(null); return }
+    const tile = tileEl(s), wrap = tile?.parentElement
+    if (!wrap) return
+    const head = document.createElement('div'); head.className = 'kc-bh-head'
+    const foot = document.createElement('div'); foot.className = 'kc-bh-foot'
+    wrap.insertBefore(head, wrap.firstChild); wrap.appendChild(foot)
+    // read what the old header showed (points, quote, its VIEW button) so nothing is lost
+    const pts = tile.querySelector('.neon-sec-pts')?.textContent || ''
+    const quoteEl = [...tile.querySelectorAll('*')].filter(e => /^[“"]/.test((e.textContent || '').trim()) && e.children.length <= 2).pop()
+    const viewEl = [...tile.querySelectorAll('*')].find(e => /VIEW$/i.test((e.textContent || '').trim()) && (e.textContent || '').trim().length < 14)
+    setSlots({ head, foot, pts, quote: quoteEl?.textContent?.trim() || '', viewEl })
+    return () => { head.remove(); foot.remove() }
+  }, [openKey])
+  const cur = SECS.find(x => x.key === openKey)
+  const portals = cur && slots ? (
+    <>
+      {createPortal(
+        <div className="kc-bh-hd" style={{ '--c': cur.colour }}>
+          <div className="kc-bh-hrow"><img src={cur.icon} alt="" /><b>{cur.label}</b><span>{slots.pts}</span></div>
+          <div className="kc-bh-hrow2">
+            {slots.viewEl && <button type="button" className="kc-bh-chip" onClick={e => { e.stopPropagation(); slots.viewEl.click() }}>📈 VIEW</button>}
+            <span>THIS WEEK · {(prog.__days?.[cur.key] || []).filter(Boolean).length} done</span>
+          </div>
+          <div className="kc-bh-week">{(prog.__days?.[cur.key] || []).map((d, i) => <i key={i} className={d ? 'd' : ''} />)}</div>
+          {slots.quote && <div className="kc-bh-quote">{slots.quote}</div>}
+        </div>, slots.head)}
+      {createPortal(<div style={{ textAlign: 'center', padding: '10px 0 4px' }}><button type="button" className="kc-bh-chip" style={{ '--c': cur.colour }} onClick={() => open(cur)}>‹ Close</button></div>, slots.foot)}
+    </>
+  ) : null
   const fig = gender === 'F' ? '/figures/boxer-female.png' : '/figures/boxer-male.png'
   const glow = SECS.find(x => x.key === openKey)?.colour || '#F5C542'
 
   return (
     <>
+      {portals}
       <div className="kc-bh-rail" role="navigation" aria-label="Sections">
         {SECS.map(s => (
           <button key={s.key} type="button" className={`kc-bh-sq${openKey === s.key ? ' on' : ''}`} onClick={() => open(s)} title={s.label} aria-label={s.label}

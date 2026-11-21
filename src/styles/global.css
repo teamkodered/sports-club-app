@@ -2198,3 +2198,17 @@ body.kc-bh .neon-pillar.is-open::before, body.kc-bh .neon-pillar.is-open::after 
 body.kc-bh .neon-pillar.is-open .neon-pillar-icon { position: static !important; height: 34px !important; width: auto !important; max-width: none !important; }
 body.kc-bh .neon-pillar.is-open [style*="Anton"] { position: static !important; font-size: 22px !important; }
 body.kc-bh .neon-pillar.is-open .neon-title-text { font-size: 22px !important; }
+/* New home -- mockup layout inside the open section: our compact header replaces the big tile header */
+body.kc-bh .neon-pillar.is-open { display: none !important; }
+body.kc-bh .neon-foundation-wrap { flex-direction: column !important; }
+.kc-bh-hd { padding: 4px 2px 6px; }
+.kc-bh-hrow { display: flex; align-items: center; gap: 10px; }
+.kc-bh-hrow img { width: 30px; height: 30px; object-fit: contain; }
+.kc-bh-hrow b { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 24px; letter-spacing: .5px; text-transform: uppercase; color: var(--c); }
+.kc-bh-hrow span { margin-left: auto; color: var(--c); font-weight: 800; font-size: 16px; }
+.kc-bh-hrow2 { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+.kc-bh-chip { all: unset; cursor: pointer; font-size: 13px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--c); color: var(--c); }
+.kc-bh-week { display: flex; gap: 8px; margin: 10px 0 6px; }
+.kc-bh-week i { flex: 1; height: 4px; border-radius: 2px; background: #2A3138; }
+.kc-bh-week i.d { background: var(--c); box-shadow: 0 0 5px var(--c); }
+.kc-bh-quote { font-size: 12px; font-style: italic; color: var(--text-secondary); margin-top: 4px; }
