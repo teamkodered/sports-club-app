@@ -7514,15 +7514,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                   screens, instead of Opponents being a large card
                   embedded directly in the Home tab. */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8, marginBottom: 8 }}>
-                <button onClick={() => setTab('opponents')} className="neon-tile" style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                  padding: '14px 8px', background: '#E24B4A12',
-                  border: '1px solid #E24B4A30', borderRadius: 'var(--border-radius-lg)',
-                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                }}>
-                  <span className="neon-emoji" style={{ fontSize: 24 }}>🥊</span><NeonTileIcon name="Opponents" />
-                  <span style={{ fontSize: 12, fontWeight: 500, color: '#E24B4A' }}>Opponents</span>
-                </button>
+                {/* Opponents moved into the Notes page */}
                 {/* Results tile removed -- the RESULTS card at the top opens the same results page */}
               </div>
 
@@ -8647,6 +8639,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── Notes ── */}
       {tab === 'notes' && (
         <div>
+          {/* 🥊 Opponents (moved here from the home tiles) */}
+          <button type="button" className="btn" onClick={() => setTab('opponents')}
+            style={{ width: '100%', justifyContent: 'center', gap: 8, padding: 11, fontSize: 14, marginBottom: 12, borderColor: '#FF2A2A', color: '#FF2A2A' }}>
+            🥊 Opponents
+          </button>
           {pendingNoteDelete && (
             <div style={{
               position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300,
