@@ -2177,8 +2177,7 @@ button.ffd-avatar { padding: 0; color: inherit; }
 .kc-bh-mask { position: absolute; inset: 0; background: #4a4a4a; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
 .kc-bh-tot { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
 /* closed sections' tiles are replaced by the squares; the open one sits beside the squares */
-body.kc-bh .neon-pillar-quad > div:not(:has(> .neon-pillar.is-open)) { display: none !important; }
-body.kc-bh .neon-foundation-wrap:not(:has(> .neon-pillar.is-open)) { display: none !important; }
+body.kc-bh .kc-bh-hide { display: none !important; }
 body.kc-bh.kc-bh-open .neon-pillar-quad, body.kc-bh.kc-bh-open .neon-foundation-wrap { margin-left: 62px; width: auto !important; max-width: calc(100% - 62px); box-sizing: border-box; overflow-x: hidden; }
 body.kc-bh .neon-pillar-quad { display: block !important; }
 /* everything after the sections (Check in and below) starts under the squares */
@@ -2186,11 +2185,11 @@ body.kc-bh .neon-foundation-wrap ~ * { clear: both; }
 
 /* New home -- open section shown as the mockup's card: level with its square, coloured edge,
    compact header (icon, name, VIEW, points, this week, quote); slides out of the square, then down */
-body.kc-bh.kc-bh-open :is(.neon-pillar-quad > div, .neon-foundation-wrap):has(> .neon-pillar.is-open) {
+body.kc-bh.kc-bh-open .kc-bh-openwrap {
   margin-top: var(--kc-bh-top, 0px); border: 1px solid var(--kc-bh-c); border-left: 4px solid var(--kc-bh-c); border-radius: 0 10px 12px 12px;
   background: #111518; padding: 8px; box-sizing: border-box; animation: kcBhOpen .6s ease both; }
 body.kc-bh :is(.neon-pillar-quad > div, .neon-foundation-wrap).kc-closing { animation: kcBhClose .5s ease both !important; }
-@keyframes kcBhOpen { 0% { clip-path: inset(0 100% calc(100% - 80px) 0); } 45% { clip-path: inset(0 0 calc(100% - 80px) 0); } 100% { clip-path: inset(0 0 0 0); } }
+@keyframes kcBhOpen { 0% { clip-path: inset(0 100% calc(100% - 80px) 0); } 45% { clip-path: inset(0 0 calc(100% - 80px) 0); } 99% { clip-path: inset(0 0 0 0); } 100% { clip-path: none; } }
 @keyframes kcBhClose { 0% { clip-path: inset(0 0 0 0); } 50% { clip-path: inset(0 0 calc(100% - 80px) 0); } 100% { clip-path: inset(0 100% calc(100% - 80px) 0); } }
 body.kc-bh .neon-pillar.is-open { min-height: 0 !important; aspect-ratio: auto !important; padding: 6px 4px 8px !important; margin-bottom: 6px !important;
   border: none !important; box-shadow: none !important; background: transparent !important; gap: 4px !important; }
@@ -2213,7 +2212,9 @@ body.kc-bh .neon-foundation-wrap { flex-direction: column !important; }
 .kc-bh-week i.d { background: var(--c); box-shadow: 0 0 5px var(--c); }
 .kc-bh-quote { font-size: 12px; font-style: italic; color: var(--text-secondary); margin-top: 4px; }
 /* New home -- the open section floats over the figure and Check in (doesn't push them down) */
-body.kc-bh :has(> .kc-bh-rail) { position: relative; }
+
 body.kc-bh.kc-bh-open .neon-pillar-quad { position: static !important; margin: 0 !important; max-width: none; }
 body.kc-bh.kc-bh-open .neon-foundation-wrap:not(.kc-bh-float) { margin: 0 !important; }
-body.kc-bh .kc-bh-float { position: absolute !important; left: 62px; right: 0; z-index: 7; margin: 0 !important; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+body.kc-bh .kc-bh-float { position: absolute !important; left: 62px; right: 0; z-index: 7; margin: 0 !important; box-shadow: 0 6px 16px rgba(0,0,0,.55); }
+/* after the slide finishes, drop the clip so scrolling stays smooth */
+body.kc-bh .kc-bh-openwrap { will-change: auto; }

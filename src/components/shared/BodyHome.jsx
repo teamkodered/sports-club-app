@@ -25,6 +25,13 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
   const [busy, setBusy] = useState(false)
   useEffect(() => { document.body.classList.add('kc-bh'); return () => document.body.classList.remove('kc-bh', 'kc-bh-open') }, [])
   useEffect(() => {
+    for (const s of SECS) {
+      const w = tileEl(s)?.parentElement; if (!w) continue
+      w.classList.toggle('kc-bh-hide', s.key !== openKey)
+      w.classList.toggle('kc-bh-openwrap', s.key === openKey)
+    }
+  })
+  useEffect(() => {
     document.body.classList.toggle('kc-bh-open', !!openKey)
     const i = SECS.findIndex(x => x.key === openKey)
     if (i >= 0) { document.body.style.setProperty('--kc-bh-top', `${i * 62}px`); document.body.style.setProperty('--kc-bh-c', SECS[i].colour) }
@@ -51,11 +58,10 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
   // the page must not move when a square is pressed: the old section code scrolls to the section it
   // opens / closes, so scrolling is held still for a moment around each press
   const holdScroll = () => {
-    const y = window.scrollY, st = window.scrollTo, siv = Element.prototype.scrollIntoView
-    window.scrollTo = () => {}; Element.prototype.scrollIntoView = function () {}
-    const keep = () => { if (Math.abs(window.scrollY - y) > 2) st.call(window, 0, y) }
-    window.addEventListener('scroll', keep)
-    setTimeout(() => { window.scrollTo = st; Element.prototype.scrollIntoView = siv; window.removeEventListener('scroll', keep) }, 1200)
+    if (window.__kcHold) return
+    const st = window.scrollTo, siv = Element.prototype.scrollIntoView
+    window.__kcHold = true; window.scrollTo = () => {}; Element.prototype.scrollIntoView = function () {}
+    setTimeout(() => { window.scrollTo = st; Element.prototype.scrollIntoView = siv; window.__kcHold = false }, 700)
   }
   // which section was open when the finger went down (the page's tap-outside handler can shut it
   // before the click arrives -- so the click must not read that as "nothing open" and reopen it)
@@ -106,6 +112,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     setSlots({ head, foot, pts, quote: quoteEl?.textContent?.trim() || '', viewEl })
     const rail = document.querySelector('.kc-bh-rail'), host = rail?.parentElement
     if (rail && host) {
+      if (getComputedStyle(host).position === 'static') host.style.position = 'relative'
       const i = SECS.findIndex(x => x.key === openKey)
       const top = rail.getBoundingClientRect().top - host.getBoundingClientRect().top + i * 62
       wrap.classList.add('kc-bh-float'); wrap.style.top = `${Math.max(0, top)}px`
@@ -145,7 +152,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
       </div>
       {(
         <div className="kc-bh-figw" onMouseDown={e => e.stopPropagation()}>
-          <div className="kc-bh-fig" style={{ filter: `drop-shadow(0 0 6px ${glow}88) drop-shadow(0 0 14px ${glow}44)` }}>
+          <div className="kc-bh-fig" style={{ filter: openKey ? 'none' : `drop-shadow(0 0 6px ${glow}88) drop-shadow(0 0 14px ${glow}44)` }}>
             <div className="kc-bh-mask" style={{ WebkitMaskImage: `url(${fig})`, maskImage: `url(${fig})` }}>
               {SECS.map(s => s.regions.map(([x, y, w, h], i) => (
                 <div key={s.key + i} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%`,
