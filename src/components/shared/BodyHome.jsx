@@ -74,7 +74,13 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     const quoteEl = [...tile.querySelectorAll('*')].filter(e => /^[“"]/.test((e.textContent || '').trim()) && e.children.length <= 2).pop()
     const viewEl = [...tile.querySelectorAll('*')].find(e => /VIEW$/i.test((e.textContent || '').trim()) && (e.textContent || '').trim().length < 14)
     setSlots({ head, foot, pts, quote: quoteEl?.textContent?.trim() || '', viewEl })
-    return () => { head.remove(); foot.remove() }
+    const rail = document.querySelector('.kc-bh-rail'), host = rail?.parentElement
+    if (rail && host) {
+      const i = SECS.findIndex(x => x.key === openKey)
+      const top = rail.getBoundingClientRect().top - host.getBoundingClientRect().top + i * 62
+      wrap.classList.add('kc-bh-float'); wrap.style.top = `${Math.max(0, top)}px`
+    }
+    return () => { head.remove(); foot.remove(); wrap.classList.remove('kc-bh-float'); wrap.style.top = '' }
   }, [openKey])
   const cur = SECS.find(x => x.key === openKey)
   const portals = cur && slots ? (
@@ -89,7 +95,6 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
           <div className="kc-bh-week">{(prog.__days?.[cur.key] || []).map((d, i) => <i key={i} className={d ? 'd' : ''} />)}</div>
           {slots.quote && <div className="kc-bh-quote">{slots.quote}</div>}
         </div>, slots.head)}
-      {createPortal(<div style={{ textAlign: 'center', padding: '10px 0 4px' }}><button type="button" className="kc-bh-chip" style={{ '--c': cur.colour }} onClick={() => open(cur)}>‹ Close</button></div>, slots.foot)}
     </>
   ) : null
   const fig = gender === 'F' ? '/figures/boxer-female.png' : '/figures/boxer-male.png'
@@ -107,7 +112,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
           </button>
         ))}
       </div>
-      {!openKey && (
+      {(
         <div className="kc-bh-figw">
           <div className="kc-bh-fig" style={{ filter: `drop-shadow(0 0 6px ${glow}88) drop-shadow(0 0 14px ${glow}44)` }}>
             <div className="kc-bh-mask" style={{ WebkitMaskImage: `url(${fig})`, maskImage: `url(${fig})` }}>

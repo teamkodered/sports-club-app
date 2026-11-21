@@ -2212,3 +2212,8 @@ body.kc-bh .neon-foundation-wrap { flex-direction: column !important; }
 .kc-bh-week i { flex: 1; height: 4px; border-radius: 2px; background: #2A3138; }
 .kc-bh-week i.d { background: var(--c); box-shadow: 0 0 5px var(--c); }
 .kc-bh-quote { font-size: 12px; font-style: italic; color: var(--text-secondary); margin-top: 4px; }
+/* New home -- the open section floats over the figure and Check in (doesn't push them down) */
+body.kc-bh :has(> .kc-bh-rail) { position: relative; }
+body.kc-bh.kc-bh-open .neon-pillar-quad { position: static !important; margin: 0 !important; max-width: none; }
+body.kc-bh.kc-bh-open .neon-foundation-wrap:not(.kc-bh-float) { margin: 0 !important; }
+body.kc-bh .kc-bh-float { position: absolute !important; left: 62px; right: 0; z-index: 7; margin: 0 !important; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
