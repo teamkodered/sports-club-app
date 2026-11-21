@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 // New athlete home (Nov 2026): a boxer figure that fills with each section's colour as the week's
@@ -48,15 +48,29 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
 
   // like the mockup: the section comes out of its square (slides out, then down); closing plays it
   // backwards (slides up, then in) before the section's own tile is pressed to shut it
+  // the page must not move when a square is pressed: the old section code scrolls to the section it
+  // opens / closes, so scrolling is held still for a moment around each press
+  const holdScroll = () => {
+    const y = window.scrollY, st = window.scrollTo, siv = Element.prototype.scrollIntoView
+    window.scrollTo = () => {}; Element.prototype.scrollIntoView = function () {}
+    const keep = () => { if (Math.abs(window.scrollY - y) > 2) st.call(window, 0, y) }
+    window.addEventListener('scroll', keep)
+    setTimeout(() => { window.scrollTo = st; Element.prototype.scrollIntoView = siv; window.removeEventListener('scroll', keep) }, 1200)
+  }
+  // which section was open when the finger went down (the page's tap-outside handler can shut it
+  // before the click arrives -- so the click must not read that as "nothing open" and reopen it)
+  const downOpen = useRef(null)
+  const press = () => { downOpen.current = openKey; holdScroll() }
   const open = s => {
     if (busy) return
-    const cur = SECS.find(x => x.key === openKey)
-    if (!cur) { tileEl(s)?.click(); return }
+    const was = downOpen.current ?? openKey
+    downOpen.current = null
+    const cur = SECS.find(x => x.key === was)
+    if (!cur) { if (!tileEl(s)?.classList.contains('is-open')) tileEl(s)?.click(); return }
     const wrap = tileEl(cur)?.parentElement
     setBusy(true); wrap?.classList.add('kc-closing')
     setTimeout(() => {
       wrap?.classList.remove('kc-closing')
-      // the page's own tap-outside handler may already have shut it -- only press its tile if it's still open
       if (tileEl(cur)?.classList.contains('is-open')) tileEl(cur).click()
       if (cur.key !== s.key) setTimeout(() => { if (!tileEl(s)?.classList.contains('is-open')) tileEl(s)?.click() }, 30)
       setBusy(false)
@@ -107,7 +121,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
       {portals}
       <div className="kc-bh-rail" role="navigation" aria-label="Sections">
         {SECS.map(s => (
-          <button key={s.key} type="button" className={`kc-bh-sq${openKey === s.key ? ' on' : ''}`} onClick={() => open(s)} title={s.label} aria-label={s.label}
+          <button key={s.key} type="button" className={`kc-bh-sq${openKey === s.key ? ' on' : ''}`} onPointerDown={press} onClick={() => open(s)} title={s.label} aria-label={s.label}
             style={{ '--c': s.colour, '--p': prog[s.key] }}>
             <img src={s.icon} alt="" />
             <small>{Math.round(prog[s.key] * 100)}</small>
@@ -124,7 +138,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
               )))}
             </div>
             {SECS.map(s => s.regions.map(([x, y, w, h], i) => (
-              <button key={'h' + s.key + i} type="button" aria-label={s.label} onClick={() => open(s)}
+              <button key={'h' + s.key + i} type="button" aria-label={s.label} onPointerDown={press} onClick={() => open(s)}
                 style={{ all: 'unset', cursor: 'pointer', position: 'absolute', left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` }} />
             )))}
           </div>
