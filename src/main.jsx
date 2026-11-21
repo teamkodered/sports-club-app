@@ -1,6 +1,4 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react'
-import { installZoomToOpened } from './lib/zoomToOpened.js'
-installZoomToOpened()
 import HrHub from './pages/HrHub.jsx'
 
 // Pages load when first opened (not all at start-up) -- the app used to download and start

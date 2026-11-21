@@ -55,8 +55,10 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     const wrap = tileEl(cur)?.parentElement
     setBusy(true); wrap?.classList.add('kc-closing')
     setTimeout(() => {
-      wrap?.classList.remove('kc-closing'); tileEl(cur)?.click()
-      if (cur.key !== s.key) setTimeout(() => tileEl(s)?.click(), 30)
+      wrap?.classList.remove('kc-closing')
+      // the page's own tap-outside handler may already have shut it -- only press its tile if it's still open
+      if (tileEl(cur)?.classList.contains('is-open')) tileEl(cur).click()
+      if (cur.key !== s.key) setTimeout(() => { if (!tileEl(s)?.classList.contains('is-open')) tileEl(s)?.click() }, 30)
       setBusy(false)
     }, 520)
   }
