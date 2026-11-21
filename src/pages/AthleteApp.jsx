@@ -7545,15 +7545,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8 }}>
-                <button onClick={() => setTab('sweep')} className="neon-tile" style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                  padding: '14px 8px', background: '#1D9E7512',
-                  border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
-                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                }}>
-                  <span className="neon-emoji" style={{ fontSize: 24 }}>🧹</span><NeonTileIcon name="Sweep the sheds" />
-                  <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
-                </button>
+                {/* Sweep the sheds moved into the Check in menu */}
                 {(student?.is_kr || student?.discipline === 'KRBA') ? (
                   // KR + KRBA athletes: the new FIIF League (athlete-app only)
                   <button onClick={() => setTab('f2fleague')} className="neon-tile" style={{
@@ -8160,6 +8152,12 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     <h2 className="neon-drawer-title" style={{ fontSize: 16, fontWeight: 700 }}>{activeCheckIn ? 'Checked in' : 'Check in'}</h2>
                     <button onClick={() => setCheckInDrawerOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-tertiary)' }}>×</button>
                   </div>
+
+                  {/* 🧹 Sweep the sheds (moved here from the home tiles) */}
+                  <button type="button" className="btn" onClick={() => { setCheckInDrawerOpen(false); setTab('sweep') }}
+                    style={{ width: '100%', justifyContent: 'center', gap: 8, padding: 11, fontSize: 14, marginBottom: 14, borderColor: '#C0C4CC', color: '#C0C4CC' }}>
+                    <NeonTileIcon name="Sweep the sheds" /> Sweep the sheds
+                  </button>
 
                   {checkedInMsg && (
                     <div style={{ textAlign: 'center', padding: 10, marginBottom: 14, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 13, borderRadius: 'var(--radius)' }}>
