@@ -1,10 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" fill="none" stroke="#FF2A2A" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-  <!-- results: rising bars with a trend line and arrow -->
-  <path d="M22 140 L182 140"/>
-  <rect x="34" y="96" width="24" height="40" rx="3"/>
-  <rect x="74" y="74" width="24" height="62" rx="3"/>
-  <rect x="114" y="86" width="24" height="50" rx="3"/>
-  <rect x="154" y="50" width="24" height="86" rx="3"/>
-  <path d="M30 76 L80 46 L120 60 L176 20" stroke-width="6"/>
-  <path d="M156 18 L178 18 L178 40" stroke-width="6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <!-- results: red bars, white baseline + trend line and arrow -->
+  <path d="M22 140 L182 140" stroke="#FFFFFF" stroke-width="7"/>
+  <g stroke="#FF2A2A" stroke-width="8">
+    <rect x="34" y="96" width="24" height="40" rx="3"/>
+    <rect x="74" y="74" width="24" height="62" rx="3"/>
+    <rect x="114" y="86" width="24" height="50" rx="3"/>
+    <rect x="154" y="50" width="24" height="86" rx="3"/>
+  </g>
+  <g stroke="#FFFFFF" stroke-width="6">
+    <path d="M30 76 L80 46 L120 60 L176 20"/>
+    <path d="M156 18 L178 18 L178 40"/>
+  </g>
 </svg>

@@ -76,6 +76,20 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
       setBusy(false)
     }, 520)
   }
+  // tapping off the open section (anywhere else on the page) also plays the closing slide:
+  // catch the tap before the page's own tap-outside handler snaps it shut
+  useEffect(() => {
+    const cur = SECS.find(x => x.key === openKey)
+    if (!cur) return
+    const onDown = e => {
+      const wrap = tileEl(cur)?.parentElement, t = e.target
+      if (!wrap || wrap.contains(t) || t.closest?.('.kc-bh-rail, .kc-bh-figw, [role="dialog"], [aria-modal="true"]')) return
+      e.stopPropagation()
+      downOpen.current = cur.key; holdScroll(); open(cur)
+    }
+    window.addEventListener('mousedown', onDown, true)
+    return () => window.removeEventListener('mousedown', onDown, true)
+  }, [openKey, busy])
   const [slots, setSlots] = useState(null)
   useEffect(() => {
     const s = SECS.find(x => x.key === openKey)
