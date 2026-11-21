@@ -120,7 +120,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
   return (
     <>
       {portals}
-      <div className="kc-bh-rail" role="navigation" aria-label="Sections">
+      <div className="kc-bh-rail" role="navigation" aria-label="Sections" onMouseDown={e => e.stopPropagation()}>
         {SECS.map(s => (
           <button key={s.key} type="button" className={`kc-bh-sq${openKey === s.key ? ' on' : ''}`} onPointerDown={press} onClick={() => open(s)} title={s.label} aria-label={s.label}
             style={{ '--c': s.colour, '--p': prog[s.key] }}>
@@ -130,7 +130,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
         ))}
       </div>
       {(
-        <div className="kc-bh-figw">
+        <div className="kc-bh-figw" onMouseDown={e => e.stopPropagation()}>
           <div className="kc-bh-fig" style={{ filter: `drop-shadow(0 0 6px ${glow}88) drop-shadow(0 0 14px ${glow}44)` }}>
             <div className="kc-bh-mask" style={{ WebkitMaskImage: `url(${fig})`, maskImage: `url(${fig})` }}>
               {SECS.map(s => s.regions.map(([x, y, w, h], i) => (
