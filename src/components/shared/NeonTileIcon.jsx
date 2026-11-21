@@ -1,9 +1,9 @@
 // Line icons for the small home tiles in the neon theme (hidden outside .neon-home).
 // Colours as agreed on the mockup.
 const ICONS = {
-  media:     ['#22B14C', <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 16l5-5 4 4 3-3 6 6" /></>],
+  media:     ['#FF2A2A', <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 16l5-5 4 4 3-3 6 6" /></>],
   notes:     ['#FF2A2A', <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h8" /></>],
-  opponents: ['#22B14C', <path d="M7 4h7a4 4 0 0 1 4 4v5a4 4 0 0 1-4 4H9l-3 3V8a4 4 0 0 1 1-4z" />],
+  opponents: ['#FF2A2A', <path d="M7 4h7a4 4 0 0 1 4 4v5a4 4 0 0 1-4 4H9l-3 3V8a4 4 0 0 1 1-4z" />],
   reports:   ['#FF2A2A', <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />],
   wearables: ['#2F6BFF', <><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 2h6M9 22h6M12 9v3l2 2" /></>],
   mtp:       ['#E6B800', <path d="M3 17l5-6 4 3 5-8 4 5" />],
