@@ -2164,3 +2164,27 @@ button.ffd-avatar { padding: 0; color: inherit; }
 
 /* question panels: just the number for 'x today' (no 'conversations today' text) */
 .neon-qpanel .neon-q-count span { display: none !important; }
+
+/* ── New home: body figure + square section buttons (BodyHome) ── */
+.kc-bh-rail { float: left; position: sticky; top: 80px; z-index: 6; display: flex; flex-direction: column; gap: 10px; width: 52px; margin: 20px 10px 0 0; }
+.kc-bh-sq { width: 52px; height: 52px; border-radius: 10px; border: 2px solid var(--c); background: #14181C; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; position: relative; padding: 0; box-shadow: 0 0 calc(var(--p) * 16px) var(--c); }
+.kc-bh-sq img { width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 0 4px var(--c)); }
+.kc-bh-sq small { position: absolute; bottom: -6px; right: -6px; font-size: 9px; background: var(--c); color: #000; border-radius: 8px; padding: 0 4px; font-weight: 700; font-family: var(--font-sans); }
+.kc-bh-sq.on { background: color-mix(in srgb, var(--c) 30%, #14181C); }
+.kc-bh-figw { margin-left: 62px; display: flex; flex-direction: column; align-items: center; min-height: 440px; }
+.kc-bh-fig { position: relative; width: 200px; height: 400px; }
+.kc-bh-mask { position: absolute; inset: 0; background: #4a4a4a; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+.kc-bh-tot { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
+/* closed sections' tiles are replaced by the squares; the open one sits beside the squares */
+body.kc-bh .neon-pillar-quad > div:not(:has(> .neon-pillar.is-open)) { display: none !important; }
+body.kc-bh .neon-foundation-wrap:not(:has(> .neon-pillar.is-open)) { display: none !important; }
+body.kc-bh.kc-bh-open .neon-pillar-quad, body.kc-bh.kc-bh-open .neon-foundation-wrap { margin-left: 62px; }
+body.kc-bh .neon-pillar-quad { display: block !important; }
+/* open: slides out of its square, then down; closing plays it backwards */
+body.kc-bh :is(.neon-pillar-quad > div, .neon-foundation-wrap):has(> .neon-pillar.is-open) { animation: kcBhOpen .6s ease both; }
+body.kc-bh :is(.neon-pillar-quad > div, .neon-foundation-wrap).kc-closing { animation: kcBhClose .5s ease both; }
+@keyframes kcBhOpen { 0% { clip-path: inset(0 100% calc(100% - 70px) 0); } 45% { clip-path: inset(0 0 calc(100% - 70px) 0); } 100% { clip-path: inset(0 0 0 0); } }
+@keyframes kcBhClose { 0% { clip-path: inset(0 0 0 0); } 50% { clip-path: inset(0 0 calc(100% - 70px) 0); } 100% { clip-path: inset(0 100% calc(100% - 70px) 0); } }
+/* everything after the sections (Check in and below) starts under the squares */
+body.kc-bh .neon-foundation-wrap ~ * { clear: both; }

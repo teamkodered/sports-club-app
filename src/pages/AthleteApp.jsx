@@ -12,6 +12,7 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import BodyHome from '../components/shared/BodyHome.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
 import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
 import { divisionsForAge } from '../lib/divisions.js'
@@ -6241,6 +6242,9 @@ export default function AthleteApp() {
                         (Physical, Technique, Tactical, Mentality), only the
                         displayed sequence and pairing changes: Mentality+Tactical
                         side by side, then Technique+Physical side by side. */}
+                    {/* New home: boxer figure + square section buttons (the section tiles below open from the squares) */}
+                    <BodyHome sessions={sessions} gender={student?.gender}
+                      openKey={showTechniqueSection ? 'technique' : showMentalitySection ? 'mentality' : showTacticalSection ? 'tactical' : showWellbeingSection ? 'wellbeing' : showPhysicalSection ? 'physical' : null} />
                     <div ref={quadRef} className={`neon-pillar-quad${(showPhysicalSection || showTechniqueSection || showTacticalSection || showMentalitySection) ? ' has-open' : ''}${showMentalitySection ? ' z-tl' : showTacticalSection ? ' z-tr' : showTechniqueSection ? ' z-bl' : showPhysicalSection ? ' z-br' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                     <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
                     <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={e => { if (pillarGuard('physical')) return; togglePhysicalSection(e) }} style={showPhysicalSection ? {

@@ -1,0 +1,85 @@
+import { useEffect, useMemo, useState } from 'react'
+
+// New athlete home (Nov 2026): a boxer figure that fills with each section's colour as the week's
+// progress grows, and a column of square section buttons. A square opens that section exactly as the
+// old section tiles did (the section's own tile button is pressed), so every question, graph, result,
+// PDP list and focus picker is unchanged -- the open section slides out of the square, then down;
+// closing plays it backwards. Tiles for closed sections are hidden while this is on (CSS: .kc-bh).
+const SECS = [
+  { key: 'technique', tile: 'neon-bl',     label: 'Technical',  colour: '#2F6BFF', icon: '/logos/neon/technical.png',  fields: ['techniques'],
+    regions: [[25.5, 39, 49, 23], [18, 62, 64, 34]] },
+  { key: 'mentality', tile: 'neon-tl',     label: 'Mentality',  colour: '#22B14C', icon: '/logos/neon/mentality.png',  fields: ['mentality_log'],
+    regions: [[34, 0, 16, 17]] },
+  { key: 'tactical',  tile: 'neon-tr',     label: 'Tactical',   colour: '#FF2A2A', icon: '/logos/neon/tactical.png',   fields: ['tactical'],
+    regions: [[50, 0, 16, 17]] },
+  { key: 'wellbeing', tile: 'neon-bottom', label: 'Foundation', colour: '#C93BFF', icon: '/logos/neon/foundation.png', fields: ['wellbeing'],
+    regions: [[25.5, 17, 49, 22], [0, 96, 100, 4]] },
+  { key: 'physical',  tile: 'neon-br',     label: 'Physical',   colour: '#E6B800', icon: '/logos/neon/physical.png',   fields: ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session'],
+    regions: [[0, 20, 25.5, 42], [74.5, 20, 25.5, 42]] },
+]
+const has = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.values(v).some(x => x !== '' && x != null && x !== false && !(Array.isArray(x) && !x.length)) : !!v)
+const tileEl = s => document.querySelector(`.neon-pillar.${s.tile}`)
+
+export default function BodyHome({ sessions = [], gender, openKey }) {
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { document.body.classList.add('kc-bh'); return () => document.body.classList.remove('kc-bh', 'kc-bh-open') }, [])
+  useEffect(() => { document.body.classList.toggle('kc-bh-open', !!openKey) }, [openKey])
+
+  // this week's progress per section: days (Mon -> today) with something logged, out of 5
+  const prog = useMemo(() => {
+    const now = new Date(), mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7)); mon.setHours(0, 0, 0, 0)
+    const from = mon.toISOString().split('T')[0]
+    const week = (sessions || []).filter(s => s.session_date >= from)
+    const out = {}
+    for (const s of SECS) out[s.key] = Math.min(1, week.filter(w => s.fields.some(f => has(w[f]))).length / 5)
+    return out
+  }, [sessions])
+  const overall = Math.round(SECS.reduce((a, s) => a + prog[s.key], 0) / SECS.length * 100)
+
+  const open = s => {
+    if (busy) return
+    const cur = SECS.find(x => x.key === openKey)
+    if (!cur) { tileEl(s)?.click(); return }
+    // close the open one backwards (slide up, slide in), then open the next
+    const wrap = tileEl(cur)?.parentElement
+    setBusy(true); wrap?.classList.add('kc-closing')
+    setTimeout(() => {
+      wrap?.classList.remove('kc-closing'); tileEl(cur)?.click()
+      if (cur.key !== s.key) setTimeout(() => tileEl(s)?.click(), 30)
+      setBusy(false)
+    }, 520)
+  }
+  const fig = gender === 'F' ? '/figures/boxer-female.png' : '/figures/boxer-male.png'
+  const glow = SECS.find(x => x.key === openKey)?.colour || '#F5C542'
+
+  return (
+    <>
+      <div className="kc-bh-rail" role="navigation" aria-label="Sections">
+        {SECS.map(s => (
+          <button key={s.key} type="button" className={`kc-bh-sq${openKey === s.key ? ' on' : ''}`} onClick={() => open(s)} title={s.label} aria-label={s.label}
+            style={{ '--c': s.colour, '--p': prog[s.key] }}>
+            <img src={s.icon} alt="" />
+            <small>{Math.round(prog[s.key] * 100)}</small>
+          </button>
+        ))}
+      </div>
+      {!openKey && (
+        <div className="kc-bh-figw">
+          <div className="kc-bh-fig" style={{ filter: `drop-shadow(0 0 6px ${glow}88) drop-shadow(0 0 14px ${glow}44)` }}>
+            <div className="kc-bh-mask" style={{ WebkitMaskImage: `url(${fig})`, maskImage: `url(${fig})` }}>
+              {SECS.map(s => s.regions.map(([x, y, w, h], i) => (
+                <div key={s.key + i} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%`,
+                  background: `linear-gradient(to top, ${s.colour} ${prog[s.key] * 100}%, #4a4a4a ${prog[s.key] * 100}%)` }} />
+              )))}
+            </div>
+            {SECS.map(s => s.regions.map(([x, y, w, h], i) => (
+              <button key={'h' + s.key + i} type="button" aria-label={s.label} onClick={() => open(s)}
+                style={{ all: 'unset', cursor: 'pointer', position: 'absolute', left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` }} />
+            )))}
+          </div>
+          <div className="kc-bh-tot">Week · {overall}% overall</div>
+        </div>
+      )}
+    </>
+  )
+}
