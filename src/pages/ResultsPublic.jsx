@@ -107,16 +107,20 @@ const AUTO_SCROLL_SECONDS = 8
 export function buildLeaderboard(cat, rows, limit = 10) {
   const perAthlete = {}
   rows.forEach(r => {
+    // one entry per ATHLETE (by id when the row has it) -- two people with the same short name
+    // (e.g. a parent and child both 'Duane R.') must not be merged into one
     const name = maskName(r.first_name, r.last_name)
+    const sid = r.student_id || r.sid || null
+    const key = sid ? 'id:' + sid : name
     cat.extract(r).forEach(({ value, sub, note }) => {
       if (!value) return
       if (cat.aggregate === 'sum' || cat.countSets) {
-        if (!perAthlete[name]) perAthlete[name] = { name, value: 0, sub: cat.sumLabel || '' }
-        perAthlete[name].value += value
+        if (!perAthlete[key]) perAthlete[key] = { name, sid, value: 0, sub: cat.sumLabel || '' }
+        perAthlete[key].value += value
         return
       }
-      const better = cat.lowerIsBetter ? value < perAthlete[name]?.value : value > perAthlete[name]?.value
-      if (!perAthlete[name] || better) perAthlete[name] = { name, value, sub, note }
+      const better = cat.lowerIsBetter ? value < perAthlete[key]?.value : value > perAthlete[key]?.value
+      if (!perAthlete[key] || better) perAthlete[key] = { name, sid, value, sub, note }
     })
   })
   return Object.values(perAthlete)

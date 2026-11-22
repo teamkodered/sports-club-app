@@ -233,10 +233,11 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       if (d && (d < from || d > to)) continue
       const n = Array.isArray(r.running) ? r.running.length : (r.running && typeof r.running === 'object' && Object.keys(r.running).length ? 1 : 0)
       if (!n) continue
-      const name = maskName(r.first_name, r.last_name)
-      per[name] = (per[name] || 0) + n
+      const name = maskName(r.first_name, r.last_name), sid = r.student_id || r.sid || null, key = sid ? 'id:' + sid : name
+      per[key] = per[key] || { name, sid, value: 0 }
+      per[key].value += n
     }
-    return Object.entries(per).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+    return Object.values(per).sort((a, b) => b.value - a.value)
   }
   const meId = student?.id
   const sectionPos = useSectionLeague(listMode ? student?.id : null)
@@ -245,6 +246,10 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
   const [gripMode, setGripMode] = useState('kg')   // grip board right column (and what it's ranked by): kg | bw | pctl | z
   const ordS = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th')   // athlete League page: which group of boards is showing
   const myMasked = student?.members ? maskName(student.members.first_name, student.members.last_name) : null
+  // two athletes can share a short name (a parent and child both 'Duane R.'): without an id on the row we
+  // can't tell them apart, so no 'me' match / badges then rather than the wrong person's
+  const nameShared = () => (pd?.individuals || []).filter(x => x.name === myMasked).length > 1
+  const isMe = r => !!r && (r.sid ? r.sid === meId : (!!myMasked && r.name === myMasked && !nameShared()))
   const ranked = (list, valueOf) => {
     let rank = 0, prev = null
     return list.map((r, i) => { const v = valueOf(r); if (v !== prev) { rank = i + 1; prev = v } return { ...r, v, rank } })
@@ -336,10 +341,10 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     }
     if (s.kind === 'runs') {
       const list = ranked(runCounts(pd), r => r.value)
-      const top = list.slice(0, cfg.topBoard), me = myMasked ? list.find(r => r.name === myMasked) : null
+      const top = list.slice(0, cfg.topBoard), me = list.find(isMe) || null
       return (
         <Slide title="Running · most runs" colour="#1D9E75" emoji="🏃" sub={`${periodLabel} · runs logged`}>
-          {top.map(r => <Row key={r.name} rank={r.rank} name={r.name} value={r.value} unit={r.value === 1 ? 'RUN' : 'RUNS'} colour="#1D9E75" me={!!myMasked && r.name === myMasked} />)}
+          {top.map(r => <Row key={r.name} rank={r.rank} name={r.name} value={r.value} unit={r.value === 1 ? 'RUN' : 'RUNS'} colour="#1D9E75" me={isMe(r)} />)}
           {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.name} value={me.value} unit="RUNS" colour="#1D9E75" me /></>}
         </Slide>
       )
@@ -420,7 +425,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       const cat = s.cat, list = buildLeaderboard(cat, cat.countSets ? (exRows || []).filter(inPeriod) : exRows, cfg.topBoard)
       return (
         <Slide title={cat.label.replace(/^\S+\s/, '')} colour={cat.colour} emoji={cat.label.split(' ')[0]} sub={cat.countSets ? `Most sets done · ${periodLabel}` : 'Personal bests'} fixedPeriod={!cat.countSets}>
-          {list.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} sub={r.sub} value={r.value} unit={cat.unit} colour={cat.colour} note={r.note} me={!!myMasked && r.name === myMasked} />)}
+          {list.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} sub={r.sub} value={r.value} unit={cat.unit} colour={cat.colour} note={r.note} me={isMe(r)} />)}
         </Slide>
       )
     }
@@ -441,8 +446,8 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       if (Array.isArray(pd.grip)) { const rg = rankIn([...pd.grip].sort((a, b) => Number(b.grip) - Number(a.grip)), r => Number(r.grip)); if (rg && rg <= 10) badges.push([['🥇', '🥈', '🥉'][rg - 1] || '🏅', `${ord(rg)} · Grip strength`]) }
       const hr = pd.hr || []
       const r3 = rankIn([...hr].sort((a, b) => (b.best_avg_pct || 0) - (a.best_avg_pct || 0)), r => r.best_avg_pct); if (r3 && r3 <= 10) badges.push(['❤️', `${ord(r3)} · Heart rate average`])
-      { const rr = ranked(runCounts(pd), r => r.value).find(r => r.name === myMasked); if (rr && rr.rank <= 10) badges.push([['🥇', '🥈', '🥉'][rr.rank - 1] || '🏅', `${ord(rr.rank)} · Most runs`]) }
-      for (const cat of CATEGORIES) { if (cat.aggregate || !myMasked || cat.key === 'running' || (cat.key === 'grip' && Array.isArray(pd.grip))) continue; const lb = buildLeaderboard(cat, exRows, cfg.topBoard); const i = lb.findIndex(r => r.name === myMasked); if (i >= 0) badges.push([['🥇', '🥈', '🥉'][i] || '🏅', `${ord(i + 1)} · ${cat.label.replace(/^\S+\s/, '')}`]) }
+      { const rr = ranked(runCounts(pd), r => r.value).find(isMe); if (rr && rr.rank <= 10) badges.push([['🥇', '🥈', '🥉'][rr.rank - 1] || '🏅', `${ord(rr.rank)} · Most runs`]) }
+      for (const cat of CATEGORIES) { if (cat.aggregate || !myMasked || cat.key === 'running' || (cat.key === 'grip' && Array.isArray(pd.grip))) continue; const lb = buildLeaderboard(cat, exRows, cfg.topBoard); const i = lb.findIndex(isMe); if (i >= 0) badges.push([['🥇', '🥈', '🥉'][i] || '🏅', `${ord(i + 1)} · ${cat.label.replace(/^\S+\s/, '')}`]) }
     }
     const SECT = [['mentality', 'Mental', '#22B14C'], ['tactical', 'Tactical', '#FF2A2A'], ['technical', 'Technical', '#2F6BFF'], ['physical', 'Physical', '#E6B800'], ['foundation', 'Foundation', '#C93BFF']]
     const groupOf = sl => (sl.kind === 'tasks' || sl.kind === 'pdp') ? 'Sections' : (sl.kind === 'exercise' || sl.kind === 'grip' || sl.kind === 'runs') ? 'Exercise PBs' : (sl.kind === 'workrate' || sl.kind === 'hr') ? 'Workrate & heart rate' : 'Notes & more'
