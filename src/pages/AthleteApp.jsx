@@ -6754,7 +6754,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           {Object.keys(categories).filter(cat => !qHidden(qcfg, 'technique', cat)).sort(qSort(qcfg, 'technique', c => c)).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                             const catKey = `${style}::${cat}`
                             const active = expandedTechniqueCategory === catKey
-                            const count = todaysTechniques.filter(t => t.style === style && t.category === cat).length
+                            const picksT = todaysTechniques.filter(t => t.style === style && t.category === cat), count = picksT.length
+                            const pickNames = [...new Set(picksT.map(t => t.technique).filter(x => x && x !== 'Quick log'))]
                             return (
                               <button className={`neon-q neon-q-technical${active ? ' is-active' : ''}${count ? ' is-done' : ''}${fq('technique', cat)}`} key={cat} type="button"
                                 onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
@@ -6767,7 +6768,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                 <QuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} doneStyle={style} />{pdpInfo('technique', `${style}::${cat}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                                 <span style={{ flex: 1, textAlign: 'center' }}>
                                   <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{qName(qcfg, 'technique', cat)}</span>
-                                  {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
+                                  {count > 0 && <span style={{ display: 'block', fontSize: active ? 11 : 9, color: '#1D9E75', fontWeight: 600 }}>{pickNames.length ? pickNames.join(' · ') : `✓ done${count > 1 ? ` ×${count}` : ''}`}</span>}
                                 </span>
                               </button>
                             )
@@ -6837,7 +6838,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         }
                         const cat_ = cat
                         const active = expandedTacticalCategory === cat_
-                        const count = todaysTactical.filter(t => t.category === cat_).length
+                        const picksA = todaysTactical.filter(t => t.category === cat_), count = picksA.length
+                        const pickNames = [...new Set(picksA.map(t => t.item).filter(x => x && x !== 'Quick log'))]
                         return (
                           <button className={`neon-q neon-q-tactical${active ? ' is-active' : ''}${count ? ' is-done' : ''}${fq('tactical', cat_)}`} key={cat_} type="button"
                             onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
@@ -6850,7 +6852,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             <QuestionProgressBarsVertical sectionKey="tactical" questionLabel={cat_} />{pdpInfo('tactical', cat_).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ flex: 1, textAlign: 'center' }}>
                               <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{qName(qcfg, 'tactical', cat_)}</span>
-                              {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
+                              {count > 0 && <span style={{ display: 'block', fontSize: active ? 11 : 9, color: '#1D9E75', fontWeight: 600 }}>{pickNames.length ? pickNames.join(' · ') : `✓ done${count > 1 ? ` ×${count}` : ''}`}</span>}
                             </span>
                           </button>
                         )
