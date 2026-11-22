@@ -5773,6 +5773,7 @@ export default function AthleteApp() {
                 })()],
                 ['Resting heart rate', (() => { const w = wearableVitals(wearableDaily).rhr; return w ? `${w.value} bpm` : '—' })()],
                 ['VO2 Max', (() => { const t = latestTest(sessions, 'VO2 Max'); return t ? `${t.value} ml/kg/min` : '—' })()],
+                ['Recovery', (() => { const v = wearableVitals(wearableDaily); return v.rec ? `${v.rec.value}%${v.hrv ? ` · HRV ${v.hrv.value} ms` : ''}` : '—' })()],
                 ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
               ].map(([label, val, target], i, arr) => {
                 const isWeightRow = label === 'Weight'

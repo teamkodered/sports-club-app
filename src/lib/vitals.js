@@ -4,13 +4,15 @@
 const VO2_KEYS = ['vo2max', 'vo2_max', 'VO2Max', 'vo2Max', 'VO2_max', 'vo2']
 export function wearableVitals(days = []) {
   const sorted = [...(days || [])].sort((a, b) => String(b.day).localeCompare(String(a.day)))
-  let vo2 = null, rhr = null
+  let vo2 = null, rhr = null, rec = null, hrv = null
   for (const d of sorted) {
     if (!vo2) { const r = d.raw_data || {}; const k = VO2_KEYS.find(k => r[k] != null && r[k] !== '' && !isNaN(Number(r[k]))); if (k) vo2 = { value: Math.round(Number(r[k]) * 10) / 10, day: d.day } }
     if (!rhr && d.resting_heart_rate != null) rhr = { value: d.resting_heart_rate, day: d.day }
-    if (vo2 && rhr) break
+    if (!rec && d.recovery_score != null) rec = { value: Math.round(d.recovery_score), day: d.day }
+    if (!hrv && d.hrv != null) hrv = { value: Math.round(d.hrv), day: d.day }
+    if (vo2 && rhr && rec && hrv) break
   }
-  return { vo2, rhr }
+  return { vo2, rhr, rec, hrv }
 }
 export function latestTest(sessions = [], name) {
   const s = [...(sessions || [])].sort((a, b) => String(b.session_date).localeCompare(String(a.session_date))).find(x => x?.test?.[name] != null && x.test[name] !== '')

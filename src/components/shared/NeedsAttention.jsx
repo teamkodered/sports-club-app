@@ -37,7 +37,7 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
     let cancelled = false
     ;(async () => {
       const today = toLocalISO(new Date()), from28 = daysAgo(28), from7 = daysAgo(7)
-      const [att, asg, hol, f2f, profiles, ts, wear] = await Promise.all([
+      const [att, asg, hol, f2f, profiles, ts, wear, daily] = await Promise.all([
         inAll('attendance', 'student_id, session_date, attendance_type', ids, q => q.gte('session_date', from28)),
         inAll('student_class_assignments', '*, classes(id, day_of_week)', ids),
         supabase.from('holidays').select('*').then(r => r.data || []),
@@ -45,10 +45,12 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
         inAll('athlete_profiles', 'student_id, pdp_notes, weight_division, weight_target_override', ids),
         supabase.from('team_settings').select('key, value').in('key', ['weight_target_pct_in_comp', 'weight_target_pct_out_comp', 'weight_target_active_mode']).then(r => r.data || []),
         inAll('wearable_connections', 'student_id, provider, last_sync_at', ids).catch(() => []),
+        inAll('wearable_daily', 'student_id, day, recovery_score, resting_heart_rate, hrv', ids, q => q.gte('day', daysAgo(14))).catch(() => []),
       ])
       if (cancelled) return
       const by = (rows, key = 'student_id') => rows.reduce((m, r) => ((m[r[key]] ||= []).push(r), m), {})
-      const attBy = by(att), asgBy = by(asg), f2fBy = by(f2f), profBy = Object.fromEntries(profiles.map(p => [p.student_id, p])), wearBy = by(wear)
+      const attBy = by(att), asgBy = by(asg), f2fBy = by(f2f), profBy = Object.fromEntries(profiles.map(p => [p.student_id, p])), wearBy = by(wear), dailyBy = by(daily)
+      const recovery = []
       const tsm = Object.fromEntries(ts.map(r => [r.key, r.value]))
       const mode = tsm.weight_target_active_mode || 'in_comp'
       const pct = mode === 'in_comp' ? (parseFloat(tsm.weight_target_pct_in_comp) || 0.025) : (parseFloat(tsm.weight_target_pct_out_comp) || 0.05)
@@ -89,13 +91,23 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
             if (current > target) weight.push({ a, note: `${current}kg · target ${target}kg (+${(current - target).toFixed(1)})`, sort: -(current - target) })
           }
         }
+        // 6. recovery low 3 days running (wearable recovery under 34%), or resting HR well above their usual
+        {
+          const days = (dailyBy[a.id] || []).filter(d => d.recovery_score != null || d.resting_heart_rate != null).sort((x, y) => String(y.day).localeCompare(String(x.day)))
+          const last3 = days.filter(d => d.recovery_score != null).slice(0, 3)
+          const usualRhr = (() => { const r = days.slice(3).map(d => d.resting_heart_rate).filter(Boolean); return r.length >= 3 ? r.reduce((n, v) => n + v, 0) / r.length : null })()
+          const rhrNow = days[0]?.resting_heart_rate
+          if (last3.length === 3 && last3.every(d => d.recovery_score < 34)) recovery.push({ a, note: `recovery ${last3.map(d => Math.round(d.recovery_score) + '%').join(' · ')}`, sort: last3[0].recovery_score })
+          else if (usualRhr && rhrNow && rhrNow >= usualRhr + 7) recovery.push({ a, note: `resting HR ${rhrNow} bpm · usual ${Math.round(usualRhr)}`, sort: -(rhrNow - usualRhr) })
+        }
         // 5. wearables not syncing (3+ days)
         for (const c of (wearBy[a.id] || [])) {
           if (!c.last_sync_at || c.last_sync_at < daysAgo(3)) { sync.push({ a, note: `${c.provider || 'Wearable'} · ${c.last_sync_at ? 'last sync ' + new Date(c.last_sync_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'never synced'}`, sort: c.last_sync_at || '' }); break }
         }
       }
       low.sort((x, y) => x.sort - y.sort); noF2f.sort((x, y) => String(x.sort).localeCompare(String(y.sort))); pdp.sort((x, y) => x.sort - y.sort); weight.sort((x, y) => x.sort - y.sort)
-      setData({ low, noF2f, pdp, weight, sync })
+      recovery.sort((x, y) => x.sort - y.sort)
+      setData({ low, noF2f, pdp, weight, sync, recovery })
     })().catch(() => !cancelled && setData({}))
     return () => { cancelled = true }
   }, [idsKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -105,6 +117,7 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
     ['noF2f', '💤 No F2F logged', 'last 7 days', '#EF9F27'],
     ['pdp', '🎯 Overdue PDP', 'to-dos past their date', '#E6B800'],
     ['weight', '⚖️ Weight off target', 'in comp', '#2F6BFF'],
+    ['recovery', '🔋 Low recovery', '3 days running / resting HR up', '#22B14C'],
     ['sync', '⌚ Wearables not syncing', '3+ days', '#C93BFF'],
   ]
   const lists = data ? { ...data, low: (data.low || []).filter(r => r.sort < lowAtt) } : null

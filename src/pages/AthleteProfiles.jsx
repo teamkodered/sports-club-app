@@ -10060,6 +10060,7 @@ export default function AthleteProfiles() {
                         return latest ? <span>{latest.test[test]} bpm <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(latest.session_date).toLocaleDateString('en-GB')}</span></span> : '—'
                       } })),
                       { label: 'Resting heart rate', render: () => { const w = wearableVitals(wearableDaily).rhr; return w ? <span>{w.value} bpm <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(w.day).toLocaleDateString('en-GB')}</span></span> : '—' } },
+                      { label: 'Recovery', render: () => { const v = wearableVitals(wearableDaily); return v.rec ? <span style={{ color: v.rec.value >= 67 ? '#1D9E75' : v.rec.value >= 34 ? '#EF9F27' : '#E24B4A' }}>{v.rec.value}%{v.hrv ? <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}> · HRV {v.hrv.value} ms</span> : null}</span> : '—' } },
                       { label: 'VO2 Max', render: () => { const t = latestTest(f2fData, 'VO2 Max') || (wearableVitals(wearableDaily).vo2 ? { value: wearableVitals(wearableDaily).vo2.value, day: wearableVitals(wearableDaily).vo2.day } : null); return t ? <span>{t.value} ml/kg/min <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(t.day).toLocaleDateString('en-GB')}</span></span> : '—' } },
                       { label: 'Groups', editable: true, render: () => isAdmin ? (
                         <div style={{ display: 'flex', gap: 3 }}>
