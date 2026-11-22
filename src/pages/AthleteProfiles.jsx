@@ -4077,7 +4077,8 @@ export default function AthleteProfiles() {
   const [f2fListAll, setF2fListAll] = useState(false)
   const [f2fListOpen, setF2fListOpen] = useState(false)
   const [mtpListOpen, setMtpListOpen] = useState(false)
-  const [mtpDisc, setMtpDisc] = useState(null)   // records list hidden until pressed (graphs stay in view)
+  const [mtpDisc, setMtpDisc] = useState(null)
+  const [mtpGroup, setMtpGroup] = useState(null)   // Mental / Technical / Physical tile pressed -> radar of just that group   // records list hidden until pressed (graphs stay in view)
   // Fit II Fight: swipe left / right on a graph to change category (the ◀ ▶ arrows are gone)
   const f2fCycleRef = useRef(null)
   const f2fTabRef = useRef(null)
@@ -13656,11 +13657,33 @@ export default function AthleteProfiles() {
                               <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>{disc} · {new Date(latest.assessed_at).toLocaleDateString('en-GB')}{prev ? ` (faint: ${new Date(prev.assessed_at).toLocaleDateString('en-GB')})` : ''}</span>
                               <b style={{ fontSize: 16 }}>{total} / {keys.length * 10}</b>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'center' }}><Radar scores={latest} compare={prev || null} width={300} /></div>
+                            {mtpGroup && CATS[mtpGroup] ? (() => {
+                              // same style radar, every question in the pressed group (0-10)
+                              const items = CATS[mtpGroup], N = items.length, W = 300, cx = W / 2, cy = W / 2, R = W * 0.34, col = MTP_GROUP_COLOURS[mtpGroup] || '#378ADD'
+                              const ang = i => Math.PI * 2 * i / N - Math.PI / 2
+                              const pt = (i, v) => [cx + Math.cos(ang(i)) * R * (Math.max(0, Math.min(10, Number(v) || 0)) / 10), cy + Math.sin(ang(i)) * R * (Math.max(0, Math.min(10, Number(v) || 0)) / 10)]
+                              const short = t => t.length > 16 ? t.split(/[\s/&]+/).slice(0, 2).join(' ') : t
+                              return (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                  <div style={{ fontSize: 12, color: col, fontWeight: 600 }}>{mtpGroup} -- every question · tap the tile again for the overall radar</div>
+                                  <svg viewBox={`-40 -10 ${W + 80} ${W + 20}`} width="100%" style={{ maxWidth: 360 }} role="img" aria-label={`${mtpGroup} MTP radar`}>
+                                    {[2, 4, 6, 8, 10].map(l => <polygon key={l} points={items.map((_, i) => pt(i, l).join(',')).join(' ')} fill="none" stroke="#2A3138" />)}
+                                    {items.map((_, i) => <line key={i} x1={cx} y1={cy} x2={pt(i, 10)[0]} y2={pt(i, 10)[1]} stroke="#2A3138" />)}
+                                    {prev && <polygon points={items.map((c, i) => pt(i, prev[c.key]).join(',')).join(' ')} fill="none" stroke="#9A9A9A" strokeDasharray="4 3" />}
+                                    <polygon points={items.map((c, i) => pt(i, latest[c.key]).join(',')).join(' ')} fill={col + '33'} stroke={col} strokeWidth="2" />
+                                    {items.map((c, i) => { const [x, y] = pt(i, latest[c.key]); return <circle key={c.key} cx={x} cy={y} r="3.5" fill={col} /> })}
+                                    {items.map((c, i) => { const x = cx + Math.cos(ang(i)) * (R + 22), y = cy + Math.sin(ang(i)) * (R + 22); return <text key={'t' + c.key} x={x} y={y} fontSize="10" fill="#C9CED6" textAnchor={Math.abs(x - cx) < 8 ? 'middle' : x > cx ? 'start' : 'end'} dominantBaseline="middle">{short(c.label)} {Number(latest[c.key]) || 0}</text> })}
+                                  </svg>
+                                </div>
+                              )
+                            })() : (
+                              <div style={{ display: 'flex', justifyContent: 'center' }}><Radar scores={latest} compare={prev || null} width={300} /></div>
+                            )}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 10 }}>
                               {Object.keys(CATS).map(g => {
                                 const avg = (CATS[g].reduce((a, c) => a + (Number(latest[c.key]) || 0), 0) / CATS[g].length).toFixed(1), col = MTP_GROUP_COLOURS[g] || '#9A9A9A'
-                                return <div key={g} style={{ background: col + '1f', borderRadius: 10, padding: '10px 6px', textAlign: 'center' }}><div style={{ fontSize: 20, fontWeight: 700, color: col }}>{avg}</div><div style={{ fontSize: 11, color: col }}>{g}</div></div>
+                                const on = mtpGroup === g
+                                return <button key={g} type="button" onClick={() => setMtpGroup(on ? null : g)} aria-pressed={on} style={{ all: 'unset', cursor: 'pointer', background: on ? col : col + '1f', borderRadius: 10, padding: '10px 6px', textAlign: 'center' }}><div style={{ fontSize: 20, fontWeight: 700, color: on ? '#fff' : col }}>{avg}</div><div style={{ fontSize: 11, color: on ? '#fff' : col }}>{g}</div></button>
                               })}
                             </div>
                           </div>
