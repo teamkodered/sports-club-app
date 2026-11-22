@@ -13,6 +13,8 @@ import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMa
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
+import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
+import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
 import { useQuestionConfig, qName, qHidden, qSort, qCustom } from '../lib/questionConfig.js'
 import { divisionsForAge } from '../lib/divisions.js'
@@ -1507,6 +1509,7 @@ export default function AthleteApp() {
   const [pendingNoteDelete, setPendingNoteDelete] = useState(null)
   const pendingNoteDeleteRef = useRef(null)
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
+  const [mtpDiscA, setMtpDiscA] = useState(null)
   const [ttpBenchmark, setTtpBenchmark] = useState(null)
   const [ttpBenchmarkKB, setTtpBenchmarkKB] = useState(null)
   // Data before 1 Aug 2026 predates the soft launch and isn't reliable
@@ -7525,7 +7528,6 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
                 {[
                   { label: 'Wearables', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
-                  { label: 'MTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
                 ].map(l => (
                   <button key={l.label} onClick={() => l.tab && setTab(l.tab)} className="neon-tile" style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
@@ -9838,6 +9840,51 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
           {/* Results entries (graphs + every logged entry) moved to the Results page (tab 'reports'). */}
           <button type="button" className="btn" onClick={() => setTab('reports')} style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }}>📊 See all results →</button>
+
+          {/* 📋 MTP (moved here from the home tiles): results radar if a form has been done, then the form buttons */}
+          {(() => {
+            const rows = [...(tptData.kickboxing || []).map(r => ({ ...r, _d: 'Kickboxing' })), ...(tptData.boxing || []).map(r => ({ ...r, _d: 'Boxing' }))].filter(r => r.assessed_at)
+              .sort((a, b) => String(a.assessed_at).localeCompare(String(b.assessed_at)))
+            const boxer = student?.discipline === 'KRBA' || student?.is_krba
+            const forms = [['/kickboxing-tpt', '🥋 Kickboxing MTP form'], ['/boxing-tpt', '🥊 Boxing MTP form']]
+            if (boxer) forms.reverse()
+            const buttons = (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                {forms.map(([href, label], i) => <a key={href} href={href} className={i === 0 ? 'btn btn-primary' : 'btn'} style={{ justifyContent: 'center', padding: 11, fontSize: 14, textDecoration: 'none' }}>📝 {label}</a>)}
+              </div>
+            )
+            if (!rows.length) return (
+              <div className="card" style={{ marginBottom: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>📋 MTP</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No MTP assessment yet -- fill one in:</p>
+                {buttons}
+              </div>
+            )
+            const disc = (mtpDiscA && rows.some(r => r._d === mtpDiscA)) ? mtpDiscA : rows[rows.length - 1]._d
+            const list = rows.filter(r => r._d === disc), latest = list[list.length - 1], prev = list[list.length - 2]
+            const CATS = disc === 'Boxing' ? BOX_MTP_CATS : KB_MTP_CATS, Radar = disc === 'Boxing' ? BoxMtpRadar : KbMtpRadar
+            const keys = Object.values(CATS).flat().map(c => c.key), total = keys.reduce((a, k) => a + (Number(latest[k]) || 0), 0)
+            return (
+              <div className="card" style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 4 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>📋 MTP results</h3>
+                  <b style={{ fontSize: 16 }}>{total} / {keys.length * 10}</b>
+                </div>
+                {rows.some(r => r._d !== disc) && (
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                    {['Kickboxing', 'Boxing'].filter(d => rows.some(r => r._d === d)).map(d => <button key={d} type="button" className={d === disc ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setMtpDiscA(d)}>{d === 'Boxing' ? '🥊' : '🥋'} {d}</button>)}
+                  </div>
+                )}
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{disc} · {new Date(latest.assessed_at).toLocaleDateString('en-GB')}{prev ? ` (faint: ${new Date(prev.assessed_at).toLocaleDateString('en-GB')})` : ''}</div>
+                <div style={{ display: 'flex', justifyContent: 'center' }}><Radar scores={latest} compare={prev || null} width={300} /></div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 8 }}>
+                  {Object.keys(CATS).map(g => { const avg = (CATS[g].reduce((a, c) => a + (Number(latest[c.key]) || 0), 0) / CATS[g].length).toFixed(1), col = MTP_GROUP_COLOURS[g] || '#9A9A9A'
+                    return <div key={g} style={{ background: col + '1f', borderRadius: 10, padding: '10px 6px', textAlign: 'center' }}><div style={{ fontSize: 20, fontWeight: 700, color: col }}>{avg}</div><div style={{ fontSize: 11, color: col }}>{g}</div></div> })}
+                </div>
+                {buttons}
+              </div>
+            )
+          })()}
         </div>
       )}
 
