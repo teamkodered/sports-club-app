@@ -107,7 +107,6 @@ function WebHeartRate({ live, onSave }) {
     <div className="card" style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <h3 style={{ fontSize: 15, fontWeight: 700 }}>❤️ Live heart rate</h3>
-        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Polar H10 · Whoop · any Bluetooth HR strap</span>
       </div>
       {!supported ? (
         <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -118,13 +117,20 @@ function WebHeartRate({ live, onSave }) {
         </div>
       ) : !connected ? (
         <>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}><b>Polar H10:</b> put the strap on (wet the sensors), then connect.</p>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 4px' }}><b>Whoop:</b> In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</p>
-          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>✓ Once connected, it reconnects and starts recording automatically each time you check in to a session.</p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-primary" onClick={() => live.connect()}>Connect strap</button>
             <button type="button" className="btn" onClick={() => live.connect(true)} title="Lists every nearby Bluetooth device">Can't see it? Show all devices</button>
           </div>
+          {/* how-to notes folded away -- press to view */}
+          <details style={{ marginTop: 10 }}>
+            <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>ℹ️ How to connect (Polar H10 · Whoop · any Bluetooth HR strap)</summary>
+            <div style={{ marginTop: 8 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}><b>Polar H10:</b> put the strap on (wet the sensors), then connect.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 4px' }}><b>Whoop:</b> In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</p>
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>✓ Once connected, it reconnects and starts recording automatically each time you check in to a session.</p>
+              {status && !connected && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '4px 0 0' }}>{status}</p>}
+            </div>
+          </details>
         </>
       ) : (
         <>
@@ -148,7 +154,7 @@ function WebHeartRate({ live, onSave }) {
           {recording && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 0' }}>Shown live to coaches and on the League board while recording. Checking out stops and saves it.</p>}
         </>
       )}
-      {status && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 0' }}>{status}</p>}
+      {status && connected && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 0' }}>{status}</p>}
     </div>
   )
 }
