@@ -5844,8 +5844,11 @@ export default function AthleteApp() {
                   <>
                     <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>❤️ Show your heart rate live this class?</h3>
                     {liveHrPrompt.whoop && <p style={{ fontSize: 12, color: '#1D9E75', margin: '0 0 6px' }}>Your Whoop account is already connected -- this is the <b>live view</b> during class (Bluetooth from your strap).</p>}
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 6px' }}>{liveHrPrompt.whoop ? <>In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</> : <>Put your strap on, then connect.</>}</p>
-          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 12px' }}>✓ Once connected, it reconnects and starts recording automatically each time you check in to a session.</p>
+                    <details style={{ margin: '0 0 12px' }}>
+                      <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>ℹ️ How to connect</summary>
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '6px 0 6px' }}>{liveHrPrompt.whoop ? <>In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</> : <>Put your strap on, then connect.</>}</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: 0 }}>✓ Once connected, it reconnects and starts recording automatically each time you check in to a session.</p>
+                    </details>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }} onClick={async () => { const p = liveHrPrompt; if (await live.connect()) { live.start({ classId: p.classId, attendanceId: p.attendanceId }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(x => x?.already ? null : x), 2500) } }}>
                         {liveHrPrompt.whoop ? 'Connect to Whoop' : 'Connect strap'}
