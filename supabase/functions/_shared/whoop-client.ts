@@ -98,7 +98,14 @@ export const whoopProvider: WearableProvider = {
       ;(row.raw_data as any).recovery = r
     }
     for (const s of sleeps) {
-      if (s.nap) continue
+      if (s.nap) {   // naps: kept as the day's nap time (added to sleep in the app)
+        const nd = dayOf(s.end || s.start); if (!nd) continue
+        const nr = dayRow(nd), st = (s.score || {}).stage_summary || {}
+        const ms = (st.total_light_sleep_time_milli || 0) + (st.total_slow_wave_sleep_time_milli || 0) + (st.total_rem_sleep_time_milli || 0)
+        const secs = ms ? Math.round(ms / 1000) : (s.start && s.end ? Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 1000) : 0)
+        ;(nr.raw_data as any).nap_seconds = ((nr.raw_data as any).nap_seconds || 0) + secs
+        continue
+      }
       const day = dayOf(s.end || s.start); if (!day) continue
       const sc = s.score || {}
       const stages = sc.stage_summary || {}

@@ -1238,7 +1238,13 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
 const OUTDOOR_STEPS_TARGET = 8000   // ⌚ steps that count as Outdoors done for the day (confirm on Home)
 const OUTDOOR_SPORTS = /run|jog|walk|hik|cycl|bik|ride|football|soccer|rugby|tennis|padel|paddle|golf|cricket|hockey|ski|surf|swim.*open|row(?!ing machine)/i
-const sleepExtras = d => { const sc = d?.raw_data?.sleep?.score || {}; const r = v => v != null ? Math.round(v) : undefined; return { performance: r(sc.sleep_performance_percentage ?? d?.sleep_score), consistency: r(sc.sleep_consistency_percentage), sleepEfficiency: r(sc.sleep_efficiency_percentage) } }
+const sleepExtras = d => {
+  const sc = d?.raw_data?.sleep?.score || {}, r = v => v != null ? Math.round(v) : undefined
+  const need = sc.sleep_needed ? Object.values(sc.sleep_needed).reduce((n, v) => n + (Number(v) || 0), 0) : 0   // Whoop's sleep need (baseline + debt + strain - naps), ms
+  const napSec = Number(d?.raw_data?.nap_seconds) || 0
+  return { performance: r(sc.sleep_performance_percentage ?? d?.sleep_score), consistency: r(sc.sleep_consistency_percentage), sleepEfficiency: r(sc.sleep_efficiency_percentage),
+    needHours: need ? +(need / 3600000).toFixed(1) : undefined, napHours: napSec ? +(napSec / 3600).toFixed(1) : undefined }
+}
 const SHOW_DWM = false   // question cards: D / W / M charge lines (off for now, kept)
 
 const PDP_SECTIONS = [
@@ -1762,7 +1768,8 @@ export default function AthleteApp() {
   const [pendingLiveHr, setPendingLiveHr] = useState(null)
   const [focusTip, setFocusTip] = useState(null)
   const [outdoorsDismissed, setOutdoorsDismissed] = useState('')
-  const [wearActsTick, setWearActsTick] = useState(0)   // re-render after confirming / skipping wearable activities   // which question's 🎯 note is showing
+  const [wearActsTick, setWearActsTick] = useState(0)
+  const [recoveryDismissed, setRecoveryDismissed] = useState('')   // re-render after confirming / skipping wearable activities   // which question's 🎯 note is showing
   const [aePage, setAePage] = useState(0) // Alter Ego workbook: one part per page
   const aeSwipe = useRef(null)
   const sectionLeague = useSectionLeague(student?.id) // place + score in each section's league (same as the League board)
@@ -5772,6 +5779,7 @@ export default function AthleteApp() {
                   const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['Anaerobic Threshold'] != null)
                   return latest ? `${latest.test['Anaerobic Threshold']} bpm` : '—'
                 })()],
+                ['Height', (() => { const t = [...(tptData.kickboxing || [])].find(r => r.height_cm)?.height_cm; const w = (wearableConnections || []).map(c => c?.body_data?.height_cm).find(Boolean); return t ? `${t} cm` : w ? `${w} cm (wearable)` : '—' })()],
                 ['Resting heart rate', (() => { const w = wearableVitals(wearableDaily).rhr; return w ? `${w.value} bpm` : '—' })()],
                 ['VO2 Max', (() => { const t = latestTest(sessions, 'VO2 Max'); return t ? `${t.value} ml/kg/min` : '—' })()],
                 ['Recovery', (() => { const v = wearableVitals(wearableDaily); return v.rec ? `${v.rec.value}%${v.hrv ? ` · HRV ${v.hrv.value} ms` : ''}` : '—' })()],
@@ -6310,6 +6318,51 @@ export default function AthleteApp() {
                           <span style={{ flex: 1 }}>⌚ <b>VO2 Max {w.vo2.value}</b> from your wearable{saved ? ` (was ${saved.value})` : ''}</span>
                           <button type="button" className="btn btn-sm btn-primary" onClick={async () => { await saveTestValue('VO2 Max', String(w.vo2.value)); awardHousePoints('f2f_question', 'VO2 Max (wearable)'); flashSaved('✓ VO2 Max saved · +1 point') }}>✓ Confirm</button>
                           <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => { setVo2Dismissed(String(w.vo2.value)); try { localStorage.setItem('kc-vo2-dismissed', String(w.vo2.value)) } catch {} }}>✕</button>
+                        </div>
+                      )
+                    })()}
+                    {/* ⌚ ❤️ 1. Class heart rate from Whoop: the workout overlapping today's class check-in becomes that class's heart rate session */}
+                    {(() => {
+                      const today = new Date().toISOString().split('T')[0]
+                      let done = []; try { done = JSON.parse(localStorage.getItem('kc-wear-class') || '[]') } catch { /* */ }
+                      const haveAtt = new Set((appHrSessions || []).map(h => h.attendance_id).filter(Boolean))
+                      const atts = (attendanceData || []).filter(a => a.session_date === today && a.class_id && a.attended_at && !haveAtt.has(a.id) && !done.includes(String(a.id)))
+                      const pairs = []
+                      for (const a of atts) {
+                        const from = new Date(a.attended_at).getTime() - 30 * 60000, to = a.checked_out_at ? new Date(a.checked_out_at).getTime() + 15 * 60000 : new Date(a.attended_at).getTime() + 150 * 60000
+                        const w = (whoopSessions || []).find(w => w.start_time && w.avg_heart_rate && new Date(w.start_time).getTime() <= to && new Date(w.end_time || w.start_time).getTime() >= from)
+                        if (w) pairs.push({ a, w })
+                      }
+                      if (!pairs.length) return null
+                      const { a, w } = pairs[0]
+                      const mins = Math.max(1, Math.round(((w.duration_seconds) || ((new Date(w.end_time) - new Date(w.start_time)) / 1000) || 0) / 60))
+                      const markClass = id => { try { localStorage.setItem('kc-wear-class', JSON.stringify([...done, String(id)].slice(-200))) } catch { /* */ } setWearActsTick(t => t + 1) }
+                      const use = async () => {
+                        const z = w.zone_durations || {}, zk = ['zone_one_milli', 'zone_two_milli', 'zone_three_milli', 'zone_four_milli', 'zone_five_milli']
+                        const zones = Object.fromEntries(zk.map((k, i) => [`z${i + 1}`, Math.round((z[k] || 0) / 60000)]).filter(([, v]) => v > 0))
+                        await supabase.from('hr_sessions').insert({ student_id: student.id, session_date: today, class_id: a.class_id, attendance_id: a.id, minutes: mins,
+                          avg_hr: w.avg_heart_rate, max_hr: w.max_heart_rate, avg_pct: Math.round(w.avg_heart_rate * 100 / liveMaxHr), max_pct: w.max_heart_rate ? Math.round(w.max_heart_rate * 100 / liveMaxHr) : null, zones, device: 'Whoop' })
+                        markClass(a.id); loadAppHrSessions(); flashSaved('✓ Class heart rate saved from Whoop')
+                      }
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', margin: '0 0 10px', borderRadius: 10, border: '1px solid #E24B4A66', background: '#E24B4A1a', fontSize: 13 }}>
+                          <span style={{ flex: 1 }}>⌚ ❤️ <b>Class heart rate</b> from your {w.sport_name || 'workout'}: {mins} min · avg {w.avg_heart_rate}{w.max_heart_rate ? ` · max ${w.max_heart_rate}` : ''} bpm</span>
+                          <button type="button" className="btn btn-sm btn-primary" onClick={use}>✓ Use</button>
+                          <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => markClass(a.id)}>✕</button>
+                        </div>
+                      )
+                    })()}
+                    {/* ⌚ 🔋 3. Low recovery -> suggest an Active recovery day */}
+                    {(() => {
+                      const today = new Date().toISOString().split('T')[0]
+                      const d = (wearableDaily || []).find(x => x.day === today && x.recovery_score != null)
+                      const logged = (todaysMentalityLog?.activeRecovery?.entries || []).length > 0
+                      if (!d || d.recovery_score >= 34 || logged || recoveryDismissed === today) return null
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', margin: '0 0 10px', borderRadius: 10, border: '1px solid #22B14C66', background: '#22B14C1a', fontSize: 13 }}>
+                          <span style={{ flex: 1 }}>🔋 Recovery <b>{Math.round(d.recovery_score)}%</b> today -- log an <b>Active recovery day</b>?</span>
+                          <button type="button" className="btn btn-sm btn-primary" onClick={async () => { await saveMentalityField('activeRecovery', m => ({ ...m, entries: [...(m.entries || []), { quickLogged: true, source: 'recovery', recovery: Math.round(d.recovery_score) }] })); flashSaved('✓ Active recovery day logged') }}>✓ Yes</button>
+                          <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => setRecoveryDismissed(today)}>✕</button>
                         </div>
                       )
                     })()}
@@ -7367,8 +7420,10 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             ) : todaysWellbeing.sleep?.source && (
                               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>⌚ Filled automatically from {providerLabel(todaysWellbeing.sleep.source)} — you can still change it.</p>
                             )}
-                            {(todaysWellbeing.sleep?.performance != null || todaysWellbeing.sleep?.consistency != null) && (
+                            {(todaysWellbeing.sleep?.performance != null || todaysWellbeing.sleep?.consistency != null || todaysWellbeing.sleep?.needHours || todaysWellbeing.sleep?.napHours) && (
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '6px 0 2px' }}>
+                                {todaysWellbeing.sleep.needHours ? <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 10, background: '#C93BFF1f', color: '#F2F2F2' }}>🎯 Need <b>{todaysWellbeing.sleep.needHours}h</b>{todaysWellbeing.sleep.hours ? (Number(todaysWellbeing.sleep.hours) + (todaysWellbeing.sleep.napHours || 0) >= todaysWellbeing.sleep.needHours ? ' ✓' : ` · ${(todaysWellbeing.sleep.needHours - Number(todaysWellbeing.sleep.hours) - (todaysWellbeing.sleep.napHours || 0)).toFixed(1)}h short`) : ''}</span> : null}
+                                {todaysWellbeing.sleep.napHours ? <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 10, background: '#C93BFF1f', color: '#F2F2F2' }}>😴 + <b>{todaysWellbeing.sleep.napHours}h</b> nap</span> : null}
                                 {[['Performance', todaysWellbeing.sleep.performance], ['Consistency', todaysWellbeing.sleep.consistency], ['Efficiency', todaysWellbeing.sleep.sleepEfficiency]].filter(([, v]) => v != null).map(([l, v]) => (
                                   <span key={l} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 10, background: '#C93BFF1f', color: v >= 85 ? '#1D9E75' : v >= 70 ? '#EF9F27' : '#E24B4A' }}>{l} <b>{v}%</b></span>
                                 ))}
