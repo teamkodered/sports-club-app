@@ -7,6 +7,7 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
 import { wearableVitals, latestTest } from '../lib/vitals.js'
@@ -241,6 +242,7 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
       onContextMenu={e => e.preventDefault()}
       onClick={() => {
         if (heldRef.current) { heldRef.current = false; return }
+        rememberStat(label, value, hasPct ? pctValue : null)
         onNavigate()
       }}
       title={title || (hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view')}
@@ -248,7 +250,7 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
       <StatOutline pct={hasPct ? (parseFloat(String(pctValue)) || 0) : 0} />
       {iconImg ? <img src={iconImg} alt="" style={{ height: 26, width: 'auto', marginBottom: 4, objectFit: 'contain', position: 'relative' }} /> : <div style={{ fontSize: 22, marginBottom: 4, position: 'relative' }}>{icon}</div>}
       <div className="neon-stat-value" style={{ fontSize: 22, fontWeight: 700, color: colour, position: 'relative' }}>
-        {hasPct && showPct ? pctValue : value}
+        {hasPct ? pctValue : value}
       </div>
       <div className="neon-stat-label" style={{ fontSize: 10, color: 'var(--text-secondary)', position: 'relative' }}>{label}</div>
     </button>
@@ -12833,6 +12835,7 @@ export default function AthleteProfiles() {
                 const heldRef = useRef(false)
                 if (!data.length) return (
                   <div style={{ marginBottom: 16 }}>
+                <StatHeader label="Results" icon="/logos/neon/results.svg" />
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{title}</div>
                     <div style={{
                       height, borderRadius: 'var(--radius)', border: '1px dashed var(--border-strong)',

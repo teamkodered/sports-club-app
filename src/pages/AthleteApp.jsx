@@ -12,6 +12,7 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
 import { wearableVitals, latestTest } from '../lib/vitals.js'
@@ -1062,6 +1063,7 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
       onContextMenu={e => e.preventDefault()}
       onClick={() => {
         if (heldRef.current) { heldRef.current = false; return }
+        rememberStat(label, value, hasPct ? pctValue : null)
         onNavigate()
       }}
       title={title || (hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view')}
@@ -1069,7 +1071,7 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
       <StatOutline pct={hasPct ? (parseFloat(String(pctValue)) || 0) : 0} />
       {iconImg ? <img src={iconImg} alt="" style={{ height: 26, width: 'auto', marginBottom: 4, objectFit: 'contain', position: 'relative' }} /> : <div style={{ fontSize: 22, marginBottom: 4, position: 'relative' }}>{icon}</div>}
       <div className="neon-stat-value" style={{ fontSize: 22, fontWeight: 700, color: colour, position: 'relative' }}>
-        {hasPct && showPct ? pctValue : value}
+        {hasPct ? pctValue : value}
       </div>
       <div className="neon-stat-label" style={{ fontSize: 10, color: 'var(--text-secondary)', position: 'relative' }}>{label}</div>
     </button>
@@ -7771,7 +7773,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
       {/* ── Sessions ── */}
       {tab === 'sessions' && student && (() => {
-        const backButton = <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+        const backButton = <><button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button><StatHeader label="Sessions" icon="/logos/neon/sessions.png" /></>
         const { year, month } = sessionsCalMonth
         const firstDay = new Date(year, month, 1)
         const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -8440,6 +8442,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {tab === 'pdp' && (
         <div>
           <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+          <StatHeader label="PDP" icon="/logos/neon/pdp.png" />
           {!student ? <p style={{ color: 'var(--text-secondary)' }}>No student record linked.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* 🏆 Winning ways / 🥋 Techniques / ⚠️ Losing ways -- what the coach has sent, plus the athlete's
@@ -9674,6 +9677,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {tab === 'fit2fight' && (
         <div>
           <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+          <StatHeader label="Results" icon="/logos/neon/results.svg" />
           <div style={{ marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{sessions.length} sessions</p>
           </div>
