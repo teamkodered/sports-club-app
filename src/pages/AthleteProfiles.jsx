@@ -7,6 +7,7 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
 import { wearableVitals, latestTest } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
@@ -10989,6 +10990,7 @@ export default function AthleteProfiles() {
                         {style} Techniques
                         <CoachQuestionProgressBadge sectionKey="technique" questionLabel={style} />
                       </div>
+                      {!expandedTechniqueCategory && <SwipeHint />}
                       <div className={expandedTechniqueCategory ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                         {Object.keys(categories).filter(cat => !qHidden(qcfg, 'technique', cat)).sort(qSort(qcfg, 'technique', c => c)).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                           const catKey = `${style}::${cat}`
@@ -11058,6 +11060,7 @@ export default function AthleteProfiles() {
                     {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
                     {AddedQuestions({ sec: 'tactical' })}
                     {expandedTacticalCategory === '__videoAnalysis__' && InlineResults({ view: { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#E24B4A' } })}
+                  {!expandedTacticalCategory && <SwipeHint />}
                   <div className={expandedTacticalCategory ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !qHidden(qcfg, 'tactical', cat === '__videoAnalysis__' ? 'Video analysis' : cat)).sort(qSort(qcfg, 'tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
@@ -11148,6 +11151,7 @@ export default function AthleteProfiles() {
                     {PillarPdpList({ pillar: 'mentality', pillarLabel: 'Mentality' })}
                     {FocusPicker({ sec: 'mentality', colour: '#22B14C', options: MENTALITY_QUESTIONS.map(q => q.label) })}
                     {AddedQuestions({ sec: 'mentality' })}
+                  {!expandedHomeMentality && <SwipeHint />}
                   <div className={expandedHomeMentality ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                     {MENTALITY_QUESTIONS.filter(q => !qHidden(qcfg, 'mentality', q.label)).sort(qSort(qcfg, 'mentality', q => q.label)).filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
@@ -11460,6 +11464,7 @@ export default function AthleteProfiles() {
                   {FocusPicker({ sec: 'wellbeing', colour: '#C93BFF', options: WELLBEING_QUESTIONS.map(q => q.label) })}
                   {AddedQuestions({ sec: 'wellbeing' })}
                   {/* 📊 results card for the open question (same as Physical) */}{expandedHomeWb && InlineResults({ view: { sectionKey: 'wellbeing', q: expandedHomeWb, label: (WELLBEING_QUESTIONS.find(x => x.key === expandedHomeWb) || {}).label || 'Foundation', colour: '#1D9E75' } })}
+                  {!expandedHomeWb && <SwipeHint />}
                   <div className={expandedHomeWb ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                     {WELLBEING_QUESTIONS.filter(q => !qHidden(qcfg, 'wellbeing', q.label)).sort(qSort(qcfg, 'wellbeing', q => q.label)).filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
