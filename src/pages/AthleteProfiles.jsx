@@ -13662,17 +13662,29 @@ export default function AthleteProfiles() {
                               const items = CATS[mtpGroup], N = items.length, W = 300, cx = W / 2, cy = W / 2, R = W * 0.34, col = MTP_GROUP_COLOURS[mtpGroup] || '#378ADD'
                               const ang = i => Math.PI * 2 * i / N - Math.PI / 2
                               const pt = (i, v) => [cx + Math.cos(ang(i)) * R * (Math.max(0, Math.min(10, Number(v) || 0)) / 10), cy + Math.sin(ang(i)) * R * (Math.max(0, Math.min(10, Number(v) || 0)) / 10)]
-                              const short = t => t.length > 16 ? t.split(/[\s/&]+/).slice(0, 2).join(' ') : t
+                              // label wrapped onto short lines (one above the other), score on its own line underneath
+                              const wrap = t => { const out = []; let cur = ''; for (const w of t.replace(/\s*[/&]\s*/g, ' ').split(/\s+/)) { if ((cur + ' ' + w).trim().length > 12 && cur) { out.push(cur); cur = w } else cur = (cur + ' ' + w).trim() } if (cur) out.push(cur); return out.slice(0, 3) }
                               return (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                                   <div style={{ fontSize: 12, color: col, fontWeight: 600 }}>{mtpGroup} -- every question · tap the tile again for the overall radar</div>
-                                  <svg viewBox={`-40 -10 ${W + 80} ${W + 20}`} width="100%" style={{ maxWidth: 360 }} role="img" aria-label={`${mtpGroup} MTP radar`}>
+                                  <svg viewBox={`-60 -30 ${W + 120} ${W + 60}`} width="100%" style={{ maxWidth: 380 }} role="img" aria-label={`${mtpGroup} MTP radar`}>
                                     {[2, 4, 6, 8, 10].map(l => <polygon key={l} points={items.map((_, i) => pt(i, l).join(',')).join(' ')} fill="none" stroke="#2A3138" />)}
                                     {items.map((_, i) => <line key={i} x1={cx} y1={cy} x2={pt(i, 10)[0]} y2={pt(i, 10)[1]} stroke="#2A3138" />)}
                                     {prev && <polygon points={items.map((c, i) => pt(i, prev[c.key]).join(',')).join(' ')} fill="none" stroke="#9A9A9A" strokeDasharray="4 3" />}
                                     <polygon points={items.map((c, i) => pt(i, latest[c.key]).join(',')).join(' ')} fill={col + '33'} stroke={col} strokeWidth="2" />
                                     {items.map((c, i) => { const [x, y] = pt(i, latest[c.key]); return <circle key={c.key} cx={x} cy={y} r="3.5" fill={col} /> })}
-                                    {items.map((c, i) => { const x = cx + Math.cos(ang(i)) * (R + 22), y = cy + Math.sin(ang(i)) * (R + 22); return <text key={'t' + c.key} x={x} y={y} fontSize="10" fill="#C9CED6" textAnchor={Math.abs(x - cx) < 8 ? 'middle' : x > cx ? 'start' : 'end'} dominantBaseline="middle">{short(c.label)} {Number(latest[c.key]) || 0}</text> })}
+                                    {items.map((c, i) => {
+                                      const x = cx + Math.cos(ang(i)) * (R + 16), y = cy + Math.sin(ang(i)) * (R + 16)
+                                      const lines = wrap(c.label), n = lines.length + 1, lh = 11
+                                      const top = Math.sin(ang(i)) < -0.5 ? y - (n - 1) * lh : Math.sin(ang(i)) > 0.5 ? y + lh * 0.3 : y - (n - 1) * lh / 2
+                                      const anchor = Math.abs(x - cx) < 8 ? 'middle' : x > cx ? 'start' : 'end'
+                                      return (
+                                        <text key={'t' + c.key} x={x} y={top} fontSize="10" fill="#C9CED6" textAnchor={anchor}>
+                                          {lines.map((l, j) => <tspan key={j} x={x} dy={j ? lh : 0}>{l}</tspan>)}
+                                          <tspan x={x} dy={lh} fill={col} fontWeight="700">{Number(latest[c.key]) || 0}</tspan>
+                                        </text>
+                                      )
+                                    })}
                                   </svg>
                                 </div>
                               )
