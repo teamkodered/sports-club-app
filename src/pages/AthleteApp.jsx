@@ -1750,6 +1750,7 @@ export default function AthleteApp() {
   const live = useLiveHeartRate({ studentId: student?.id, maxHr: liveMaxHr })
   live.findClassNow = () => classNow()
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
+  const [pendingLiveHr, setPendingLiveHr] = useState(null)
   const [aePage, setAePage] = useState(0) // Alter Ego workbook: one part per page
   const aeSwipe = useRef(null)
   const sectionLeague = useSectionLeague(student?.id) // place + score in each section's league (same as the League board)
@@ -4915,11 +4916,16 @@ export default function AthleteApp() {
       return
     }
     if (!live.supported) return
-    let used = false; try { used = !!localStorage.getItem('kc_hr_strap') } catch { /* ignore */ }
-    if (!used && !(wearableConnections || []).length) return
+    // only ask when it makes sense: a Whoop / Polar is connected and this is a scheduled class
+    const hasStrapWearable = (wearableConnections || []).some(c => c.provider === 'whoop' || c.provider === 'polar')
+    if (!live.connected && (!hasStrapWearable || !att?.class_id)) return
     if (live.connected) { live.start({ classId: att?.class_id || null, attendanceId: att?.id || null }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(p => p?.already ? null : p), 2500) }
-    else setLiveHrPrompt({ classId: att?.class_id || null, attendanceId: att?.id || null, whoop: (wearableConnections || []).some(c => c.provider === 'whoop') })
+    else setPendingLiveHr({ classId: att?.class_id || null, attendanceId: att?.id || null, whoop: (wearableConnections || []).some(c => c.provider === 'whoop') })
   }
+  // the live heart rate question waits until the weigh-in after check in has been saved or skipped
+  useEffect(() => {
+    if (pendingLiveHr && !showWeightCheckPrompt) { setLiveHrPrompt(pendingLiveHr); setPendingLiveHr(null) }
+  }, [pendingLiveHr, showWeightCheckPrompt])
 
   // athlete adds / removes their OWN winning ways, techniques or losing ways (saved in their PDP notes,
   // remembered as theirs so the coach sees 👤 and the athlete can't change the coach's ones)
@@ -5836,7 +5842,8 @@ export default function AthleteApp() {
                   <div style={{ textAlign: 'center' }}><div style={{ fontSize: 30 }}>❤️</div><b>{live.device?.name || 'Heart rate'} live broadcast on</b><p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>Recording this class -- checking out saves it.</p></div>
                 ) : (
                   <>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>❤️ Record your heart rate this class?</h3>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>❤️ Show your heart rate live this class?</h3>
+                    {liveHrPrompt.whoop && <p style={{ fontSize: 12, color: '#1D9E75', margin: '0 0 6px' }}>Your Whoop account is already connected -- this is the <b>live view</b> during class (Bluetooth from your strap).</p>}
                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 6px' }}>{liveHrPrompt.whoop ? <>In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</> : <>Put your strap on, then connect.</>}</p>
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 12px' }}>✓ Once connected, it reconnects and starts recording automatically each time you check in to a session.</p>
                     <div style={{ display: 'flex', gap: 8 }}>
