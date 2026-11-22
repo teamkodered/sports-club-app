@@ -35,10 +35,16 @@ export default function MySessionFootage({ days = 45, viewerName = null }) {
       {open && sessions.map(s => (
         <div key={s.k} style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{fmtDay(s.date)} · {s.label}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {/* big, easy-to-tap clip buttons: two per row, camera above the time */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
             {s.clips.map(c => (
-              <button key={c.clip_id} type="button" className="btn btn-sm" disabled={opening === c.clip_id} onClick={() => play(c, s)}>
-                ▶ {camLabel(c.camera_name)} · {wall(c.recorded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              <button key={c.clip_id} type="button" className="btn" disabled={opening === c.clip_id} onClick={() => play(c, s)}
+                style={{ minHeight: 56, padding: '10px 12px', justifyContent: 'flex-start', gap: 10, fontSize: 15, textAlign: 'left' }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>{opening === c.clip_id ? '⏳' : '▶️'}</span>
+                <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                  <b>{camLabel(c.camera_name)}</b>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{wall(c.recorded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                </span>
               </button>
             ))}
           </div>
