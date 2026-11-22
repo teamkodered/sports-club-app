@@ -8149,12 +8149,6 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     <button onClick={() => setCheckInDrawerOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-tertiary)' }}>×</button>
                   </div>
 
-                  {/* 🧹 Sweep the sheds (moved here from the home tiles) */}
-                  <button type="button" className="btn" onClick={() => { setCheckInDrawerOpen(false); setTab('sweep') }}
-                    style={{ width: '100%', justifyContent: 'center', gap: 8, padding: 11, fontSize: 14, marginBottom: 14, borderColor: '#C0C4CC', color: '#C0C4CC' }}>
-                    <NeonTileIcon name="Sweep the sheds" /> Sweep the sheds
-                  </button>
-
                   {checkedInMsg && (
                     <div style={{ textAlign: 'center', padding: 10, marginBottom: 14, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 13, borderRadius: 'var(--radius)' }}>
                       {checkedInMsg}
@@ -8236,6 +8230,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                   </div>
 
                   {/* VO2 Max now comes from the wearable (confirm on Home, +1 point) */}
+                  {/* 🧹 Sweep the sheds -- under the weigh-ins */}
+                  <button type="button" className="btn" onClick={() => { setCheckInDrawerOpen(false); setTab('sweep') }}
+                    style={{ width: '100%', justifyContent: 'center', gap: 8, padding: 11, fontSize: 14, marginTop: 16, borderColor: '#C0C4CC', color: '#C0C4CC' }}>
+                    <NeonTileIcon name="Sweep the sheds" /> Sweep the sheds
+                  </button>
                 </div>
               </div>
             )}
