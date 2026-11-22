@@ -112,6 +112,7 @@ function zoneSeconds(z) {
 
 export function WorkoutCard({ s, maxHr = 190, providerColour, providerName }) {
   const [open, setOpen] = useState(false)
+  const [shown, setShown] = useState(false)   // card starts minimised: sport, date and strain -- press to view
   const avgPct = s.avg_heart_rate ? Math.round(s.avg_heart_rate * 100 / maxHr) : null
   const maxPct = s.max_heart_rate ? Math.round(s.max_heart_rate * 100 / maxHr) : null
   const zones = zoneSeconds(s.zone_durations)
@@ -122,13 +123,16 @@ export function WorkoutCard({ s, maxHr = 190, providerColour, providerName }) {
   const mmss = sec => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`
   return (
     <div className="card wear-card">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div role="button" tabIndex={0} aria-expanded={shown} title={shown ? 'Tap to minimise' : 'Tap to view'} onClick={() => setShown(v => !v)} onKeyDown={e => { if (e.key === 'Enter') setShown(v => !v) }}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: shown ? 10 : 0, cursor: 'pointer' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{s.sport_name || 'Workout'} {providerName && <span style={{ fontSize: 10, fontWeight: 400, color: providerColour || 'var(--text-tertiary)' }}>· {providerName}</span>}</div>
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : s.session_date || ''}{s.start_time && s.end_time ? ` · ${t(s.start_time)} to ${t(s.end_time)}` : ''}{mins ? ` · ${mins} min` : ''}</div>
         </div>
         {s.strain != null && <div style={{ textAlign: 'right' }}><div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 24, fontWeight: 800, color: '#378ADD', lineHeight: 1 }}>{Number(s.strain).toFixed(1)}</div><div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>strain</div></div>}
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{shown ? '▲' : '▼'}</span>
       </div>
+      {shown && <>
       {(avgPct || maxPct) && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
           {[['Avg heart rate', s.avg_heart_rate, avgPct, '#EF9F27'], ['Max heart rate', s.max_heart_rate, maxPct, '#E24B4A']].map(([l, v, p, c]) => (
@@ -167,6 +171,7 @@ export function WorkoutCard({ s, maxHr = 190, providerColour, providerName }) {
           ))}
         </div>
       )}
+      </>}
     </div>
   )
 }
