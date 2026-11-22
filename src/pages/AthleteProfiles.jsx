@@ -7,6 +7,7 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import BodyHome from '../components/shared/BodyHome.jsx'
 import { wearableVitals, latestTest } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
 import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
@@ -10546,7 +10547,7 @@ export default function AthleteProfiles() {
                       })
                       const f2fTargetTotal = Object.values(byQuestion).reduce((sum, t) => sum + (parseNum(t.target_value) || 0), 0)
                       return (
-                        <TopStatCard onNavigate={() => setTab('fit2fight')} iconImg="/logos/f2f-logo-red.png"
+                        <TopStatCard onNavigate={() => setTab('fit2fight')} iconImg="/logos/neon/results.svg"
                           value={f2fTargetTotal > 0 ? `${f2fCount}/${f2fTargetTotal}` : f2fCount}
                           pctValue={f2fTargetTotal > 0 ? `${Math.round((f2fCount / f2fTargetTotal) * 100)}%` : f2fCount}
                           hasPct={f2fTargetTotal > 0} label="Results" colour="#378ADD" />
@@ -10558,6 +10559,10 @@ export default function AthleteProfiles() {
                         sum + (isToDoSectionKey(s.key) ? (apData?.pdp_notes?.[s.key] || []).length : (apData?.pdp_shared?.[s.key] || []).length), 0)} />
                   </div>
 
+                  {/* New layout (same as the athlete app): boxer figure + square section buttons; each section opens
+                      exactly as before -- every question, entry, PDP list, result and focus picker unchanged */}
+                  <BodyHome key={selected?.id} sessions={f2fData} gender={selected?.gender}
+                    openKey={showTechniqueSection ? 'technique' : showMentalitySection ? 'mentality' : showTacticalSection ? 'tactical' : showWellbeingSection ? 'wellbeing' : showPhysicalSection ? 'physical' : null} />
                   <div ref={quadRef} className={`neon-pillar-quad${(showPhysicalSection || showTechniqueSection || showTacticalSection || showMentalitySection) ? ' has-open' : ''}${showMentalitySection ? ' z-tl' : showTacticalSection ? ' z-tr' : showTechniqueSection ? ' z-bl' : showPhysicalSection ? ' z-br' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                   <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
                   <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={e => { if (pillarGuard('physical')) return; togglePhysicalSection(e) }} style={showPhysicalSection ? {
