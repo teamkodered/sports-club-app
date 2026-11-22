@@ -3197,6 +3197,7 @@ export default function AthleteProfiles() {
   const [showWeightOverridePopup, setShowWeightOverridePopup] = useState(false)
   const [whoopConnection, setWhoopConnection] = useState(null)
   const [wearableDaily, setWearableDaily] = useState([])
+  const [sessionsShown, setSessionsShown] = useState(false)   // Wearables: session cards hidden until pressed
   const [whoopSessions, setWhoopSessions] = useState([])
   const [showAllWeightsGraph, setShowAllWeightsGraph] = useState(false)
   const [weightRange, setWeightRange] = useState('all')   // weight graph range (All keeps the full history)
@@ -13963,7 +13964,9 @@ export default function AthleteProfiles() {
                       <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {[...whoopSessions, ...appHrSessions].sort((a, b) => String(b.start_time || '').localeCompare(String(a.start_time || ''))).map(s => <WorkoutCard key={s.id} s={s} maxHr={(() => { const d = selected?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); return Math.max(150, 220 - (n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0))) })()} />)}
+                        {/* all sessions hidden until 'Session results' is pressed */}
+                        <button type="button" className="btn" style={{ justifyContent: 'center', padding: 11 }} onClick={() => setSessionsShown(v => !v)} aria-expanded={sessionsShown}>{sessionsShown ? '▲ Hide session results' : `▼ Session results (${whoopSessions.length + appHrSessions.length})`}</button>
+                        {sessionsShown && [...whoopSessions, ...appHrSessions].sort((a, b) => String(b.start_time || '').localeCompare(String(a.start_time || ''))).map(s => <WorkoutCard key={s.id} s={s} maxHr={(() => { const d = selected?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); return Math.max(150, 220 - (n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0))) })()} />)}
                       </div>
                     )}
                   </>

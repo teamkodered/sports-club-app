@@ -1544,6 +1544,7 @@ export default function AthleteApp() {
   const [wearableConnections, setWearableConnections] = useState([]) // all providers, from the shared wearable backend
   const [whoopSessions, setWhoopSessions] = useState([]) // workouts from any provider
   const [wearableDaily, setWearableDaily] = useState([])  // steps / sleep / recovery per day
+  const [sessionsShown, setSessionsShown] = useState(false)   // Wearables: session cards hidden until pressed
   const [vo2Dismissed, setVo2Dismissed] = useState(() => { try { return localStorage.getItem('kc-vo2-dismissed') || '' } catch { return '' } })
   const [wearableSetup, setWearableSetup] = useState(null) // { provider, code } -- set-up guide open for a phone health app
   const [hcBusy, setHcBusy] = useState(false) // Health Connect connect/sync in progress
@@ -9000,7 +9001,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[...whoopSessions, ...appHrSessions].sort((a, b) => String(b.start_time || '').localeCompare(String(a.start_time || ''))).map(s => <WorkoutCard key={s.id} s={s} maxHr={liveMaxHr} providerName={PROVIDERS?.[s.provider]?.label} providerColour={PROVIDERS?.[s.provider]?.colour} />)}
+                  {/* all sessions hidden until 'Session results' is pressed */}
+                  <button type="button" className="btn" style={{ justifyContent: 'center', padding: 11 }} onClick={() => setSessionsShown(v => !v)} aria-expanded={sessionsShown}>{sessionsShown ? '▲ Hide session results' : `▼ Session results (${whoopSessions.length + appHrSessions.length})`}</button>
+                  {sessionsShown && [...whoopSessions, ...appHrSessions].sort((a, b) => String(b.start_time || '').localeCompare(String(a.start_time || ''))).map(s => <WorkoutCard key={s.id} s={s} maxHr={liveMaxHr} providerName={PROVIDERS?.[s.provider]?.label} providerColour={PROVIDERS?.[s.provider]?.colour} />)}
                 </div>
               )}
             </>
