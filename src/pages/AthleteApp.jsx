@@ -9632,7 +9632,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
               { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
               { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
-              ...(student.discipline === 'KRBA' || student.is_kr ? [{ label: 'MTP', value: ttpPct, colour: '#E24B4A' }] : []),
+              { label: 'MTP', value: ttpPct, colour: '#E24B4A' },   // always shown -- 'No data' until a form is done; tap it to complete one
             ]
 
             // Breakdown data for each axis, shown when that axis is clicked.

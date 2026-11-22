@@ -4073,7 +4073,8 @@ export default function AthleteProfiles() {
     if (!next.length) setResultDetail(null)
   }
   const [f2fListAll, setF2fListAll] = useState(false)
-  const [f2fListOpen, setF2fListOpen] = useState(false)   // records list hidden until pressed (graphs stay in view)
+  const [f2fListOpen, setF2fListOpen] = useState(false)
+  const [mtpListOpen, setMtpListOpen] = useState(false)   // records list hidden until pressed (graphs stay in view)
   // Fit II Fight: swipe left / right on a graph to change category (the ◀ ▶ arrows are gone)
   const f2fCycleRef = useRef(null)
   const f2fTabRef = useRef(null)
@@ -6843,10 +6844,10 @@ export default function AthleteProfiles() {
       })
     // Load MTP data -- latest 2, to show side by side for comparison
     supabase.from('tpt_kickboxing').select('*').eq('student_id', s.id)
-      .order('assessed_at', { ascending: false }).limit(2)
+      .order('assessed_at', { ascending: false }).limit(50)
       .then(({ data }) => { if (selectingIdRef.current === s.id) setTptData(prev => ({ ...prev, kickboxing: data || [] })) })
     supabase.from('tpt_boxing').select('*').eq('student_id', s.id)
-      .order('assessed_at', { ascending: false }).limit(2)
+      .order('assessed_at', { ascending: false }).limit(50)
       .then(({ data }) => { if (selectingIdRef.current === s.id) setTptData(prev => ({ ...prev, boxing: data || [] })) })
     // Load attendance history + coach points for the Sessions tab
     supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note, class_id')
@@ -12991,7 +12992,7 @@ export default function AthleteProfiles() {
                     { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
                     { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
                     { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
-                    ...(selected.discipline === 'KRBA' || selected.is_kr ? [{ label: 'MTP', value: ttpPct, colour: '#E24B4A' }] : []),
+                    { label: 'MTP', value: ttpPct, colour: '#E24B4A' },   // always shown -- 'No data' until a form is done; tap it to complete one
                   ]
 
                   // Breakdown data for each axis, shown when that axis is clicked.
@@ -13612,6 +13613,50 @@ export default function AthleteProfiles() {
                     {f2fListOpen && resultsListFiltered.length > 5 && <button type="button" className="btn" style={{ justifyContent: 'center' }} onClick={() => setF2fListAll(v => !v)}>{f2fListAll ? '▲ Show less' : `▼ View all (${resultsListFiltered.length})`}</button>}
                   </div>
                 )}
+
+                {/* 📋 MTP over time (graph) + its records (hidden, press to view) */}
+                {(() => {
+                  const scoreOf = r => { const v = Object.entries(r || {}).filter(([k, x]) => typeof x === 'number' && x >= 0 && x <= 10 && !/weight|age|height|_id$|^id$/i.test(k)).map(([, x]) => x); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / (v.length * 10) * 100) : null }
+                  const rows = [...(tptData.kickboxing || []).map(r => ({ ...r, _d: 'Kickboxing', _c: '#E6B800' })), ...(tptData.boxing || []).map(r => ({ ...r, _d: 'Boxing', _c: '#E24B4A' }))]
+                    .map(r => ({ ...r, _pct: scoreOf(r) })).filter(r => r.assessed_at).sort((a, b) => String(a.assessed_at).localeCompare(String(b.assessed_at)))
+                  const form = `/${selected.is_kr ? 'kickboxing' : 'boxing'}-tpt?student_id=${selected.id}`
+                  const W = 300, H = 120, pts = rows.filter(r => r._pct != null)
+                  const t0 = pts.length ? new Date(pts[0].assessed_at).getTime() : 0, t1 = pts.length ? new Date(pts[pts.length - 1].assessed_at).getTime() : 1
+                  const x = r => pts.length < 2 ? W / 2 : 20 + (new Date(r.assessed_at).getTime() - t0) / Math.max(1, t1 - t0) * (W - 40)
+                  const y = r => H - 14 - (r._pct / 100) * (H - 28)
+                  return (
+                    <div className="card" style={{ marginTop: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                        <h3 style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>📋 MTP over time</h3>
+                        <a href={form} className="btn btn-sm">+ MTP form</a>
+                      </div>
+                      {pts.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '14px 0' }}>
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No MTP assessments yet.</p>
+                          <a href={form} className="btn btn-sm btn-primary">📋 Complete MTP form</a>
+                        </div>
+                      ) : (
+                        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label="MTP score over time">
+                          {[0, 50, 100].map(v => <g key={v}><line x1="16" x2={W - 8} y1={H - 14 - v / 100 * (H - 28)} y2={H - 14 - v / 100 * (H - 28)} stroke="#2A3138" /><text x="0" y={H - 11 - v / 100 * (H - 28)} fontSize="8" fill="#9A9A9A">{v}%</text></g>)}
+                          {['Kickboxing', 'Boxing'].map(d => { const l = pts.filter(r => r._d === d); return l.length > 1 ? <polyline key={d} fill="none" stroke={l[0]._c} strokeWidth="2" points={l.map(r => `${x(r)},${y(r)}`).join(' ')} /> : null })}
+                          {pts.map(r => <circle key={r.id || r.assessed_at} cx={x(r)} cy={y(r)} r="3.5" fill={r._c}><title>{`${r._d} ${new Date(r.assessed_at).toLocaleDateString('en-GB')}: ${r._pct}%`}</title></circle>)}
+                        </svg>
+                      )}
+                      {rows.length > 0 && (
+                        <>
+                          <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={() => setMtpListOpen(v => !v)}>{mtpListOpen ? '▲ Hide MTP records' : `▼ View MTP records (${rows.length})`}</button>
+                          {mtpListOpen && [...rows].reverse().map(r => (
+                            <div key={(r.id || r.assessed_at) + r._d} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginTop: 6, borderRadius: 8, background: 'var(--bg-secondary)', borderLeft: `3px solid ${r._c}`, fontSize: 13 }}>
+                              <span style={{ flex: 1 }}>{new Date(r.assessed_at).toLocaleDateString('en-GB')} · {r._d}</span>
+                              {r.weight_kg != null && <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{r.weight_kg}kg</span>}
+                              <b style={{ color: r._c }}>{r._pct != null ? `${r._pct}%` : '--'}</b>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {/* Add/edit session modal */}
                 {editingSession && isAdmin && (
