@@ -102,7 +102,9 @@ function Row({ rank, name, sub, subColour, value, unit, colour, me, note }) {
   )
 }
 
-export default function LeagueBoard({ embedded = false, student = null, onBack, listMode = false }) {
+export default function LeagueBoard({ embedded = false, student = null, onBack, listMode = false, standingOnly = false, onOpen }) {
+  // standingOnly: just the 'My standing' card (home screen preview); onOpen -> the full league
+  if (standingOnly) listMode = true
   // listMode (athlete app): every board as a compact card -- top 3 + you, tap for the top 10 -- grouped by type; no house points
   const [cfg, setCfg] = useState({ from: null, to: null, topHouse: 10, topIndiv: 10, topBoard: 10, seconds: 8, club: 'KR Centre' })
   const [data, setData] = useState({ league: null, month: null })
@@ -427,7 +429,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
   }
 
   // athlete app: my standing + every board as a compact card, grouped
-  function ListView() {
+  function ListView({ only = false } = {}) {
     const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th')
     const badges = []
     const rankIn = (list, val) => { let rank = 0, prev = null; for (let i = 0; i < list.length; i++) { const v = val(list[i]); if (v !== prev) { rank = i + 1; prev = v } if (list[i].student_id === meId) return rank } return null }
@@ -446,17 +448,22 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     const groupOf = sl => (sl.kind === 'tasks' || sl.kind === 'pdp') ? 'Sections' : (sl.kind === 'exercise' || sl.kind === 'grip' || sl.kind === 'runs') ? 'Exercise PBs' : (sl.kind === 'workrate' || sl.kind === 'hr') ? 'Workrate & heart rate' : 'Notes & more'
     const order = ['Sections', 'Exercise PBs', 'Workrate & heart rate', 'Notes & more']
     const grouped = order.map(g => [g, slides.filter(sl => groupOf(sl) === g)]).filter(([, l]) => l.length)
-    return (
-      <div>
-        {student && (
-          <div style={{ background: '#1A1F24', border: '1px solid #2A3138', borderRadius: 12, padding: 14, marginBottom: 14 }}>
-            <div style={{ ...TITLE, fontSize: 20, color: '#F2F2F2', marginBottom: 10 }}>My standing</div>
+    const standing = student && (
+          <div style={{ background: '#1A1F24', border: '1px solid #2A3138', borderRadius: 12, padding: 14, marginBottom: only ? 0 : 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ ...TITLE, fontSize: 20, color: '#F2F2F2', flex: 1 }}>{only ? '🏆 My standing' : 'My standing'}</div>
+              {only && <span style={{ fontSize: 12, color: '#9A9A9A' }}>Full league ›</span>}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6, textAlign: 'center', marginBottom: badges.length ? 10 : 0 }}>
               {SECT.map(([k, l, c]) => <div key={k}><div style={{ ...NUM, fontSize: 18, color: c, textShadow: `0 0 6px ${c}66` }}>{sectionPos[k]?.rank ? ord(sectionPos[k].rank) : '–'}</div><div style={{ fontSize: 10, color: '#9A9A9A' }}>{l}</div></div>)}
             </div>
             {badges.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{badges.map(([e, t]) => <span key={t} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, border: '1px solid #F5C54266', color: '#F5C542', background: '#F5C54214' }}>{e} {t}</span>)}</div>}
           </div>
-        )}
+    )
+    if (only) return standing || null
+    return (
+      <div>
+        {standing}
         {/* ⭐ athlete points league standings (KR + KRBA) -- top 10 + where you are */}
         {pd.individuals?.length > 0 && (() => {
           const list = pd.individuals, myIdx = list.findIndex(r => r.id === meId)
@@ -536,6 +543,11 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     <button type="button" onClick={onClick} aria-pressed={on} style={{ height: 30, padding: '0 12px', border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: on ? colour : '#2A3138', color: on ? '#0A0A0A' : '#F2F2F2', ...TITLE, fontSize: 14 }}>{label}</button>
   )
 
+  if (standingOnly) return (
+    <div role="button" tabIndex={0} onClick={onOpen} onKeyDown={e => { if (e.key === 'Enter') onOpen?.() }} style={{ cursor: 'pointer' }}>
+      {loading ? <div style={{ background: '#1A1F24', border: '1px solid #2A3138', borderRadius: 12, padding: 14, color: '#9A9A9A', fontSize: 13 }}>🏆 My standing · loading…</div> : <ListView only />}
+    </div>
+  )
   return (
     <div onPointerDown={interact}
       onTouchStart={e => { swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}

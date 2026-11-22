@@ -7538,28 +7538,10 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8 }}>
                 {/* Sweep the sheds moved into the Check in menu */}
-                {/* 🏆 League display (instead of the League button): my standing at a glance -- tap for the full league as before */}
-                <button type="button" onClick={() => setTab((student?.is_kr || student?.discipline === 'KRBA') ? 'f2fleague' : 'leagues')} className="neon-tile kc-league-card"
-                  style={{ gridColumn: '1 / -1', display: 'block', textAlign: 'left', padding: '12px 14px', background: '#14181C', border: '1px solid #E6B80055',
-                    borderRadius: 'var(--border-radius-lg)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <NeonTileIcon name="Leagues" />
-                    <span style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 20, letterSpacing: 0.5, color: '#F2F2F2', flex: 1 }}>LEAGUE</span>
-                    <span style={{ fontSize: 12, color: '#9A9A9A' }}>Full league ›</span>
-                  </span>
-                  <span style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, textAlign: 'center' }}>
-                    {[
-                      [overallPosition ? `#${overallPosition}` : '—', `OVERALL${(rankList || []).length ? ` / ${(rankList || []).length}` : ''}`, '#F5C542'],
-                      [positionInHouse ? `#${positionInHouse}` : '—', 'IN HOUSE', '#2F6BFF'],
-                      [monthHousePoints != null ? monthHousePoints.toLocaleString() : '—', `PTS · ${new Date().toLocaleDateString('en-GB', { month: 'short' }).toUpperCase()}`, '#22B14C'],
-                    ].map(([v, l, c]) => (
-                      <span key={l} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 2px', borderRadius: 8, background: '#1A1F24' }}>
-                        <span style={{ fontFamily: 'Orbitron, sans-serif', fontWeight: 800, fontSize: 20, color: c, textShadow: `0 0 6px ${c}66` }}>{v}</span>
-                        <span style={{ fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A' }}>{l}</span>
-                      </span>
-                    ))}
-                  </span>
-                </button>
+                {/* 🏆 League preview: the league page's 'My standing' card -- tap for the full league as before */}
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <LeagueBoard standingOnly student={student} onOpen={() => setTab((student?.is_kr || student?.discipline === 'KRBA') ? 'f2fleague' : 'leagues')} />
+                </div>
               </div>
 
               {/* App settings (reminders for now -- more options to come) */}
