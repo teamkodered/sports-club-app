@@ -8840,7 +8840,6 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
         <div>
           <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
 
-          <LiveHrTable title="❤️ Live in the gym" />
 
           {/* Live heart rate + the connections ⚙ moved into the Check in menu (under Sweep the sheds) */}
           <div style={{ display: wearSettingsOpen ? 'flex' : 'none', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
@@ -8964,50 +8963,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             )
           })()}
 
-          {wearableConnections.length > 0 && (
-            <>
-              {/* Daily: sleep / recovery / resting HR / steps */}
-              <AthleteWorkrate studentId={student?.id} maxHr={liveMaxHr} />
-              {wearableDaily.length > 0 && (
-<DailyCharts daily={wearableDaily}>
-<div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ color: 'var(--text-tertiary)', fontSize: 10, textAlign: 'right' }}>
-                          <th style={{ textAlign: 'left', padding: '2px 4px' }}>Day</th>
-                          <th style={{ padding: '2px 4px' }}>Strain</th><th style={{ padding: '2px 4px' }}>Sleep</th><th style={{ padding: '2px 4px' }}>Recovery</th>
-                          <th style={{ padding: '2px 4px' }}>Rest HR</th><th style={{ padding: '2px 4px' }}>HRV</th><th style={{ padding: '2px 4px' }}>Cals</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {wearableDaily.slice(0, 7).map(d => (
-                          <tr key={d.id} style={{ borderTop: '1px solid var(--border)', textAlign: 'right' }}>
-                            <td style={{ textAlign: 'left', padding: '4px' }}>{new Date(d.day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
-                            <td style={{ padding: '4px', fontWeight: 600, color: '#1D9E75' }}>{d.day_strain != null ? Number(d.day_strain).toFixed(1) : '—'}</td>
-                            <td style={{ padding: '4px' }}>{fmtSleep(d.sleep_seconds)}</td>
-                            <td style={{ padding: '4px', fontWeight: 600, color: d.recovery_score == null ? undefined : d.recovery_score >= 67 ? '#1D9E75' : d.recovery_score >= 34 ? '#EF9F27' : '#E24B4A' }}>{d.recovery_score != null ? `${Math.round(d.recovery_score)}%` : '—'}</td>
-                            <td style={{ padding: '4px' }}>{d.resting_heart_rate ?? '—'}</td>
-                            <td style={{ padding: '4px' }}>{d.hrv != null ? Math.round(d.hrv) : '—'}</td>
-                            <td style={{ padding: '4px' }}>{d.active_calories != null ? Math.round(d.active_calories).toLocaleString() : '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-</DailyCharts>
-              )}
-
-              {(whoopSessions.length + appHrSessions.length) === 0 ? (
-                <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {/* all sessions hidden until 'Session results' is pressed */}
-                  <button type="button" className="btn" style={{ justifyContent: 'center', padding: 11 }} onClick={() => setSessionsShown(v => !v)} aria-expanded={sessionsShown}>{sessionsShown ? '▲ Hide session results' : `▼ Session results (${whoopSessions.length + appHrSessions.length})`}</button>
-                  {sessionsShown && [...whoopSessions, ...appHrSessions].sort((a, b) => String(b.start_time || '').localeCompare(String(a.start_time || ''))).map(s => <WorkoutCard key={s.id} s={s} maxHr={liveMaxHr} providerName={PROVIDERS?.[s.provider]?.label} providerColour={PROVIDERS?.[s.provider]?.colour} />)}
-                </div>
-              )}
-            </>
-          )}
+          {/* Live in the gym, heart rate vs team, last 7 days and session results moved to the results page (under MTP) */}
         </div>
       )}
 
@@ -9893,6 +9849,53 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               </div>
             )
           })()}
+
+          {/* ❤️ heart rate: live in the gym, you vs team, last 7 days, session results (moved here from Wearables) */}
+          <LiveHrTable title="❤️ Live in the gym" />
+          {wearableConnections.length > 0 && (
+            <>
+              {/* Daily: sleep / recovery / resting HR / steps */}
+              <AthleteWorkrate studentId={student?.id} maxHr={liveMaxHr} />
+              {wearableDaily.length > 0 && (
+<DailyCharts daily={wearableDaily}>
+<div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ color: 'var(--text-tertiary)', fontSize: 10, textAlign: 'right' }}>
+                          <th style={{ textAlign: 'left', padding: '2px 4px' }}>Day</th>
+                          <th style={{ padding: '2px 4px' }}>Strain</th><th style={{ padding: '2px 4px' }}>Sleep</th><th style={{ padding: '2px 4px' }}>Recovery</th>
+                          <th style={{ padding: '2px 4px' }}>Rest HR</th><th style={{ padding: '2px 4px' }}>HRV</th><th style={{ padding: '2px 4px' }}>Cals</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wearableDaily.slice(0, 7).map(d => (
+                          <tr key={d.id} style={{ borderTop: '1px solid var(--border)', textAlign: 'right' }}>
+                            <td style={{ textAlign: 'left', padding: '4px' }}>{new Date(d.day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                            <td style={{ padding: '4px', fontWeight: 600, color: '#1D9E75' }}>{d.day_strain != null ? Number(d.day_strain).toFixed(1) : '—'}</td>
+                            <td style={{ padding: '4px' }}>{fmtSleep(d.sleep_seconds)}</td>
+                            <td style={{ padding: '4px', fontWeight: 600, color: d.recovery_score == null ? undefined : d.recovery_score >= 67 ? '#1D9E75' : d.recovery_score >= 34 ? '#EF9F27' : '#E24B4A' }}>{d.recovery_score != null ? `${Math.round(d.recovery_score)}%` : '—'}</td>
+                            <td style={{ padding: '4px' }}>{d.resting_heart_rate ?? '—'}</td>
+                            <td style={{ padding: '4px' }}>{d.hrv != null ? Math.round(d.hrv) : '—'}</td>
+                            <td style={{ padding: '4px' }}>{d.active_calories != null ? Math.round(d.active_calories).toLocaleString() : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+</DailyCharts>
+              )}
+
+              {(whoopSessions.length + appHrSessions.length) === 0 ? (
+                <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* all sessions hidden until 'Session results' is pressed */}
+                  <button type="button" className="btn" style={{ justifyContent: 'center', padding: 11 }} onClick={() => setSessionsShown(v => !v)} aria-expanded={sessionsShown}>{sessionsShown ? '▲ Hide session results' : `▼ Session results (${whoopSessions.length + appHrSessions.length})`}</button>
+                  {sessionsShown && [...whoopSessions, ...appHrSessions].sort((a, b) => String(b.start_time || '').localeCompare(String(a.start_time || ''))).map(s => <WorkoutCard key={s.id} s={s} maxHr={liveMaxHr} providerName={PROVIDERS?.[s.provider]?.label} providerColour={PROVIDERS?.[s.provider]?.colour} />)}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
