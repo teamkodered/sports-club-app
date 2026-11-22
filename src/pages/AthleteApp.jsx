@@ -13,6 +13,7 @@ import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMa
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
+import { wearableVitals, latestTest } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
 import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
@@ -1543,6 +1544,7 @@ export default function AthleteApp() {
   const [wearableConnections, setWearableConnections] = useState([]) // all providers, from the shared wearable backend
   const [whoopSessions, setWhoopSessions] = useState([]) // workouts from any provider
   const [wearableDaily, setWearableDaily] = useState([])  // steps / sleep / recovery per day
+  const [vo2Dismissed, setVo2Dismissed] = useState(() => { try { return localStorage.getItem('kc-vo2-dismissed') || '' } catch { return '' } })
   const [wearableSetup, setWearableSetup] = useState(null) // { provider, code } -- set-up guide open for a phone health app
   const [hcBusy, setHcBusy] = useState(false) // Health Connect connect/sync in progress
   const [newNoteText, setNewNoteText] = useState('')
@@ -5727,6 +5729,8 @@ export default function AthleteApp() {
                   const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['Anaerobic Threshold'] != null)
                   return latest ? `${latest.test['Anaerobic Threshold']} bpm` : '—'
                 })()],
+                ['Resting heart rate', (() => { const w = wearableVitals(wearableDaily).rhr; return w ? `${w.value} bpm` : '—' })()],
+                ['VO2 Max', (() => { const t = latestTest(sessions, 'VO2 Max'); return t ? `${t.value} ml/kg/min` : '—' })()],
                 ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
               ].map(([label, val, target], i, arr) => {
                 const isWeightRow = label === 'Weight'
@@ -6249,6 +6253,18 @@ export default function AthleteApp() {
                         (Physical, Technique, Tactical, Mentality), only the
                         displayed sequence and pairing changes: Mentality+Tactical
                         side by side, then Technique+Physical side by side. */}
+                    {/* ⌚ VO2 Max from the wearable: confirm each new value (like sleep) -> saved to today's tests, +1 point */}
+                    {(() => {
+                      const w = wearableVitals(wearableDaily), saved = latestTest(sessions, 'VO2 Max')
+                      if (!w.vo2 || String(w.vo2.value) === String(saved?.value ?? '') || vo2Dismissed === String(w.vo2.value)) return null
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', margin: '0 0 10px', borderRadius: 10, border: '1px solid #E6B80066', background: '#E6B8001a', fontSize: 13 }}>
+                          <span style={{ flex: 1 }}>⌚ <b>VO2 Max {w.vo2.value}</b> from your wearable{saved ? ` (was ${saved.value})` : ''}</span>
+                          <button type="button" className="btn btn-sm btn-primary" onClick={async () => { await saveTestValue('VO2 Max', String(w.vo2.value)); awardHousePoints('f2f_question', 'VO2 Max (wearable)'); flashSaved('✓ VO2 Max saved · +1 point') }}>✓ Confirm</button>
+                          <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => { setVo2Dismissed(String(w.vo2.value)); try { localStorage.setItem('kc-vo2-dismissed', String(w.vo2.value)) } catch {} }}>✕</button>
+                        </div>
+                      )
+                    })()}
                     {/* New home: boxer figure + square section buttons (the section tiles below open from the squares) */}
                     <BodyHome sessions={sessions} gender={student?.gender}
                       openKey={showTechniqueSection ? 'technique' : showMentalitySection ? 'mentality' : showTacticalSection ? 'tactical' : showWellbeingSection ? 'wellbeing' : showPhysicalSection ? 'physical' : null} />
@@ -8219,14 +8235,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     </div>
                   </div>
 
-                  {/* VO2 Max, moved here from the old Test tab */}
-                  <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 14 }}>
-                    <div className="field" style={{ marginBottom: 0 }}>
-                      <label>🫁 VO2 Max (ml/kg/min)</label>
-                      <SavableField type="text" defaultValue={todaysTest['VO2 Max']}
-                        onSave={val => saveTestValue('VO2 Max', val)} placeholder="e.g. 45.2" />
-                    </div>
-                  </div>
+                  {/* VO2 Max now comes from the wearable (confirm on Home, +1 point) */}
                 </div>
               </div>
             )}
@@ -8944,7 +8953,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       <li>Add the action <b>Find Health Samples</b>: Type <b>Steps</b>, Start Date <b>is today</b>. Then add <b>Calculate Statistics</b> → <b>Sum</b> of the samples. Rename the result <b>Steps</b> (tap the variable → Rename).</li>
                       <li>Add another <b>Find Health Samples</b>: Type <b>Sleep Analysis</b>, value <b>is Asleep</b>, Start Date <b>is in the last 1 day</b>. Add <b>Calculate Statistics</b> → <b>Sum</b> → rename it <b>SleepMinutes</b>.</li>
                       <li>Add <b>Find Health Samples</b>: Type <b>Resting Heart Rate</b>, Start Date <b>is today</b>, Limit <b>1</b>. Rename it <b>RestHR</b>.</li>
-                      <li>Add <b>Dictionary</b> with these text keys: <b>token</b> = your link code above · <b>steps</b> = Steps · <b>sleep_minutes</b> = SleepMinutes · <b>resting_heart_rate</b> = RestHR.</li>
+                      <li>Add <b>Dictionary</b> with these text keys: <b>token</b> = your link code above · <b>steps</b> = Steps · <b>sleep_minutes</b> = SleepMinutes · <b>resting_heart_rate</b> = RestHR · <b>vo2max</b> = VO2 Max.</li>
                       <li>Add <b>Get Contents of URL</b>: paste the send-to address above, Method <b>POST</b>, Request Body <b>JSON</b>, and choose the Dictionary as the body.</li>
                       <li>Tap ▶ once to test — allow Health access when asked. Then come back here: your steps should appear under Time outdoors within a minute.</li>
                       <li>Make it automatic: Shortcuts → <b>Automation</b> → <b>+</b> → <b>Time of Day</b> (e.g. 9:00am, daily) → run <b>KR Health Sync</b>, and turn <b>off</b> "Ask Before Running".</li>

@@ -7,6 +7,7 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import { wearableVitals, latestTest } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
 import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
@@ -10053,6 +10054,8 @@ export default function AthleteProfiles() {
                         const latest = [...f2fData].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.[test] != null)
                         return latest ? <span>{latest.test[test]} bpm <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(latest.session_date).toLocaleDateString('en-GB')}</span></span> : '—'
                       } })),
+                      { label: 'Resting heart rate', render: () => { const w = wearableVitals(wearableDaily).rhr; return w ? <span>{w.value} bpm <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(w.day).toLocaleDateString('en-GB')}</span></span> : '—' } },
+                      { label: 'VO2 Max', render: () => { const t = latestTest(f2fData, 'VO2 Max') || (wearableVitals(wearableDaily).vo2 ? { value: wearableVitals(wearableDaily).vo2.value, day: wearableVitals(wearableDaily).vo2.day } : null); return t ? <span>{t.value} ml/kg/min <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(t.day).toLocaleDateString('en-GB')}</span></span> : '—' } },
                       { label: 'Groups', editable: true, render: () => isAdmin ? (
                         <div style={{ display: 'flex', gap: 3 }}>
                           {[

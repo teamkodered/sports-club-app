@@ -43,7 +43,8 @@ export default function ProfileRoundup({ student, sessions = [], pdpNotes = {}, 
     return () => { stop = true }
   }, [sid, maxHr])
 
-  const pbs = useMemo(() => bestByTest(sessions || []), [sessions])
+  // keep only plain number values (some test entries are stored as objects, e.g. { best, last }) -- avoids '[object Object]'
+  const pbs = useMemo(() => Object.fromEntries(Object.entries(bestByTest(sessions || [])).map(([k, v]) => [k, v && typeof v === 'object' ? (v.best ?? v.value ?? v.last ?? null) : v]).filter(([, v]) => v != null && typeof v !== 'object' && !isNaN(Number(v)))), [sessions])
   const hrrList = useMemo(() => (sessions || []).filter(s => s.test?.['Heart Rate Recovery (1 min)'] != null).sort((a, b) => String(b.session_date).localeCompare(String(a.session_date))), [sessions])
   // PBs from the logged physical work too (Watt bike, running, bodyweight, techniques, bleep, grip, circuit) --
   // best per type, e.g. Watt bike 6s / 30s, each run distance
