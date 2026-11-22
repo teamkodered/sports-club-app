@@ -2,7 +2,7 @@
 // Colours as agreed on the mockup.
 const ICONS = {
   media:     ['#FF2A2A', <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 16l5-5 4 4 3-3 6 6" /></>],
-  notes:     ['#FF2A2A', <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h8" /></>],
+  notes:     ['#22B14C', <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h8" /></>],
   opponents: ['#FF2A2A', <path d="M7 4h7a4 4 0 0 1 4 4v5a4 4 0 0 1-4 4H9l-3 3V8a4 4 0 0 1 1-4z" />],
   reports:   ['#FF2A2A', <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />],
   wearables: ['#E6B800', <><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 2h6M9 22h6M12 9v3l2 2" /></>],
