@@ -4916,9 +4916,9 @@ export default function AthleteApp() {
       return
     }
     if (!live.supported) return
-    // only ask when it makes sense: a Whoop / Polar is connected and this is a scheduled class
+    // only ask when a Whoop / Polar is connected (any check in -- scheduled class, open gym or PT)
     const hasStrapWearable = (wearableConnections || []).some(c => c.provider === 'whoop' || c.provider === 'polar')
-    if (!live.connected && (!hasStrapWearable || !att?.class_id)) return
+    if (!live.connected && !hasStrapWearable) return
     if (live.connected) { live.start({ classId: att?.class_id || null, attendanceId: att?.id || null }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(p => p?.already ? null : p), 2500) }
     else setPendingLiveHr({ classId: att?.class_id || null, attendanceId: att?.id || null, whoop: (wearableConnections || []).some(c => c.provider === 'whoop') })
   }
