@@ -7552,22 +7552,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 {/* Results tile removed -- the RESULTS card at the top opens the same results page */}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
-                {[
-                  { label: 'Wearables', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
-                ].map(l => (
-                  <button key={l.label} onClick={() => l.tab && setTab(l.tab)} className="neon-tile" style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    padding: '14px 8px', background: l.colour + '12',
-                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                    cursor: l.tab ? 'pointer' : 'default', fontFamily: 'var(--font-sans)',
-                    opacity: l.tab ? 1 : 0.6,
-                  }}>
-                    <span className="neon-emoji" style={{ fontSize: 24 }}>{l.icon}</span><NeonTileIcon name={l.label} />
-                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                  </button>
-                ))}
-              </div>
+              {/* Wearables tile removed -- connections behind the ⚙ in the Check in menu, heart rate on the results page */}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8 }}>
                 {/* Sweep the sheds moved into the Check in menu */}
