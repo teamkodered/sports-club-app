@@ -8842,7 +8842,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                         {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </div>
-                      <NoteText text={note.note_text} />
+                      {/* collapsed: just the first line (tap the note to read / edit it in full) */}
+                      <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(note.note_text || '').split('\n')[0] || '(photo note)'}</div>
                       {note.media_storage_path && (
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{note.media_type === 'video' ? '🎬 Video attached' : '📷 Photo attached'}</span>
                       )}
