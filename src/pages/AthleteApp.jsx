@@ -1238,6 +1238,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
 const OUTDOOR_STEPS_TARGET = 8000   // ⌚ steps that count as Outdoors done for the day (confirm on Home)
 const OUTDOOR_SPORTS = /run|jog|walk|hik|cycl|bik|ride|football|soccer|rugby|tennis|padel|paddle|golf|cricket|hockey|ski|surf|swim.*open|row(?!ing machine)/i
+const sleepExtras = d => { const sc = d?.raw_data?.sleep?.score || {}; const r = v => v != null ? Math.round(v) : undefined; return { performance: r(sc.sleep_performance_percentage ?? d?.sleep_score), consistency: r(sc.sleep_consistency_percentage), sleepEfficiency: r(sc.sleep_efficiency_percentage) } }
 const SHOW_DWM = false   // question cards: D / W / M charge lines (off for now, kept)
 
 const PDP_SECTIONS = [
@@ -3730,7 +3731,7 @@ export default function AthleteApp() {
           const hours = d.sleep_seconds ? String(+(d.sleep_seconds / 3600).toFixed(1)) : ''
           const efficiency = d.sleep_score != null ? String(Math.round(d.sleep_score)) : ''
           out.push({ key, provider: d.provider, text: `${hours ? `${hours}h sleep` : 'Sleep'}${efficiency ? ` · ${efficiency}% performance` : ''}`,
-            apply: () => saveWellbeingField('sleep', cur => ({ ...cur, hours, efficiency, source: d.provider, wearable_id: key })) })
+            apply: () => saveWellbeingField('sleep', cur => ({ ...cur, hours, efficiency, ...sleepExtras(d), source: d.provider, wearable_id: key })) })
         }
       }
     }
@@ -3752,7 +3753,7 @@ export default function AthleteApp() {
     sleepAutoRef.current = key
     const hours = d.sleep_seconds ? String(+(d.sleep_seconds / 3600).toFixed(1)) : ''
     const efficiency = d.sleep_score != null ? String(Math.round(d.sleep_score)) : ''
-    saveWellbeingField('sleep', cur => ({ ...cur, hours, efficiency, source: d.provider, wearable_id: key, unconfirmed: true }),
+    saveWellbeingField('sleep', cur => ({ ...cur, hours, efficiency, ...sleepExtras(d), source: d.provider, wearable_id: key, unconfirmed: true }),
       `⌚ Sleep filled in from ${providerLabel(d.provider)} — tap Confirm on Sleep`)
   }, [student, sessionsLoaded, wearableDaily, todaysWellbeing, wearableDismissed])
 
@@ -7365,6 +7366,13 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                               </div>
                             ) : todaysWellbeing.sleep?.source && (
                               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>⌚ Filled automatically from {providerLabel(todaysWellbeing.sleep.source)} — you can still change it.</p>
+                            )}
+                            {(todaysWellbeing.sleep?.performance != null || todaysWellbeing.sleep?.consistency != null) && (
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '6px 0 2px' }}>
+                                {[['Performance', todaysWellbeing.sleep.performance], ['Consistency', todaysWellbeing.sleep.consistency], ['Efficiency', todaysWellbeing.sleep.sleepEfficiency]].filter(([, v]) => v != null).map(([l, v]) => (
+                                  <span key={l} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 10, background: '#C93BFF1f', color: v >= 85 ? '#1D9E75' : v >= 70 ? '#EF9F27' : '#E24B4A' }}>{l} <b>{v}%</b></span>
+                                ))}
+                              </div>
                             )}
                           </>
                         )}
