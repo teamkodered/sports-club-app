@@ -6293,7 +6293,7 @@ export default function AthleteApp() {
 
                 return (
                   <>
-                    <MySessionFootage />
+                    {/* My session footage moved to the Media page */}
                     <AthleteFightFootage studentId={student?.id} />
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                       <TopStatCard onNavigate={() => setTab('sessions')} iconImg="/logos/neon/sessions.png" value={sessionsValue} pctValue={`${sessionsPct}%`}
@@ -8731,6 +8731,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {tab === 'media' && (
         <div>
           <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+          {/* 🎥 My session footage (moved here from Home) */}
+          <MySessionFootage />
           <div className="card" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Media files</h2>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Upload your own photos, videos, and documents here.</p>
