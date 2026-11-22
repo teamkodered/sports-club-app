@@ -1235,6 +1235,8 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   )
 }
 
+const SHOW_DWM = false   // question cards: D / W / M charge lines (off for now, kept)
+
 const PDP_SECTIONS = [
   { key: 'winning_ways',        label: '🏆 Winning ways',         colour: '#1D9E75' },
   { key: 'winning_techniques',  label: '🥋 Techniques',           colour: '#378ADD' },
@@ -1752,6 +1754,7 @@ export default function AthleteApp() {
   live.findClassNow = () => classNow()
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
   const [pendingLiveHr, setPendingLiveHr] = useState(null)
+  const [focusTip, setFocusTip] = useState(null)   // which question's 🎯 note is showing
   const [aePage, setAePage] = useState(0) // Alter Ego workbook: one part per page
   const aeSwipe = useRef(null)
   const sectionLeague = useSectionLeague(student?.id) // place + score in each section's league (same as the League board)
@@ -4449,14 +4452,37 @@ export default function AthleteApp() {
   // Compact vertical version (3 bars stacked, not side by side) for
   // individual question tiles -- section headers use the horizontal
   // SectionProgressBars instead.
-  function QuestionProgressBarsVertical({ sectionKey, questionLabel, focusSec }) {
+  // D / W / M charge lines are switched off for now (Nov 2026) but kept -- set SHOW_DWM back to true to bring them
+  // back, or reuse getQuestionProgressByPeriod for another display. In their place: a quick ✓ DONE and the 🎯.
+  async function quickDoneQuestion(sectionKey, questionLabel, doneStyle) {
+    if (sectionKey === 'technique') {
+      const prev = todaysTechniques
+      await savePhysicalField('techniques', [...todaysTechniques, { style: doneStyle || questionLabel, category: questionLabel, technique: 'Quick log', note: '', quickLogged: true }], setTodaysTechniques)
+      offerUndo('Quick log', () => savePhysicalField('techniques', prev, setTodaysTechniques))
+    } else await quickLogTargetQuestion(sectionKey, questionLabel)
+  }
+  function QuestionProgressBarsVertical({ sectionKey, questionLabel, focusSec, doneStyle }) {
     const byPeriod = getQuestionProgressByPeriod(sectionKey, questionLabel)
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
     const NEON_Q = { mentality: '#22B14C', tactical: '#FF2A2A', technique: '#2F6BFF', physical: '#E6B800', test: '#E6B800', wellbeing: '#C93BFF' }
     const accent = NEON_Q[sectionKey] || '#22B14C'
     return (
       <div className="neon-qbars" style={{ display: 'flex', flexDirection: 'column', gap: 3, width: '100%', flexShrink: 0 }}>
-        {periods.map(([key, letter]) => {
+        {/* 🎯 this is one of your monthly focus points -- tap for the note */}
+        {fq(focusSec || sectionKey, questionLabel).includes('is-focus') && (
+          <span role="button" tabIndex={0} className="neon-q-focus" aria-label="Monthly focus"
+            onClick={e => { e.stopPropagation(); setFocusTip(t => t === `${sectionKey}::${questionLabel}` ? null : `${sectionKey}::${questionLabel}`) }}>🎯</span>
+        )}
+        {focusTip === `${sectionKey}::${questionLabel}` && (
+          <span className="neon-q-focus-tip" onClick={e => { e.stopPropagation(); setFocusTip(null) }}>🎯 This is one of your monthly focus points -- it scores every day you log it.</span>
+        )}
+        {!SHOW_DWM && (
+          <span role="button" tabIndex={0} className="neon-q-done" style={{ '--qa': accent }}
+            onClick={e => { e.stopPropagation(); quickDoneQuestion(sectionKey, questionLabel, doneStyle) }}>
+            ✓ DONE{byPeriod.day.done > 0 ? ` · ${byPeriod.day.done}` : ''}
+          </span>
+        )}
+        {SHOW_DWM && periods.map(([key, letter]) => {
           const { done, target } = byPeriod[key]
           const hasTarget = target > 0
           const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : (done > 0 ? 100 : 0) // no target: completed still shows
@@ -6738,7 +6764,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                   border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                                   background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                                 }}>
-                                <QuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} />{pdpInfo('technique', `${style}::${cat}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
+                                <QuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} doneStyle={style} />{pdpInfo('technique', `${style}::${cat}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                                 <span style={{ flex: 1, textAlign: 'center' }}>
                                   <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{qName(qcfg, 'technique', cat)}</span>
                                   {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}

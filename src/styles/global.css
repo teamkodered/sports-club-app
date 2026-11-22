@@ -1683,7 +1683,7 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 /* ── Monthly focus + zoom (Oct 2026) ── */
 .neon-home .neon-q.is-greyed { opacity: 0.38; filter: grayscale(0.7); }
 .neon-home .neon-q.is-focus { box-shadow: 0 0 0 2px #1D9E75, 0 0 12px rgba(29,158,117,0.5) !important; }
-.neon-home .neon-q.is-focus::after { content: '🎯 FOCUS'; position: absolute; top: 6px; right: 8px; font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 1px; color: #1D9E75; }
+.neon-home .neon-q.is-focus::after { content: none; display: none; position: absolute; top: 6px; right: 8px; font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 1px; color: #1D9E75; }
 .neon-home .neon-q.is-always::after { content: 'ALWAYS ON'; position: absolute; top: 6px; right: 8px; font-family: 'Orbitron', sans-serif; font-size: 7px; letter-spacing: 1px; color: #378ADD; }
 .neon-home .neon-q { position: relative; }
 .kc-focus { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--c); background: color-mix(in srgb, var(--c) 10%, transparent); font-size: 13px; color: #F2F2F2; }
@@ -2218,3 +2218,11 @@ body.kc-bh.kc-bh-open .neon-foundation-wrap:not(.kc-bh-float) { margin: 0 !impor
 body.kc-bh .kc-bh-float { position: absolute !important; left: 62px; right: 0; z-index: 7; margin: 0 !important; box-shadow: 0 6px 16px rgba(0,0,0,.55); }
 /* after the slide finishes, drop the clip so scrolling stays smooth */
 body.kc-bh .kc-bh-openwrap { will-change: auto; }
+
+/* question cards: quick ✓ DONE (instead of the D / W / M lines) and a tappable 🎯 for monthly focus */
+.neon-q-done { align-self: stretch; display: block; text-align: center; margin-top: 6px; padding: 6px 4px; border-radius: 6px; border: 1px solid var(--qa); color: var(--qa);
+  font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 12px; letter-spacing: .5px; background: rgba(255,255,255,0.03); cursor: pointer; }
+.neon-q-done:active { background: var(--qa); color: #000; }
+.neon-q-focus { position: absolute; top: 6px; right: 8px; font-size: 14px; cursor: pointer; z-index: 2; line-height: 1; }
+.neon-q-focus-tip { position: absolute; top: 26px; right: 6px; left: 6px; z-index: 3; font-size: 11px; line-height: 1.3; padding: 6px 8px; border-radius: 6px;
+  background: #111518; border: 1px solid #1D9E75; color: #F2F2F2; font-style: normal; font-weight: 500; text-align: left; }
