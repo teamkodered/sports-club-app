@@ -3878,6 +3878,8 @@ export default function AthleteApp() {
   const sameQ = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
   const isAlwaysOn = (sec, label) => sec === 'wellbeing' || (focusAlwaysOn[sec] || []).some(x => sameQ(x, label))   // every Foundation question always counts
   const isGreyedQ = (sec, label) => !!myFocus[sec] && !sameQ(myFocus[sec], label) && !isAlwaysOn(sec, label)
+  // this month's focus question(s) go to the front of their list (ahead of the usual / alphabetical order)
+  const focusFirst = (sec, labelOf) => (a, b) => (fq(sec, labelOf(b)).includes('is-focus') ? 1 : 0) - (fq(sec, labelOf(a)).includes('is-focus') ? 1 : 0)
   const fq = (sec, label) => sec === 'wellbeing' ? '' : isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
   async function setMyFocus(sec, label) {
     if (!student) return
@@ -6502,7 +6504,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     {showBodyweightCards && (
                     <div ref={bodyweightPanelRef}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
-                      {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts' && !qHidden(qcfg, 'physical', g.label)).sort(qSort(qcfg, 'physical', g => g.label)).map(grp => {
+                      {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts' && !qHidden(qcfg, 'physical', g.label)).sort(qSort(qcfg, 'physical', g => g.label)).sort(focusFirst('physical', g => g.label)).map(grp => {
                         const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                         const active = expandedHomeBodyweight === grp.key
                         return (
@@ -6753,7 +6755,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         </div>
                         {!expandedTechniqueCategory && <SwipeHint />}
                         <div className={expandedTechniqueCategory ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
-                          {Object.keys(categories).filter(cat => !qHidden(qcfg, 'technique', cat)).sort(qSort(qcfg, 'technique', c => c)).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
+                          {Object.keys(categories).filter(cat => !qHidden(qcfg, 'technique', cat)).sort(qSort(qcfg, 'technique', c => c)).sort(focusFirst('technique', c => c)).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                             const catKey = `${style}::${cat}`
                             const active = expandedTechniqueCategory === catKey
                             const picksT = todaysTechniques.filter(t => t.style === style && t.category === cat), count = picksT.length
@@ -6822,7 +6824,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {AddedQuestions({ sec: 'tactical' })}
                     {!expandedTacticalCategory && <SwipeHint />}
                     <div className={expandedTacticalCategory ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
-                      {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !qHidden(qcfg, 'tactical', cat === '__videoAnalysis__' ? 'Video analysis' : cat)).sort(qSort(qcfg, 'tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
+                      {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !qHidden(qcfg, 'tactical', cat === '__videoAnalysis__' ? 'Video analysis' : cat)).sort(qSort(qcfg, 'tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).sort(focusFirst('tactical', c => c === '__videoAnalysis__' ? 'Video analysis' : c)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                         if (cat === '__videoAnalysis__') {
                           const active = expandedTacticalCategory === cat
                           const complete = !!todaysMentalityLog.videoAnalysis?.type
@@ -6914,7 +6916,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {AddedQuestions({ sec: 'mentality' })}
                     {!expandedHomeMentality && <SwipeHint />}
                     <div className={expandedHomeMentality ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
-                      {MENTALITY_QUESTIONS.filter(q => !qHidden(qcfg, 'mentality', q.label)).sort(qSort(qcfg, 'mentality', q => q.label)).filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
+                      {MENTALITY_QUESTIONS.filter(q => !qHidden(qcfg, 'mentality', q.label)).sort(qSort(qcfg, 'mentality', q => q.label)).sort(focusFirst('mentality', q => q.label)).filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                         const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                         const active = expandedHomeMentality === q.key
                         return (
@@ -7256,7 +7258,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     {AddedQuestions({ sec: 'wellbeing' })}
                     {!expandedHomeWb && <SwipeHint />}
                     <div className={expandedHomeWb ? undefined : 'q-swipe'} style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
-                      {WELLBEING_QUESTIONS.filter(q => !qHidden(qcfg, 'wellbeing', q.label)).sort(qSort(qcfg, 'wellbeing', q => q.label)).filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
+                      {WELLBEING_QUESTIONS.filter(q => !qHidden(qcfg, 'wellbeing', q.label)).sort(qSort(qcfg, 'wellbeing', q => q.label)).sort(focusFirst('wellbeing', q => q.label)).filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                         const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                         const active = expandedHomeWb === q.key
                         return (
