@@ -1314,12 +1314,12 @@ const SECTION_ACCENT_COLOURS = {
 }
 
 // Winning ways family -- shown side by side; athletes can add to these in their app (👤 = added by the athlete)
-const WW_KEYS = ['winning_ways', 'winning_techniques', 'losing_ways']
+const WW_KEYS = ['winning_ways', 'winning_techniques']   // Losing ways removed (notes kept in the database)
 
 const PDP_SECTIONS = [
   { key: 'winning_ways',          label: '🏆 Winning ways',             colour: '#1D9E75', coachOnly: false },
   { key: 'winning_techniques',    label: '🥋 Techniques',               colour: '#378ADD', coachOnly: false },
-  { key: 'losing_ways',           label: '⚠️ Losing ways',              colour: '#E24B4A', coachOnly: false },
+  // { key: 'losing_ways', label: '⚠️ Losing ways', colour: '#E24B4A', coachOnly: false },   -- removed Nov 2026 (notes kept)
   // { key: 'what_to_do',            label: '📋 What to do (general)',      colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: false },   -- General hidden (Nov 2026); notes kept in the database
   { key: 'psychology_notes',      label: 'Notes',        colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'psychology_maintain',   label: 'Maintain',     colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },

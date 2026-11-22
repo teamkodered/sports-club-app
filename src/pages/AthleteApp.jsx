@@ -1238,7 +1238,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 const PDP_SECTIONS = [
   { key: 'winning_ways',        label: '🏆 Winning ways',         colour: '#1D9E75' },
   { key: 'winning_techniques',  label: '🥋 Techniques',           colour: '#378ADD' },
-  { key: 'losing_ways',         label: '⚠️ Losing ways',          colour: '#E24B4A' },
+  // { key: 'losing_ways', label: '⚠️ Losing ways', colour: '#E24B4A' },   -- removed Nov 2026 (notes kept)
   // { key: 'what_to_do',          label: '📋 What to do (general)', colour: '#E24B4A' },   -- General hidden (Nov 2026); notes kept in the database
   // { key: 'maintain',            label: '✅ Maintain',              colour: '#1D9E75' },   -- General hidden (Nov 2026); notes kept in the database
   // { key: 'to_work_on',          label: '🎯 To work on',            colour: '#EF9F27' },   -- General hidden (Nov 2026); notes kept in the database
@@ -8284,7 +8284,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               {/* 🏆 Winning ways / 🥋 Techniques / ⚠️ Losing ways -- what the coach has sent, plus the athlete's
                   own (they can add and remove their own; the coach's stay as the coach wrote them) */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
-                {['winning_ways', 'winning_techniques', 'losing_ways'].map(key => {
+                {['winning_ways', 'winning_techniques'].map(key => {   // Losing ways removed (notes kept in the database)
                   const sec = PDP_SECTIONS.find(s => s.key === key)
                   const mine = (apData?.pdp_notes?.__athlete_added?.[key] || []).filter(t => (apData?.pdp_notes?.[key] || []).includes(t))
                   const coachItems = (shared[key] || []).filter(t => !mine.includes(t))
