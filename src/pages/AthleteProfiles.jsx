@@ -4994,7 +4994,7 @@ export default function AthleteProfiles() {
   // options, add ONE optional note, press ONE Save -- each saved item is the
   // same entry the old tick-box made. Saved items list above; tap one to
   // edit its note (same box, same Save) or x to remove it.
-  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C', pdp = null, pdpTarget = null }) {
+  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C', pdp = null, pdpTarget = null, isFocus = false }) {
     const pdpItems = pdp?.items || new Set()
     const picking = pdpTarget && pdpPickMode === draftKey
     const blank = { sel: [], note: '', edit: null }
@@ -5029,7 +5029,7 @@ export default function AthleteProfiles() {
                 <div key={l.item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editing === l.item ? `1px solid ${colour}` : (pdpItems.has(l.item) ? `1px solid ${PDP_GOLD}` : '1px solid transparent') }}>
                   <button type="button" onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: l.item }) : set({ edit: editing === l.item ? null : l.item, note: editing === l.item ? '' : (l.note || ''), sel: [] })}
                     style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>
-                    {l.item}
+                    {l.item}{isFocus && <span title="Monthly focus" style={{ marginLeft: 6 }}>🎯</span>}
                     <span style={{ display: 'block', fontSize: 11, color: l.note ? 'var(--text-secondary)' : 'var(--text-tertiary)', marginTop: 2 }}>{l.note || 'Tap to add a note'}</span>
                   </button>
                   <button type="button" aria-label={`Remove ${l.item}`} onClick={() => { onRemove(l.item); if (editing === l.item) set(blank) }}
@@ -11023,7 +11023,7 @@ export default function AthleteProfiles() {
                         return (
                           <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
                             {InlineResults({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' } })}
-                            {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: { pillar: 'technique', pillarLabel: 'Technical', q: `${style}::${cat}`, label: cat }, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
+                            {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, isFocus: fq('technique', cat).includes('is-focus'), items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: { pillar: 'technique', pillarLabel: 'Technical', q: `${style}::${cat}`, label: cat }, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
                           </div>
                         )
                       })}
@@ -11118,7 +11118,7 @@ export default function AthleteProfiles() {
                     return (
                       <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                         {InlineResults({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' } })}
-                        {ChecklistPicker({ draftKey: `tac:${cat}`, items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: { pillar: 'tactical', pillarLabel: 'Tactical', q: cat, label: cat }, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
+                        {ChecklistPicker({ draftKey: `tac:${cat}`, isFocus: fq('tactical', cat).includes('is-focus'), items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: { pillar: 'tactical', pillarLabel: 'Tactical', q: cat, label: cat }, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
                       </div>
                     )
                   })}
