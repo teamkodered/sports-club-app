@@ -148,7 +148,7 @@ function CastIcon({ connected, size = 20 }) {
 // shared between player instances -- see the history handover in the component
 const playerHandoff = { open: 0, timer: null }
 
-export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, onNext, onPrev, autoPlay = false, startAt = 0, onClipSwipe, swipeHint }) {
+export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, onNext, onPrev, autoPlay = false, sidewaysCamera = false, startAt = 0, onClipSwipe, swipeHint }) {
   // ── CCTV protection: watermark with the viewer's name + time, pause when the app goes to the
   // background, and a view log (who watched which clip, when) ──
   const [wmName, setWmName] = useState('')
@@ -740,7 +740,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     // fresh gesture -- so a release swallowed by some child can never
     // leave this stuck. Extra fingers just mark the gesture multi-touch.
     if (!e.isPrimary) { if (tapRef.current) tapRef.current.multi = true; return }
-    tapRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, multi: false }
+    tapRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, multi: false, onControl: !!e.target?.closest?.(NO_TOGGLE_SELECTOR) }
     gestureWasHoldRef.current = false
   }
 
@@ -750,8 +750,17 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     tapRef.current = null
     if (t.multi || gestureWasHoldRef.current) return
     const sdx = e.clientX - t.x, sdy = e.clientY - t.y
-    // Controls hidden + CCTV: swipe left/right = next/previous file, up/down = other camera at the same moment
-    if (onClipSwipe && !controlsVisibleRef.current && !scrubbingRef.current && Math.hypot(sdx, sdy) > 50) {
+    // CCTV (sidewaysCamera): swipe left / right = the other cameras at the same moment -- playing or
+    // paused, controls showing or not (not when the swipe starts on a button / the timeline);
+    // up / down with the controls hidden = next / previous file on this camera.
+    if (onClipSwipe && sidewaysCamera && !t.onControl && !scrubbingRef.current && Math.abs(sdx) > 50 && Math.abs(sdx) > Math.abs(sdy) * 1.3) {
+      onClipSwipe(sdx < 0 ? 'camUp' : 'camDown', videoRef.current?.currentTime || 0); return
+    }
+    if (onClipSwipe && sidewaysCamera && !controlsVisibleRef.current && !scrubbingRef.current && Math.abs(sdy) > 50 && Math.abs(sdy) > Math.abs(sdx) * 1.3) {
+      onClipSwipe(sdy < 0 ? 'next' : 'prev', videoRef.current?.currentTime || 0); return
+    }
+    // Others (e.g. Study), controls hidden: swipe left/right = next/previous file, up/down = other camera
+    if (onClipSwipe && !sidewaysCamera && !controlsVisibleRef.current && !scrubbingRef.current && Math.hypot(sdx, sdy) > 50) {
       const ct = videoRef.current?.currentTime || 0
       if (Math.abs(sdx) > Math.abs(sdy) * 1.3) { onClipSwipe(sdx < 0 ? 'next' : 'prev', ct); return }
       if (Math.abs(sdy) > Math.abs(sdx) * 1.3) { onClipSwipe(sdy < 0 ? 'camUp' : 'camDown', ct); return }

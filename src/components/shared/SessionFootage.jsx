@@ -186,7 +186,7 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
       </div>
       {player && (
         <FightFootagePlayer videoUrl={player.url} title={`${camLabel(player.clip.camera_name)} — ${wall(player.clip.recorded_at).toLocaleString('en-GB')}`}
-          cctvClipId={player.clip.id} storagePath={player.clip.storage_path} isCoach startAt={player.startAt || 0} key={player.clip.id} onClipSwipe={clipSwipe} swipeHint={`${camLabel(player.clip.camera_name)} · swipe ← → for the next file, ↑ ↓ for the other cameras`} onClose={() => setPlayer(null)} />
+          cctvClipId={player.clip.id} storagePath={player.clip.storage_path} isCoach startAt={player.startAt || 0} key={player.clip.id} onClipSwipe={clipSwipe} sidewaysCamera swipeHint={`${camLabel(player.clip.camera_name)} · swipe ← → for the other cameras (same moment), ↑ ↓ for the next file`} onClose={() => setPlayer(null)} />
       )}
     </div>
   )

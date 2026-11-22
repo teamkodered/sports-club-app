@@ -450,7 +450,7 @@ export default function CctvViewer({ embedded = false }) {
 
       {showPlayer && playbackUrl && selectedClip && (
         <FightFootagePlayer videoUrl={playbackUrl} title={`${selectedClip.camera_name} — ${new Date(selectedClip.recorded_at).toLocaleString('en-GB', { timeZone: 'UTC' })}`}
-          cctvClipId={selectedClip.id} storagePath={selectedClip.storage_path} isCoach key={selectedClip.id} startAt={startAt} onClipSwipe={clipSwipe}
+          cctvClipId={selectedClip.id} storagePath={selectedClip.storage_path} isCoach key={selectedClip.id} startAt={startAt} onClipSwipe={clipSwipe} sidewaysCamera
           onClose={() => setShowPlayer(false)} />
       )}
     </div>
