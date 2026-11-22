@@ -1752,7 +1752,9 @@ export default function AthleteApp() {
   const [bwVideoTick, setBwVideoTick] = useState(0) // re-mounts bodyweight set inputs after a video count / time is added
   const [circuitPicking, setCircuitPicking] = useState(false) // Fixed load circuit: Record -> pick colour
   // One live heart rate connection for the whole app (check-in can start it; keeps going across tabs)
-  const liveMaxHr = (() => { const d = student?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); const age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); return Math.max(150, 220 - age) })()
+  // max heart rate for zones / % of max: the wearable's own measured max (Whoop body data) when it has one, else 220 - age
+  const wearMaxHr = (wearableConnections || []).map(c => Number(c?.body_data?.max_heart_rate)).find(v => v >= 140 && v <= 230) || null
+  const liveMaxHr = wearMaxHr || (() => { const d = student?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); const age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); return Math.max(150, 220 - age) })()
   const live = useLiveHeartRate({ studentId: student?.id, maxHr: liveMaxHr })
   live.findClassNow = () => classNow()
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
