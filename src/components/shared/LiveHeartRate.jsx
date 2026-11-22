@@ -122,7 +122,7 @@ function WebHeartRate({ live, onSave }) {
           </div>
           {/* how-to notes folded away -- press to view */}
           <details style={{ marginTop: 10 }}>
-            <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>ℹ️ How to connect (Polar H10 · Whoop · any Bluetooth HR strap)</summary>
+            <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>ℹ️ How to connect</summary>
             <div style={{ marginTop: 8 }}>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}><b>Polar H10:</b> put the strap on (wet the sensors), then connect.</p>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 4px' }}><b>Whoop:</b> In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</p>
