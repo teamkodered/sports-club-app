@@ -148,36 +148,45 @@ function CastIcon({ connected, size = 20 }) {
 // shared between player instances -- see the history handover in the component
 const playerHandoff = { open: 0, timer: null }
 
-export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, onNext, onPrev, autoPlay = false, sidewaysCamera = false, startAt = 0, onClipSwipe, swipeHint }) {
+export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, onNext, onPrev, autoPlay = false, sidewaysCamera = false, viewerName = null, startAt = 0, onClipSwipe, swipeHint }) {
   // ── CCTV protection: watermark with the viewer's name + time, pause when the app goes to the
   // background, and a view log (who watched which clip, when) ──
   const [wmName, setWmName] = useState('')
   const [wmNow, setWmNow] = useState(() => new Date())
   const [wmPos, setWmPos] = useState([50, 50])
   const viewLogged = useRef(false)
+  // The watermark names WHO IS WATCHING (so a screen recording can be traced), not the athlete.
+  // viewerName: given by screens that know exactly who's watching (the athlete app passes the
+  // selected athlete -- one login can cover a parent and several children). Otherwise the signed-in
+  // account's member record, preferring the coach / admin one when the login has several.
   useEffect(() => {
     if (!cctvClipId) return
     let gone = false
     supabase.auth.getUser().then(async ({ data }) => {
       const u = data?.user; if (!u || gone) return
-      const { data: m } = await supabase.from('members').select('first_name, last_name').eq('auth_id', u.id).limit(1)
-      const nm = m?.[0] ? `${m[0].first_name || ''} ${m[0].last_name || ''}`.trim() : (u.email || '')
-      if (!gone) setWmName(nm || u.email || 'Viewer')
+      let nm = (viewerName || '').trim()
+      if (!nm) {
+        const { data: ms } = await supabase.from('members').select('first_name, last_name, role').eq('auth_id', u.id)
+        const staff = (ms || []).find(m => m.role && !['student', 'athlete', 'parent'].includes(String(m.role).toLowerCase()))
+        const m = staff || (ms || [])[0]
+        nm = m ? `${m.first_name || ''} ${m.last_name || ''}`.trim() : ''
+      }
+      nm = nm || u.email || 'Viewer'
+      if (gone) return
+      setWmName(nm)
+      // view log (who watched which clip, when) -- written once the name is known (it used to be
+      // written before the name loaded, so it often stored the email instead)
+      if (!viewLogged.current) {
+        viewLogged.current = true
+        supabase.from('footage_views').insert({ clip_id: String(cctvClipId), storage_path: storagePath || null, viewer_auth_id: u.id, viewer_name: nm }).then(() => {}, () => {})
+      }
     })
     const t = setInterval(() => { setWmNow(new Date()); setWmPos([15 + Math.random() * 70, 15 + Math.random() * 70]) }, 15000)
     const onHide = () => { if (document.hidden) videoRef.current?.pause?.() }
     document.addEventListener('visibilitychange', onHide)
     return () => { gone = true; clearInterval(t); document.removeEventListener('visibilitychange', onHide) }
-  }, [cctvClipId])
+  }, [cctvClipId, viewerName]) // eslint-disable-line react-hooks/exhaustive-deps
   const wmText = wmName ? `${wmName} · ${wmNow.toLocaleDateString('en-GB')} ${wmNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''
-  useEffect(() => {
-    if (!cctvClipId || viewLogged.current) return
-    viewLogged.current = true
-    supabase.auth.getUser().then(({ data }) => {
-      const u = data?.user; if (!u) return
-      supabase.from('footage_views').insert({ clip_id: String(cctvClipId), storage_path: storagePath || null, viewer_auth_id: u.id, viewer_name: wmName || u.email || null }).then(() => {}, () => {})
-    })
-  }, [cctvClipId])   // eslint-disable-line react-hooks/exhaustive-deps
   // onClipSwipe(dir, currentTime): with the controls hidden, swipe left/right = 'next'/'prev' file, up/down = 'camUp'/'camDown'
   // startAt: seconds into the video to start from (e.g. the class start inside a long CCTV recording)
   // Markers can belong to either a View IT fight_footage row or a CCTV

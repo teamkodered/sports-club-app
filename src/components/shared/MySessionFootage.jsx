@@ -6,7 +6,7 @@ import { camLabel, wall } from './SessionFootage.jsx'
 // 🎥 Athlete app: CCTV clips from MY sessions (the ones the coaches have opened up). Nothing shows if
 // it's switched off or there are no clips.
 const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-export default function MySessionFootage({ days = 45 }) {
+export default function MySessionFootage({ days = 45, viewerName = null }) {
   const [rows, setRows] = useState(null), [open, setOpen] = useState(false), [player, setPlayer] = useState(null), [opening, setOpening] = useState(null)
   useEffect(() => { supabase.rpc('kc_my_session_footage', { p_days: days }).then(({ data, error }) => setRows(error ? [] : (data || []))) }, [days])
   if (!rows || !rows.length) return null
@@ -44,7 +44,7 @@ export default function MySessionFootage({ days = 45 }) {
           </div>
         </div>
       ))}
-      {player && <FightFootagePlayer videoUrl={player.url} autoPlay startAt={player.startAt} cctvClipId={player.clip.clip_id} storagePath={player.clip.storage_path} title={`${camLabel(player.clip.camera_name)} — ${wall(player.clip.recorded_at).toLocaleString('en-GB')}`} onClose={() => setPlayer(null)} />}
+      {player && <FightFootagePlayer viewerName={viewerName} videoUrl={player.url} autoPlay startAt={player.startAt} cctvClipId={player.clip.clip_id} storagePath={player.clip.storage_path} title={`${camLabel(player.clip.camera_name)} — ${wall(player.clip.recorded_at).toLocaleString('en-GB')}`} onClose={() => setPlayer(null)} />}
     </div>
   )
 }
