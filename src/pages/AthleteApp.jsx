@@ -8229,6 +8229,17 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     style={{ width: '100%', justifyContent: 'center', gap: 8, padding: 11, fontSize: 14, marginTop: 16, borderColor: '#C0C4CC', color: '#C0C4CC' }}>
                     <NeonTileIcon name="Sweep the sheds" /> Sweep the sheds
                   </button>
+
+                  {/* ❤️ Live heart rate + wearable connections (moved here from the Wearables page) */}
+                  <div style={{ marginTop: 16 }}>
+                    {/* Live heart rate from a Bluetooth strap (Polar H10) -- saved as an Other session on today's log */}
+                    <LiveHeartRate live={live} age={(() => { const d = student?.members?.date_of_birth; if (!d) return null; const b = new Date(d), n = new Date(); return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0) })()}
+            onSave={async hr => { await saveHrSession(hr) }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{(wearableConnections || []).length ? `${(wearableConnections || []).length} connected` : 'Nothing connected'}</span>
+                      <button type="button" className="btn btn-sm" title="Wearable connections" onClick={() => { setCheckInDrawerOpen(false); setWearSettingsOpen(true); setTab('whoop') }}>⚙</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -8828,18 +8839,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
         <div>
           <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
 
-          {/* Live heart rate from a Bluetooth strap (Polar H10) -- saved as an Other session on today's log */}
-          <LiveHeartRate live={live} age={(() => { const d = student?.members?.date_of_birth; if (!d) return null; const b = new Date(d), n = new Date(); return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0) })()}
-            onSave={async hr => { await saveHrSession(hr) }} />
           <LiveHrTable title="❤️ Live in the gym" />
 
-          {/* Connections (Whoop, Polar, Health Connect…) live behind the ⚙ */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, margin: '-4px 0 10px' }}>
-            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{(wearableConnections || []).length ? `${(wearableConnections || []).length} connected` : 'Nothing connected'}</span>
-            <button type="button" className="btn btn-sm" onClick={() => setWearSettingsOpen(v => !v)} title="Wearable connections" aria-expanded={wearSettingsOpen}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-            </button>
-          </div>
+          {/* Live heart rate + the connections ⚙ moved into the Check in menu (under Sweep the sheds) */}
           <div style={{ display: wearSettingsOpen ? 'flex' : 'none', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
             {enabledProviders().map(p => {
               const conn = wearableConnections.find(c => c.provider === p.key)
