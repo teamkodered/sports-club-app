@@ -1758,7 +1758,8 @@ export default function AthleteApp() {
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
   const [pendingLiveHr, setPendingLiveHr] = useState(null)
   const [focusTip, setFocusTip] = useState(null)
-  const [outdoorsDismissed, setOutdoorsDismissed] = useState('')   // which question's 🎯 note is showing
+  const [outdoorsDismissed, setOutdoorsDismissed] = useState('')
+  const [wearActsTick, setWearActsTick] = useState(0)   // re-render after confirming / skipping wearable activities   // which question's 🎯 note is showing
   const [aePage, setAePage] = useState(0) // Alter Ego workbook: one part per page
   const aeSwipe = useRef(null)
   const sectionLeague = useSectionLeague(student?.id) // place + score in each section's league (same as the League board)
@@ -3763,7 +3764,7 @@ export default function AthleteApp() {
     const todaySess = sessions.find(x => x.session_date === todayStr) || {}
     const runList = toEntries(todaySess.running), otherList = toEntries(todaySess.other_session)
     const have = new Set([...runList, ...otherList].map(e => e?.wearable_id).filter(Boolean))
-    const CLUB = /box|kick|martial|mma|muay|jiu|judo|karate|taekwondo|wrestl|functional|power ?lift|weight/i
+    const CLUB = /box|kick|martial|mma|muay|jiu|judo|karate|taekwondo|wrestl|functional|power ?lift|weight|meditat|breath|ice ?bath|cold|plunge|yoga|stretch|mobility|spin|indoor cycl|stationary/i
     const add = { running: [], other_session: [] }
     for (const w of whoopSessions || []) {
       if (!w.start_time || workoutDate(w) !== todayStr) continue
@@ -3771,7 +3772,7 @@ export default function AthleteApp() {
       if (have.has(key) || wearableDismissed.includes(key) || workoutAutoRef.current.has(key)) continue
       const sport = String(w.sport_name || 'Workout'), { s, e } = workoutRange(w)
       const mins = Math.max(1, Math.round((e - s) / 60000))
-      if (/run|jog|treadmill/i.test(sport)) add.running.push({ type: sport, sets: [`${mins} min`], source: w.provider, wearable_id: key, unconfirmed: true })
+      if (/run|jog|treadmill/i.test(sport)) add.running.push({ type: sport, sets: [`${mins} min`, ...(w.distance_m ? [`${(w.distance_m / 1000).toFixed(2)} km`] : []), ...(w.avg_heart_rate ? [`avg ${w.avg_heart_rate} bpm`] : [])], distance_km: w.distance_m ? Math.round(w.distance_m / 10) / 100 : undefined, avg_hr: w.avg_heart_rate || undefined, source: w.provider, wearable_id: key, unconfirmed: true })
       else if (!CLUB.test(sport)) add.other_session.push({ type: sport, sets: [`${mins} min`, `${fmtTime(s)}–${fmtTime(e)}`], source: w.provider, wearable_id: key, unconfirmed: true })
       else continue
       workoutAutoRef.current.add(key)
@@ -6305,6 +6306,39 @@ export default function AthleteApp() {
                           <span style={{ flex: 1 }}>⌚ <b>VO2 Max {w.vo2.value}</b> from your wearable{saved ? ` (was ${saved.value})` : ''}</span>
                           <button type="button" className="btn btn-sm btn-primary" onClick={async () => { await saveTestValue('VO2 Max', String(w.vo2.value)); awardHousePoints('f2f_question', 'VO2 Max (wearable)'); flashSaved('✓ VO2 Max saved · +1 point') }}>✓ Confirm</button>
                           <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => { setVo2Dismissed(String(w.vo2.value)); try { localStorage.setItem('kc-vo2-dismissed', String(w.vo2.value)) } catch {} }}>✕</button>
+                        </div>
+                      )
+                    })()}
+                    {/* ⌚ Whoop / wearable activities -> their questions (confirm each): Meditation, Ice bath, Yoga / Stretching, Spin */}
+                    {(() => {
+                      const today = new Date().toISOString().split('T')[0]
+                      const MAP = [
+                        [/meditat|breath/i, '🧘 Meditation', 'mentality'],
+                        [/ice ?bath|cold|plunge/i, '🧊 Cold water training', 'cold'],
+                        [/yoga|stretch|mobility/i, '🤸 Stretch flows', 'stretch'],
+                        [/spin|indoor cycl|stationary/i, '🚴 Watt bike (spin)', 'watt'],
+                      ]
+                      let done = []; try { done = JSON.parse(localStorage.getItem('kc-wear-acts') || '[]') } catch { /* */ }
+                      const acts = (whoopSessions || []).filter(w => w.start_time && String(w.start_time).slice(0, 10) === today && !done.includes(String(w.id)))
+                        .map(w => ({ w, m: MAP.find(([re]) => re.test(w.sport_name || '')) })).filter(x => x.m)
+                      if (!acts.length) return null
+                      const minsOf = w => Math.max(1, Math.round(((w.duration_seconds) || ((new Date(w.end_time) - new Date(w.start_time)) / 1000) || 0) / 60))
+                      const mark = ids => { try { localStorage.setItem('kc-wear-acts', JSON.stringify([...done, ...ids].slice(-200))) } catch { /* */ } setWearActsTick(t => t + 1) }
+                      const confirm = async () => {
+                        for (const { w, m } of acts) {
+                          const mins = minsOf(w), key = `workout:${w.provider}:${w.provider_workout_id || w.id}`
+                          if (m[2] === 'mentality') await saveMentalityField('meditation', x => ({ ...x, entries: [...(x.entries || []), { category: 'general', type: w.sport_name || 'Meditation', minutes: mins, source: w.provider, wearable_id: key }] }))
+                          else if (m[2] === 'cold') await saveMentalityField('coldWater', x => ({ ...x, count: (x.count || 0) + 1, minutes: (x.minutes || 0) + mins }))
+                          else if (m[2] === 'stretch') await quickLogStretch()
+                          else if (m[2] === 'watt') await savePhysicalField('watt_bike', [...todaysWattBike, { sets: [], interval_mode: `${w.sport_name || 'Spin'} · ${mins} min${w.avg_heart_rate ? ` · avg ${w.avg_heart_rate} bpm` : ''}`, source: w.provider, wearable_id: key, quickLogged: true }], setTodaysWattBike)
+                        }
+                        mark(acts.map(a => String(a.w.id))); flashSaved('✓ Logged from your wearable')
+                      }
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', margin: '0 0 10px', borderRadius: 10, border: '1px solid #2F6BFF66', background: '#2F6BFF1a', fontSize: 13 }}>
+                          <span style={{ flex: 1 }}>⌚ From your wearable: <b>{acts.map(({ w, m }) => `${m[1]} · ${minsOf(w)} min`).join(' + ')}</b></span>
+                          <button type="button" className="btn btn-sm btn-primary" onClick={confirm}>✓ Confirm</button>
+                          <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => mark(acts.map(a => String(a.w.id)))}>✕</button>
                         </div>
                       )
                     })()}
