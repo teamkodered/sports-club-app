@@ -382,7 +382,7 @@ function isWellbeingQComplete(key, w) {
     case 'sleep': return !!(w.sleep?.hours || w.sleep?.efficiency) && !w.sleep?.unconfirmed   // ⌚ auto-filled sleep counts once confirmed
     case 'nutrition': return !!(w.nutrition?.targetPreset || w.nutrition?.quality)
     case 'hydration': return !!(w.hydration?.total > 0)
-    case 'outdoors': return !!(w.outdoors?.totalMinutes > 0)
+    case 'outdoors': return !!(w.outdoors?.totalMinutes > 0 || w.outdoors?.stepsGoal)   // minutes, or the steps target confirmed from a wearable
     case 'talk': return !!(w.talk?.count > 0)
     case 'screenFree': return !!(w.screenFree?.hours || w.screenFree?.custom)
     case 'journal': return !!(w.journal?.count > 0 || w.journal?.privateJournal)
@@ -1236,6 +1236,8 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   )
 }
 
+const OUTDOOR_STEPS_TARGET = 8000   // ⌚ steps that count as Outdoors done for the day (confirm on Home)
+const OUTDOOR_SPORTS = /run|jog|walk|hik|cycl|bik|ride|football|soccer|rugby|tennis|padel|paddle|golf|cricket|hockey|ski|surf|swim.*open|row(?!ing machine)/i
 const SHOW_DWM = false   // question cards: D / W / M charge lines (off for now, kept)
 
 const PDP_SECTIONS = [
@@ -1755,7 +1757,8 @@ export default function AthleteApp() {
   live.findClassNow = () => classNow()
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
   const [pendingLiveHr, setPendingLiveHr] = useState(null)
-  const [focusTip, setFocusTip] = useState(null)   // which question's 🎯 note is showing
+  const [focusTip, setFocusTip] = useState(null)
+  const [outdoorsDismissed, setOutdoorsDismissed] = useState('')   // which question's 🎯 note is showing
   const [aePage, setAePage] = useState(0) // Alter Ego workbook: one part per page
   const aeSwipe = useRef(null)
   const sectionLeague = useSectionLeague(student?.id) // place + score in each section's league (same as the League board)
@@ -6302,6 +6305,29 @@ export default function AthleteApp() {
                           <span style={{ flex: 1 }}>⌚ <b>VO2 Max {w.vo2.value}</b> from your wearable{saved ? ` (was ${saved.value})` : ''}</span>
                           <button type="button" className="btn btn-sm btn-primary" onClick={async () => { await saveTestValue('VO2 Max', String(w.vo2.value)); awardHousePoints('f2f_question', 'VO2 Max (wearable)'); flashSaved('✓ VO2 Max saved · +1 point') }}>✓ Confirm</button>
                           <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => { setVo2Dismissed(String(w.vo2.value)); try { localStorage.setItem('kc-vo2-dismissed', String(w.vo2.value)) } catch {} }}>✕</button>
+                        </div>
+                      )
+                    })()}
+                    {/* ⌚ Outdoors from the wearable: outdoor workouts' minutes (run, walk, cycle, football…) and the steps target -- confirm to log */}
+                    {(() => {
+                      const today = new Date().toISOString().split('T')[0]
+                      const cur = todaysWellbeing?.outdoors || {}
+                      const outs = (whoopSessions || []).filter(w => w.start_time && String(w.start_time).slice(0, 10) === today && OUTDOOR_SPORTS.test(w.sport_name || '') && !/treadmill|indoor/i.test(w.sport_name || ''))
+                      const doneKeys = cur.wearableKeys || []
+                      const newOuts = outs.filter(w => !doneKeys.includes(String(w.id)))
+                      const mins = newOuts.reduce((n, w) => n + Math.max(1, Math.round(((w.duration_seconds) || ((new Date(w.end_time) - new Date(w.start_time)) / 1000) || 0) / 60)), 0)
+                      const steps = (wearableDaily || []).find(d => d.day === today && d.steps != null)?.steps
+                      const stepsNew = steps >= OUTDOOR_STEPS_TARGET && !cur.stepsGoal
+                      if ((!mins && !stepsNew) || outdoorsDismissed === today + ':' + newOuts.map(w => w.id).join(',') + ':' + (stepsNew ? 's' : '')) return null
+                      const what = [mins ? `${mins} min outdoors (${[...new Set(newOuts.map(w => w.sport_name))].join(', ')})` : null, stepsNew ? `${steps.toLocaleString()} steps` : null].filter(Boolean).join(' + ')
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', margin: '0 0 10px', borderRadius: 10, border: '1px solid #C93BFF66', background: '#C93BFF1a', fontSize: 13 }}>
+                          <span style={{ flex: 1 }}>⌚ 🌳 <b>{what}</b> from your wearable</span>
+                          <button type="button" className="btn btn-sm btn-primary" onClick={() => {
+                            saveWellbeingField('outdoors', c => ({ ...c, totalMinutes: (c.totalMinutes || 0) + mins, wearableKeys: [...(c.wearableKeys || []), ...newOuts.map(w => String(w.id))], ...(stepsNew ? { stepsGoal: true, steps } : {}) }))
+                            flashSaved('✓ Outdoors logged')
+                          }}>✓ Confirm</button>
+                          <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => setOutdoorsDismissed(today + ':' + newOuts.map(w => w.id).join(',') + ':' + (stepsNew ? 's' : ''))}>✕</button>
                         </div>
                       )
                     })()}
