@@ -8778,8 +8778,21 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {tab === 'tpt' && (
         <div>
           <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+          {/* 📝 complete an MTP form yourself (same forms the coaches use; saved to your own record) */}
+          {(() => {
+            const boxer = student?.discipline === 'KRBA' || student?.is_krba
+            const forms = [['/kickboxing-tpt', '🥋 Kickboxing MTP form'], ['/boxing-tpt', '🥊 Boxing MTP form']]
+            if (boxer) forms.reverse()
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                {forms.map(([href, label], i) => (
+                  <a key={href} href={href} className={i === 0 ? 'btn btn-primary' : 'btn'} style={{ justifyContent: 'center', padding: 12, fontSize: 14, textDecoration: 'none' }}>📝 {label}</a>
+                ))}
+              </div>
+            )
+          })()}
           {tptData.kickboxing.length === 0 && tptData.boxing.length === 0 ? (
-            <div className="empty-state"><h3>No MTP assessments yet</h3><p>Your coach will log these after each assessment</p></div>
+            <div className="empty-state"><h3>No MTP assessments yet</h3><p>Fill one in above, or your coach will log one after an assessment</p></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {tptData.kickboxing[0] && (
