@@ -7,6 +7,7 @@ import { camLabel, wall } from './SessionFootage.jsx'
 // it's switched off or there are no clips.
 const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 export default function MySessionFootage({ days = 45, viewerName = null }) {
+  const [openDay, setOpenDay] = useState(null)   // which day's clips are showing
   const [rows, setRows] = useState(null), [open, setOpen] = useState(false), [player, setPlayer] = useState(null), [opening, setOpening] = useState(null)
   useEffect(() => { supabase.rpc('kc_my_session_footage', { p_days: days }).then(({ data, error }) => setRows(error ? [] : (data || []))) }, [days])
   if (!rows || !rows.length) return null
@@ -34,9 +35,14 @@ export default function MySessionFootage({ days = 45, viewerName = null }) {
       </button>
       {open && sessions.map(s => (
         <div key={s.k} style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{fmtDay(s.date)} · {s.label}</div>
+          {/* each day starts folded -- press the day to show its clips */}
+          <button type="button" onClick={() => setOpenDay(d => d === s.k ? null : s.k)} aria-expanded={openDay === s.k}
+            style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', width: '100%', minHeight: 40, fontSize: 14, fontWeight: 700 }}>
+            <span style={{ flex: 1 }}>{fmtDay(s.date)} · {s.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 400 }}>{s.clips.length} clip{s.clips.length === 1 ? '' : 's'} {openDay === s.k ? '▲' : '▼'}</span>
+          </button>
           {/* big, easy-to-tap clip buttons: two per row, camera above the time */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          {openDay === s.k && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, margin: '6px 0 4px' }}>
             {s.clips.map(c => (
               <button key={c.clip_id} type="button" className="btn" disabled={opening === c.clip_id} onClick={() => play(c, s)}
                 style={{ minHeight: 56, padding: '10px 12px', justifyContent: 'flex-start', gap: 10, fontSize: 15, textAlign: 'left' }}>
@@ -47,7 +53,7 @@ export default function MySessionFootage({ days = 45, viewerName = null }) {
                 </span>
               </button>
             ))}
-          </div>
+          </div>}
         </div>
       ))}
       {player && <FightFootagePlayer viewerName={viewerName} videoUrl={player.url} autoPlay startAt={player.startAt} cctvClipId={player.clip.clip_id} storagePath={player.clip.storage_path} title={`${camLabel(player.clip.camera_name)} — ${wall(player.clip.recorded_at).toLocaleString('en-GB')}`} onClose={() => setPlayer(null)} />}
