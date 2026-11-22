@@ -4073,6 +4073,7 @@ export default function AthleteProfiles() {
     if (!next.length) setResultDetail(null)
   }
   const [f2fListAll, setF2fListAll] = useState(false)
+  const [f2fListOpen, setF2fListOpen] = useState(false)   // records list hidden until pressed (graphs stay in view)
   // Fit II Fight: swipe left / right on a graph to change category (the ◀ ▶ arrows are gone)
   const f2fCycleRef = useRef(null)
   const f2fTabRef = useRef(null)
@@ -13472,7 +13473,10 @@ export default function AthleteProfiles() {
                   <div className="empty-state"><p>{f2fData.length === 0 ? 'No Fit II Fight sessions logged yet.' : `No ${GRAPH_SECTION_LABELS[resultsGraphSection]} results in this date range.`}</p></div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {(f2fListAll ? resultsListFiltered : resultsListFiltered.slice(0, 5)).map((s, i) => {
+                    <button type="button" className="btn" style={{ justifyContent: 'center', padding: 11 }} onClick={() => setF2fListOpen(v => !v)} aria-expanded={f2fListOpen}>
+                      {f2fListOpen ? '▲ Hide records' : `▼ View records (${resultsListFiltered.length})`}
+                    </button>
+                    {f2fListOpen && (f2fListAll ? resultsListFiltered : resultsListFiltered.slice(0, 5)).map((s, i) => {
                       const change = s.weight_before && s.weight_after
                         ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null
                       const exercises = [
@@ -13605,7 +13609,7 @@ export default function AthleteProfiles() {
                         </div>
                       )
                     })}
-                    {resultsListFiltered.length > 5 && <button type="button" className="btn" style={{ justifyContent: 'center' }} onClick={() => setF2fListAll(v => !v)}>{f2fListAll ? '▲ Show less' : `▼ View all (${resultsListFiltered.length})`}</button>}
+                    {f2fListOpen && resultsListFiltered.length > 5 && <button type="button" className="btn" style={{ justifyContent: 'center' }} onClick={() => setF2fListAll(v => !v)}>{f2fListAll ? '▲ Show less' : `▼ View all (${resultsListFiltered.length})`}</button>}
                   </div>
                 )}
 
