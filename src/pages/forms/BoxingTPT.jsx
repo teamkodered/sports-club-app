@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth.jsx'
 import FormLogo from '../../components/shared/FormLogo.jsx'
 
 // ── Category definitions matching the exact sheet ──
-const CATEGORIES = {
+export const CATEGORIES = {
   Mental: [
     { key: 'read_opponent',             label: 'Ability to read opponent' },
     { key: 'tempo_rhythm',              label: 'Tempo / rhythm control' },
@@ -51,14 +51,14 @@ const CATEGORIES = {
 }
 
 const ALL_KEYS = Object.values(CATEGORIES).flat().map(c => c.key)
-const GROUP_COLOURS = { Technical: '#378ADD', Physical: '#1D9E75', Mental: '#E24B4A' }
+export const GROUP_COLOURS = { Technical: '#378ADD', Physical: '#1D9E75', Mental: '#E24B4A' }
 
 function emptyScores() {
   return Object.fromEntries(ALL_KEYS.map(k => [k, 5]))
 }
 
 // ── Radar chart (pure SVG, no deps) ──
-function RadarChart({ scores, compare, width = 320 }) {
+export function RadarChart({ scores, compare, width = 320 }) {
   const groups = Object.entries(CATEGORIES)
   // Use first 10 keys as radar points for readability
   const RADAR_KEYS = [

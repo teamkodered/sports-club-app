@@ -7,6 +7,8 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
+import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
 import HrrTestTool from '../components/shared/HrrTestTool.jsx'
 import { saveTestResults } from '../lib/testResults.js'
@@ -4074,7 +4076,8 @@ export default function AthleteProfiles() {
   }
   const [f2fListAll, setF2fListAll] = useState(false)
   const [f2fListOpen, setF2fListOpen] = useState(false)
-  const [mtpListOpen, setMtpListOpen] = useState(false)   // records list hidden until pressed (graphs stay in view)
+  const [mtpListOpen, setMtpListOpen] = useState(false)
+  const [mtpDisc, setMtpDisc] = useState(null)   // records list hidden until pressed (graphs stay in view)
   // Fit II Fight: swipe left / right on a graph to change category (the ◀ ▶ arrows are gone)
   const f2fCycleRef = useRef(null)
   const f2fTabRef = useRef(null)
@@ -13627,7 +13630,7 @@ export default function AthleteProfiles() {
                   return (
                     <div className="card" style={{ marginTop: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                        <h3 style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>📋 MTP over time</h3>
+                        <h3 style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>📋 MTP results</h3>
                         <a href={form} className="btn btn-sm">+ MTP form</a>
                       </div>
                       {pts.length === 0 ? (
@@ -13635,13 +13638,34 @@ export default function AthleteProfiles() {
                           <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No MTP assessments yet.</p>
                           <a href={form} className="btn btn-sm btn-primary">📋 Complete MTP form</a>
                         </div>
-                      ) : (
-                        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label="MTP score over time">
-                          {[0, 50, 100].map(v => <g key={v}><line x1="16" x2={W - 8} y1={H - 14 - v / 100 * (H - 28)} y2={H - 14 - v / 100 * (H - 28)} stroke="#2A3138" /><text x="0" y={H - 11 - v / 100 * (H - 28)} fontSize="8" fill="#9A9A9A">{v}%</text></g>)}
-                          {['Kickboxing', 'Boxing'].map(d => { const l = pts.filter(r => r._d === d); return l.length > 1 ? <polyline key={d} fill="none" stroke={l[0]._c} strokeWidth="2" points={l.map(r => `${x(r)},${y(r)}`).join(' ')} /> : null })}
-                          {pts.map(r => <circle key={r.id || r.assessed_at} cx={x(r)} cy={y(r)} r="3.5" fill={r._c}><title>{`${r._d} ${new Date(r.assessed_at).toLocaleDateString('en-GB')}: ${r._pct}%`}</title></circle>)}
-                        </svg>
-                      )}
+                      ) : (() => {
+                        // like the MTP form's radar: latest assessment (previous one shown behind it), total and the three group averages
+                        const disc = (mtpDisc && rows.some(r => r._d === mtpDisc)) ? mtpDisc : rows[rows.length - 1]._d
+                        const list = rows.filter(r => r._d === disc), latest = list[list.length - 1], prev = list[list.length - 2]
+                        const CATS = disc === 'Boxing' ? BOX_MTP_CATS : KB_MTP_CATS, Radar = disc === 'Boxing' ? BoxMtpRadar : KbMtpRadar
+                        const keys = Object.values(CATS).flat().map(c => c.key)
+                        const total = keys.reduce((a, k) => a + (Number(latest[k]) || 0), 0)
+                        return (
+                          <div>
+                            {rows.some(r => r._d !== disc) && (
+                              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                                {['Kickboxing', 'Boxing'].filter(d => rows.some(r => r._d === d)).map(d => <button key={d} type="button" className={d === disc ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setMtpDisc(d)}>{d === 'Boxing' ? '🥊' : '🥋'} {d}</button>)}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 4 }}>
+                              <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>{disc} · {new Date(latest.assessed_at).toLocaleDateString('en-GB')}{prev ? ` (faint: ${new Date(prev.assessed_at).toLocaleDateString('en-GB')})` : ''}</span>
+                              <b style={{ fontSize: 16 }}>{total} / {keys.length * 10}</b>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'center' }}><Radar scores={latest} compare={prev || null} width={300} /></div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 10 }}>
+                              {Object.keys(CATS).map(g => {
+                                const avg = (CATS[g].reduce((a, c) => a + (Number(latest[c.key]) || 0), 0) / CATS[g].length).toFixed(1), col = MTP_GROUP_COLOURS[g] || '#9A9A9A'
+                                return <div key={g} style={{ background: col + '1f', borderRadius: 10, padding: '10px 6px', textAlign: 'center' }}><div style={{ fontSize: 20, fontWeight: 700, color: col }}>{avg}</div><div style={{ fontSize: 11, color: col }}>{g}</div></div>
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })()}
                       {rows.length > 0 && (
                         <>
                           <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={() => setMtpListOpen(v => !v)}>{mtpListOpen ? '▲ Hide MTP records' : `▼ View MTP records (${rows.length})`}</button>

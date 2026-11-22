@@ -8,7 +8,7 @@ import FormLogo from '../../components/shared/FormLogo.jsx'
 // subjective scoring across Technical/Physical/Mental), with
 // kickboxing-specific additions (kicks, hand-to-leg/leg-to-hand
 // combinations, kicking power, ring/tatami awareness). ──
-const CATEGORIES = {
+export const CATEGORIES = {
   Mental: [
     { key: 'read_opponent',             label: 'Ability to read opponent' },
     { key: 'tempo_rhythm',              label: 'Tempo / rhythm control' },
@@ -56,7 +56,7 @@ const CATEGORIES = {
 }
 
 const ALL_KEYS = Object.values(CATEGORIES).flat().map(c => c.key)
-const GROUP_COLOURS = { Technical: '#378ADD', Physical: '#1D9E75', Mental: '#E24B4A' }
+export const GROUP_COLOURS = { Technical: '#378ADD', Physical: '#1D9E75', Mental: '#E24B4A' }
 
 function emptyScores() {
   return Object.fromEntries(ALL_KEYS.map(k => [k, 5]))
@@ -65,7 +65,7 @@ function emptyScores() {
 // ── Radar chart (pure SVG, no deps) -- same approach as Boxing: 10
 // representative keys picked across the 3 categories for readability,
 // rather than all 38. ──
-function RadarChart({ scores, compare, width = 320 }) {
+export function RadarChart({ scores, compare, width = 320 }) {
   const RADAR_KEYS = [
     'footwork', 'defence', 'attack', 'combinations_hand_to_leg', 'punch_quality',
     'foot_speed', 'punching_power', 'kicking_power',
