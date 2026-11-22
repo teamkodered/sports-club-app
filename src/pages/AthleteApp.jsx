@@ -8222,23 +8222,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     </>
                   )}
 
-                  <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 14 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>⚖️ Weight check</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }}
-                        onClick={() => {
-                          if (!activeCheckIn) { checkInNow('attended') } else { setShowWeightCheckPrompt('in'); setWeightCheckValue(activeCheckIn.weight_before?.toString() || '') }
-                        }}>
-                        Weigh in — before
-                      </button>
-                      <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }} disabled={!activeCheckIn}
-                        onClick={() => { setShowWeightCheckPrompt('out'); setWeightCheckValue(activeCheckIn?.weight_after?.toString() || '') }}>
-                        Weigh in — after
-                      </button>
-                      {!activeCheckIn && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: 2 }}>Check in first to log a weight after</p>}
-                    </div>
-                  </div>
-
+                  {/* ⚖️ Weight check buttons removed -- the weigh-in comes up straight after Check in / Check out */}
                   {/* VO2 Max now comes from the wearable (confirm on Home, +1 point) */}
                   {/* 🧹 Sweep the sheds -- under the weigh-ins */}
                   <button type="button" className="btn" onClick={() => { setCheckInDrawerOpen(false); setTab('sweep') }}
