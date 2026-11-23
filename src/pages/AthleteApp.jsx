@@ -6354,20 +6354,6 @@ export default function AthleteApp() {
                         </div>
                       )
                     })()}
-                    {/* ⌚ 🔋 3. Low recovery -> suggest an Active recovery day */}
-                    {(() => {
-                      const today = new Date().toISOString().split('T')[0]
-                      const d = (wearableDaily || []).find(x => x.day === today && x.recovery_score != null)
-                      const logged = (todaysMentalityLog?.activeRecovery?.entries || []).length > 0
-                      if (!d || d.recovery_score >= 34 || logged || recoveryDismissed === today) return null
-                      return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', margin: '0 0 10px', borderRadius: 10, border: '1px solid #22B14C66', background: '#22B14C1a', fontSize: 13 }}>
-                          <span style={{ flex: 1 }}>🔋 Recovery <b>{Math.round(d.recovery_score)}%</b> today -- log an <b>Active recovery day</b>?</span>
-                          <button type="button" className="btn btn-sm btn-primary" onClick={async () => { await saveMentalityField('activeRecovery', m => ({ ...m, entries: [...(m.entries || []), { quickLogged: true, source: 'recovery', recovery: Math.round(d.recovery_score) }] })); flashSaved('✓ Active recovery day logged') }}>✓ Yes</button>
-                          <button type="button" className="btn btn-sm" aria-label="Not now" onClick={() => setRecoveryDismissed(today)}>✕</button>
-                        </div>
-                      )
-                    })()}
                     {/* ⌚ Whoop / wearable activities -> their questions (confirm each): Meditation, Ice bath, Yoga / Stretching, Spin */}
                     {(() => {
                       const today = new Date().toISOString().split('T')[0]
