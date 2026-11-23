@@ -6282,7 +6282,7 @@ export default function AthleteApp() {
                 // PDP card values
                 // only what the athlete can SEE counts: the 'Work on' items the coach has sent them, and of
                 // those, the ones they've ticked done (or the coach has marked completed)
-                const visibleWorkOn = PDP_SECTIONS.filter(s => /_work_on$/.test(s.key) && s.key !== 'to_work_on')
+                const visibleWorkOn = PDP_SECTIONS.filter(s => /(_work_on|_maintain)$/.test(s.key) && s.key !== 'to_work_on' && s.key !== 'maintain')   // viewable Work on + Maintain items count
                   .flatMap(s => (isToDoSectionKey(s.key) ? (pdp[s.key] || []) : (shared[s.key] || [])).map(t => ({ key: s.key, text: typeof t === 'string' ? t : (t?.text || '') })))
                 const doneMap = apData?.pdp_done || {}
                 const completedTexts = myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task')).map(n => n.note_text)

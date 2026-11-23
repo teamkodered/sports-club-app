@@ -10561,7 +10561,7 @@ export default function AthleteProfiles() {
                     })()}
                     <PdpMiniCard onNavigate={() => setTab('pdp')}
                       completedCount={notesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length}
-                      totalSent={PDP_SECTIONS.filter(s => /_work_on$/.test(s.key) && s.key !== 'to_work_on').reduce((sum, s) =>   // only the 'Work on' items count (not maintain / notes / winning ways)
+                      totalSent={PDP_SECTIONS.filter(s => /(_work_on|_maintain)$/.test(s.key) && s.key !== 'to_work_on' && s.key !== 'maintain').reduce((sum, s) =>   // Work on + Maintain items count (not to do / notes / winning ways)
                         sum + (isToDoSectionKey(s.key) ? (apData?.pdp_notes?.[s.key] || []).length : (apData?.pdp_shared?.[s.key] || []).length), 0)} />
                   </div>
 
