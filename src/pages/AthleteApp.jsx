@@ -6277,7 +6277,7 @@ export default function AthleteApp() {
                 const f2fTargetTotal = Object.values(byQuestion).reduce((sum, t) => sum + (parseNum(t.target_value) || 0), 0)
                 const f2fHasPct = f2fTargetTotal > 0
                 const f2fValue = f2fHasPct ? `${f2fCount}/${f2fTargetTotal}` : f2fCount
-                const f2fPct = f2fHasPct ? `${Math.round((f2fCount / f2fTargetTotal) * 100)}%` : f2fValue
+                const f2fPct = f2fHasPct ? `${Math.round((f2fCount / f2fTargetTotal) * 100)}%` : '0%'
 
                 // PDP card values
                 // only what the athlete can SEE counts: the 'Work on' items the coach has sent them, and of
@@ -6291,7 +6291,7 @@ export default function AthleteApp() {
                 const pdpHasPct = totalSent > 0
                 const doneShown = pdpHasPct ? Math.min(completedCount, totalSent) : completedCount
                 const pdpValue = pdpHasPct ? `${doneShown}/${totalSent}` : completedCount
-                const pdpPct = pdpHasPct ? `${Math.round((doneShown / totalSent) * 100)}%` : pdpValue
+                const pdpPct = pdpHasPct ? `${Math.round((doneShown / totalSent) * 100)}%` : '0%'   // always a % on the tile
 
                 return (
                   <>
@@ -6299,11 +6299,11 @@ export default function AthleteApp() {
                     <AthleteFightFootage studentId={student?.id} />
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                       <TopStatCard onNavigate={() => setTab('sessions')} iconImg="/logos/neon/sessions.png" value={sessionsValue} pctValue={`${sessionsPct}%`}
-                        hasPct={possibleSessions > 0} label="Sessions" colour={colour} />
+                        hasPct label="Sessions" colour={colour} />
                       <TopStatCard onNavigate={() => setTab('fit2fight')} iconImg="/logos/neon/results.svg" value={f2fValue} pctValue={f2fPct}
-                        hasPct={f2fHasPct} label="Results" colour="#378ADD" />
+                        hasPct label="Results" colour="#378ADD" />
                       <TopStatCard onNavigate={() => setTab('pdp')} iconImg="/logos/neon/pdp.png" value={pdpValue} pctValue={pdpPct}
-                        hasPct={pdpHasPct} label="PDP" colour="#EF9F27" />
+                        hasPct label="PDP" colour="#EF9F27" />
                     </div>
 
                     {/* Physical/Technique/Tactical/Mentality reordered visually
