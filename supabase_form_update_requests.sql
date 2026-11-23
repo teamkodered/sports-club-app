@@ -3,7 +3,7 @@
 -- (start date, attendance, points, grade, house, payments untouched) as a new form on file; older forms are
 -- kept, marked superseded.
 create table if not exists public.form_update_requests (
-  token text primary key default encode(gen_random_bytes(16), 'hex'),
+  token text primary key default replace(gen_random_uuid()::text, '-', ''),
   member_id uuid not null, student_id uuid, form_type text not null,
   created_by uuid, created_by_name text, created_at timestamptz default now(),
   expires_at timestamptz default now() + interval '14 days', used_at timestamptz
