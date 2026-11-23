@@ -91,6 +91,10 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
       const wrap = tileEl(cur)?.parentElement, t = e.target
       if (!wrap || wrap.contains(t) || t.closest?.('.kc-bh-rail, .kc-bh-figw, [role="dialog"], [aria-modal="true"]')) return
       e.stopPropagation()
+      // the tap only closes the open section -- swallow the click that follows so nothing behind it gets pressed
+      const swallow = ev => { ev.preventDefault(); ev.stopPropagation(); window.removeEventListener('click', swallow, true) }
+      window.addEventListener('click', swallow, true)
+      setTimeout(() => window.removeEventListener('click', swallow, true), 700)
       downOpen.current = cur.key; holdScroll(); open(cur)
     }
     window.addEventListener('mousedown', onDown, true)
