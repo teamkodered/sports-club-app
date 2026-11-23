@@ -1874,24 +1874,70 @@ export default function AthleteApp() {
   const [remindersOn, setRemindersOn] = useState(() => { try { return localStorage.getItem('kc_reminders') !== 'off' } catch { return true } })
   const [reminderPopup, setReminderPopup] = useState(null)
   const setReminders = on => { setRemindersOn(on); try { localStorage.setItem('kc_reminders', on ? 'on' : 'off') } catch { /* ignore */ } }
+  // ── Reminders (one switch): a MORNING round-up (first open before 2pm) and an EVENING round-up (first open
+  // after 5pm) listing what's due, plus ONE-OFF nudges during the day when something new comes up. ──
+  const [reminderToast, setReminderToast] = useState(null)
+  const buildReminders = (evening) => {
+    const items = [], today = new Date().toISOString().split('T')[0], now = new Date()
+    const pts = Number(athleteHousePoints?.f2f_question) || 1
+    // 📅 session today
+    const dow = now.toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase()
+    const todays = (assignedClasses || []).filter(a => a.classes && (a.classes.day_of_week || '').toLowerCase().includes(dow) && assignmentActiveOn(a, today))
+      .sort((a, b) => String(a.classes.start_time).localeCompare(String(b.classes.start_time)))
+    if (!evening) for (const a of todays) items.push({ icon: '📅', text: `You have a session today at ${String(a.classes.start_time).slice(0, 5)}${a.classes.name ? ` (${a.classes.name})` : ''}` })
+    // 📝 PDP today
+    try { const dayName = now.toLocaleDateString('en-GB', { weekday: 'long' }); for (const it of getScheduledItemsForDay(dayName).filter(x => !x.completed).slice(0, 4)) items.push({ icon: '📝', text: `PDP today: ${it.text || it.note_text || it.label || ''}` }) } catch { /* */ }
+    // 🏃 1+2. weekly Physical targets left + points still on offer
+    let onOffer = 0
+    try {
+      const labels = [...new Set((sectionTargets || []).filter(t => t.section_key === 'physical' && t.question_label).map(t => t.question_label))]
+      const left = []
+      for (const l of labels) { const r = getQuestionProgressByPeriod('physical', l); if (r?.week?.target > r.week.done) { left.push(`${r.week.target - r.week.done} ${l}`); onOffer += (r.week.target - r.week.done) * pts } }
+      if (left.length) items.push({ icon: '🏃', text: `Left this week: ${left.join(', ')} (+${onOffer} pts)` })
+    } catch { /* */ }
+    // 📋 tests this month
+    try { const t2 = getSectionProgressByPeriod('test'); if (t2?.month?.target > 0 && t2.month.done < t2.month.target) items.push({ icon: '📋', text: `Tests: ${t2.month.target - t2.month.done} left to complete this month` }) } catch { /* */ }
+    // 🎯 3. monthly focus not set
+    try { const miss = ['mentality', 'tactical', 'technique', 'physical'].filter(k => !myFocus?.[k]); if (miss.length) items.push({ icon: '🎯', text: `Pick your ${now.toLocaleDateString('en-GB', { month: 'long' })} focus in ${miss.map(k => ({ mentality: 'Mentality', tactical: 'Tactical', technique: 'Technical', physical: 'Physical' })[k]).join(', ')} (+1 pt each)` }) } catch { /* */ }
+    // ⌚ 4. wearable things to confirm
+    if (todaysWellbeing?.sleep?.unconfirmed) items.push({ icon: '⌚', text: 'Confirm last night\'s sleep from your wearable' })
+    // ⚖️ 5. forgot to check out
+    if (activeCheckIn?.attended_at && (now - new Date(activeCheckIn.attended_at)) > 150 * 60000) items.push({ icon: '⚖️', text: 'Check out of your class for your weigh-out points' })
+    // 📋 7. MTP this month
+    try { const all = [...(tptData.kickboxing || []), ...(tptData.boxing || [])]; if (!all.some(r => String(r.assessed_at || '').slice(0, 7) === today.slice(0, 7))) items.push({ icon: '📋', text: 'Fill in your MTP form this month' }) } catch { /* */ }
+    // 🔥 8. streak at risk (evening)
+    if (evening) {
+      const has = d => (sessions || []).some(x => x.session_date === d && ['running', 'watt_bike', 'bodyweight', 'techniques', 'tactical', 'mentality_log', 'wellbeing', 'other_session'].some(f => { const v = x[f]; return Array.isArray(v) ? v.length : v && typeof v === 'object' ? Object.keys(v).length : !!v }))
+      if (!has(today)) { let n = 0; const d = new Date(); for (let i = 1; i < 60; i++) { d.setDate(d.getDate() - 1); if (has(d.toISOString().split('T')[0])) n++; else break } if (n > 0) items.push({ icon: '🔥', text: `Log something today to keep your ${n}-day streak` }) }
+    }
+    // ⚖️ 10. comp weight check
+    try { const div = parseFloat(String(apData?.weight_division || '').replace(/[^0-9.]/g, '')); const w = Number(student?.weight_kg); if (div && w && w > div) items.push({ icon: '⚖️', text: `Comp weight check: ${(w - div).toFixed(1)}kg over ${div}kg` }) } catch { /* */ }
+    return items
+  }
   useEffect(() => {
     if (!student || !remindersOn) return
-    const today = new Date().toISOString().split('T')[0]
-    try { if (localStorage.getItem('kc_reminders_day') === today) return } catch { /* */ }
+    const today = new Date().toISOString().split('T')[0], h = new Date().getHours()
+    const slot = h < 14 ? 'am' : h >= 17 ? 'pm' : null
+    if (!slot) return
+    const key = `kc_reminders_${slot}`
+    try { if (localStorage.getItem(key) === today) return } catch { /* */ }
     const t = setTimeout(() => {
-      const items = []
-      const dow = new Date().toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase()
-      const todays = (assignedClasses || []).filter(a => a.classes && (a.classes.day_of_week || '').toLowerCase() === dow && assignmentActiveOn(a, today))
-        .sort((a, b) => String(a.classes.start_time).localeCompare(String(b.classes.start_time)))
-      for (const a of todays) items.push({ icon: '📅', text: `You have a session today at ${String(a.classes.start_time).slice(0, 5)}${a.classes.name ? ` (${a.classes.name})` : ''}` })
-      try { const dayName = new Date().toLocaleDateString('en-GB', { weekday: 'long' }); for (const it of getScheduledItemsForDay(dayName).filter(x => !x.completed).slice(0, 4)) items.push({ icon: '📝', text: `PDP today: ${it.text}${it.time ? ` (${it.time})` : ''}` }) } catch { /* */ }
-      try { const r = getQuestionProgressByPeriod('physical', 'Running'); if (r?.week?.target > 0 && r.week.done < r.week.target) items.push({ icon: '🏃', text: `Running: ${r.week.done} of ${r.week.target} this week -- ${r.week.target - r.week.done} left` }) } catch { /* */ }
-      try { const t2 = getSectionProgressByPeriod('test'); if (t2?.month?.target > 0 && t2.month.done < t2.month.target) items.push({ icon: '📋', text: `Tests: ${t2.month.target - t2.month.done} left to complete this month` }) } catch { /* */ }
-      try { localStorage.setItem('kc_reminders_day', today) } catch { /* */ }
-      if (items.length) setReminderPopup(items)
+      const items = buildReminders(slot === 'pm')
+      try { localStorage.setItem(key, today) } catch { /* */ }
+      if (items.length) setReminderPopup(items.map(i => ({ ...i })).concat(slot === 'pm' ? [] : []))
     }, 2500)
     return () => clearTimeout(t)
-  }, [student?.id, remindersOn, assignedClasses.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [student?.id, remindersOn, assignedClasses.length, sessionsLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!reminderToast) return; const t = setTimeout(() => setReminderToast(null), 10000); return () => clearTimeout(t) }, [reminderToast])
+  // one-off nudges during the day: new PDP items from the coach, league movement, new wearable data to confirm
+  useEffect(() => {
+    if (!student || !remindersOn) return
+    const seen = (k, v) => { try { const old = localStorage.getItem('kc_seen_' + k); localStorage.setItem('kc_seen_' + k, String(v)); return old } catch { return null } }
+    const msgs = []
+    try { const pn = apData?.pdp_notes || {}; const n = PDP_SECTIONS.reduce((c, sct) => c + ((Array.isArray(pn[sct.key]) ? pn[sct.key] : []).filter(it => it?.visible !== false).length), 0); const old = seen('pdp', n); if (old != null && n > Number(old)) msgs.push(`📝 Your coach added ${n - Number(old)} new PDP item${n - Number(old) > 1 ? 's' : ''}`) } catch { /* */ }
+    try { const sl = todaysWellbeing?.sleep?.unconfirmed ? String(todaysWellbeing.sleep.wearable_id || 'sleep') : ''; const old = seen('sleepconf', sl); if (sl && old !== sl) msgs.push('⌚ Your sleep came in from your wearable -- tap Confirm in Foundation') } catch { /* */ }
+    if (msgs.length) setReminderToast(msgs.join(' · '))
+  }, [student?.id, remindersOn, apData?.pdp_notes, todaysWellbeing?.sleep?.wearable_id]) // eslint-disable-line react-hooks/exhaustive-deps
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -5861,6 +5907,11 @@ export default function AthleteApp() {
               </div>
             </div>
           )}
+          {reminderToast && (
+            <div role="status" onClick={() => setReminderToast(null)} style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))', zIndex: 120, padding: '12px 14px', borderRadius: 12, background: '#14181C', border: '1px solid #F5C542', boxShadow: '0 6px 20px rgba(0,0,0,.5)', fontSize: 13, display: 'flex', gap: 10, alignItems: 'center' }}>
+              <span style={{ flex: 1 }}>🔔 {reminderToast}</span><span style={{ color: 'var(--text-tertiary)' }}>✕</span>
+            </div>
+          )}
           {reminderPopup && (
             <div role="dialog" aria-modal="true" onClick={() => setReminderPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 570, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '80px 16px 0' }}>
               <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, padding: 18 }}>
@@ -7755,7 +7806,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               {appSettingsOpen && (
                 <div className="kc-app-settings">
                   <button type="button" className={`kc-app-setting${remindersOn ? ' on' : ''}`} onClick={() => setReminders(!remindersOn)} aria-pressed={remindersOn}>
-                    <span>🔔 Daily reminders<small>Session today, PDP today, running and tests left</small></span>
+                    <span>🔔 Reminders<small>Morning and evening round-up (sessions, targets left, focus, tests, MTP, streak, weight) and nudges during the day</small></span>
                     <b>{remindersOn ? 'ON' : 'OFF'}</b>
                   </button>
                 </div>
