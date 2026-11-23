@@ -9,8 +9,15 @@ const money = n => `£${Number(n || 0).toFixed(2)}`
 const KINDS = [['grading', '🎽 Grading'], ['bbbc', '🥋 BBBC course'], ['levelup', '⚡ Level Up']]
 const METHODS = [['cash', '💵 Cash'], ['card', '💳 Card'], ['transfer', '🏦 Bank transfer']]
 export const bandFor = gf => /black|\bdan\b/i.test(gf || '') ? 'black' : /brown/i.test(gf || '') ? 'brown' : 'standard'
+// payments are positive; refunds are saved as negative amounts with method 'refund_<how>'
 const paidOf = b => (b.fee_payments || []).reduce((n, p) => n + Number(p.amount || 0), 0)
-export const feeStatus = b => { const p = paidOf(b); return p <= 0 ? 'owed' : p + 0.001 >= Number(b.price) ? 'paid' : 'part' }
+const refundedOf = b => (b.fee_payments || []).filter(p => Number(p.amount) < 0).reduce((n, p) => n - Number(p.amount || 0), 0)
+export const feeStatus = b => {
+  const p = paidOf(b), r = refundedOf(b)
+  if (r > 0) return p <= 0.001 ? 'refunded' : 'part_refunded'
+  return p <= 0 ? 'owed' : p + 0.001 >= Number(b.price) ? 'paid' : 'part'
+}
+const methodLabel = m => String(m || '').startsWith('refund_') ? `refund (${m.slice(7) === 'transfer' ? 'bank transfer' : m.slice(7)})` : m
 const fmtD = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : ''
 
 export default function FeesPanel() {
@@ -86,6 +93,24 @@ export default function FeesPanel() {
     if (error) return alert(error.message)
     load()
   }
+  // ↩ refund (admin): full or part, recorded as its own line -- the original payment stays in the history
+  async function refund(b) {
+    const net = paidOf(b)
+    const nm = b.students?.members ? `${b.students.members.first_name} ${b.students.members.last_name}` : 'this booking'
+    const a = prompt(`Refund for ${nm} -- ${money(net)} paid. Amount to refund (£):`, net.toFixed(2))
+    if (a == null) return
+    const amt = Number(a)
+    if (!(amt > 0) || amt > net + 0.001) return alert(`Enter an amount between £0.01 and ${money(net)}.`)
+    const how = prompt('How is it going back? Type cash, card or transfer', 'card')
+    if (!how) return
+    const m = /card/i.test(how) ? 'card' : /trans|bank/i.test(how) ? 'transfer' : 'cash'
+    if (!confirm(`Record a ${money(amt)} refund (${m}) for ${nm}?`)) return
+    const { data, error } = await supabase.from('fee_payments').insert({ booking_id: b.id, amount: -amt, method: 'refund_' + m, taken_by: profile?.id, taken_by_name: by }).select().single()
+    if (error) return alert('Could not record the refund: ' + error.message)
+    setBookings(prev => prev.map(x => x.id === b.id ? { ...x, fee_payments: [...(x.fee_payments || []), data] } : x))   // shows straight away
+    setMsg(`↩ ${money(amt)} refund recorded for ${nm} (${m})`)
+  }
+
   async function setAttended(b, on) {
     const { error } = await supabase.rpc('kc_bbbc_attended', { p_booking: b.id, p_attended: on })
     if (error) return alert(error.message)
@@ -99,13 +124,13 @@ export default function FeesPanel() {
   }
 
   const shownBookings = useMemo(() => bookings.filter(b => (listKind === 'all' || b.fee_items?.kind === listKind) && (!listItem || b.fee_item_id === listItem)
-    && (listStatus === 'all' || (listStatus === 'owing' ? feeStatus(b) !== 'paid' : feeStatus(b) === listStatus))
+    && (listStatus === 'all' || (listStatus === 'owing' ? ['owed', 'part'].includes(feeStatus(b)) : listStatus === 'refunded' ? /refunded/.test(feeStatus(b)) : feeStatus(b) === listStatus))
     && (!listQ.trim() || `${b.students?.members?.first_name || ''} ${b.students?.members?.last_name || ''}`.toLowerCase().includes(listQ.trim().toLowerCase()))), [bookings, listKind, listItem, listStatus, listQ])
 
   if (items === null) return <div className="loading">Loading…</div>
   const matches = q.trim().length >= 2 ? students.filter(s => s.name.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 12) : []
   const chip = (on, label, onClick, col = '#378ADD') => <button type="button" className="btn btn-sm" onClick={onClick} style={on ? { borderColor: col, background: col + '22', color: col, fontWeight: 700 } : undefined}>{label}</button>
-  const stCol = { paid: '#1D9E75', part: '#EF9F27', owed: '#E24B4A' }
+  const stCol = { paid: '#1D9E75', part: '#EF9F27', owed: '#E24B4A', refunded: '#8B5CF6', part_refunded: '#8B5CF6' }
 
   return (
     <div>
@@ -162,9 +187,9 @@ export default function FeesPanel() {
           <input value={listQ} onChange={e => setListQ(e.target.value)} placeholder="🔍 Name…" style={{ flex: '1 1 140px' }} />
           <select value={listKind} onChange={e => { setListKind(e.target.value); setListItem('') }}><option value="all">All types</option>{KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <select value={listItem} onChange={e => setListItem(e.target.value)}><option value="">All {listKind === 'all' ? 'items' : 'of this type'}</option>{items.filter(i => listKind === 'all' || i.kind === listKind).map(i => <option key={i.id} value={i.id}>{i.name}{i.event_date ? ` · ${fmtD(i.event_date)}` : ''}</option>)}</select>
-          {[['owing', 'Still owing'], ['paid', 'Paid'], ['part', 'Part paid'], ['owed', 'Nothing paid']].map(([k, l]) => chip(listStatus === k, l, () => setListStatus(s => s === k ? 'all' : k)))}
+          {[['owing', 'Still owing'], ['paid', 'Paid'], ['part', 'Part paid'], ['owed', 'Nothing paid'], ['refunded', '↩ Refunded']].map(([k, l]) => chip(listStatus === k, l, () => setListStatus(s => s === k ? 'all' : k)))}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{shownBookings.length} booking{shownBookings.length === 1 ? '' : 's'} · paid {money(shownBookings.reduce((n, b) => n + paidOf(b), 0))} · owed {money(shownBookings.reduce((n, b) => n + Math.max(0, Number(b.price) - paidOf(b)), 0))}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{shownBookings.length} booking{shownBookings.length === 1 ? '' : 's'} · paid {money(shownBookings.reduce((n, b) => n + paidOf(b), 0))} · owed {money(shownBookings.filter(b => !/refunded/.test(feeStatus(b))).reduce((n, b) => n + Math.max(0, Number(b.price) - paidOf(b)), 0))}</div>
         {shownBookings.map(b => {
           const st = feeStatus(b), nm = b.students?.members ? `${b.students.members.first_name} ${b.students.members.last_name}` : (b.customer_name || '—')
           return (
@@ -172,10 +197,11 @@ export default function FeesPanel() {
               <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                 <div style={{ fontWeight: 600 }}>{nm}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{b.fee_items?.name}{b.fee_items?.event_date ? ` · ${fmtD(b.fee_items.event_date)}` : ''} · booked by {b.created_by_name || '—'}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{(b.fee_payments || []).map(p => `${money(p.amount)} ${p.method} (${new Date(p.created_at).toLocaleDateString('en-GB')}${p.taken_by_name ? `, ${p.taken_by_name.split(' ')[0]}` : ''})`).join(' · ')}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{(b.fee_payments || []).map(p => `${Number(p.amount) < 0 ? '−' + money(-p.amount) : money(p.amount)} ${methodLabel(p.method)} (${new Date(p.created_at).toLocaleDateString('en-GB')}${p.taken_by_name ? `, ${p.taken_by_name.split(' ')[0]}` : ''})`).join(' · ')}</div>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: stCol[st] }}>{st === 'paid' ? `✓ Paid ${money(b.price)}` : st === 'part' ? `Part: ${money(paidOf(b))} of ${money(b.price)}` : `Owes ${money(b.price)}`}</span>
-              {st !== 'paid' && <button type="button" className="btn btn-sm" onClick={() => addPayment(b)}>+ Payment</button>}
+              <span style={{ fontSize: 12, fontWeight: 700, color: stCol[st] }}>{st === 'refunded' ? `↩ Refunded ${money(refundedOf(b))}` : st === 'part_refunded' ? `↩ Part refunded ${money(refundedOf(b))} · kept ${money(paidOf(b))}` : st === 'paid' ? `✓ Paid ${money(b.price)}` : st === 'part' ? `Part: ${money(paidOf(b))} of ${money(b.price)}` : `Owes ${money(b.price)}`}</span>
+              {(st === 'owed' || st === 'part') && <button type="button" className="btn btn-sm" onClick={() => addPayment(b)}>+ Payment</button>}
+              {isAdmin && paidOf(b) > 0.001 && <button type="button" className="btn btn-sm" style={{ color: '#E24B4A', borderColor: '#E24B4A88' }} onClick={() => refund(b)}>↩ Refund</button>}
               {b.fee_items?.kind !== 'grading' && <label style={{ fontSize: 12, display: 'flex', gap: 4, alignItems: 'center' }}><input type="checkbox" checked={!!b.attended} onChange={e => setAttended(b, e.target.checked)} />Attended</label>}
               {isAdmin && <button type="button" className="btn btn-sm" title="Delete booking" onClick={() => removeBooking(b)}>🗑️</button>}
             </div>
@@ -245,11 +271,11 @@ export function FeesSales({ month }) {
   const sum = f => rows.filter(f).reduce((n, r) => n + Number(r.amount || 0), 0)
   return (
     <div>
-      <div className="stk-note">Fees &amp; bookings taken: <b>{money(sum(() => true))}</b> · 🎽 gradings {money(sum(r => r.fee_bookings?.fee_items?.kind === 'grading'))} · 🥋 BBBC {money(sum(r => r.fee_bookings?.fee_items?.kind === 'bbbc'))} · ⚡ Level Up {money(sum(r => r.fee_bookings?.fee_items?.kind === 'levelup'))} · 💵 cash {money(sum(r => r.method === 'cash'))} · 💳 card {money(sum(r => r.method === 'card'))} · 🏦 transfer {money(sum(r => r.method === 'transfer'))}</div>
+      <div className="stk-note">Fees &amp; bookings taken: <b>{money(sum(() => true))}</b>{sum(r => Number(r.amount) < 0) < 0 ? <> (after <span style={{ color: '#8B5CF6' }}>↩ refunds {money(-sum(r => Number(r.amount) < 0))}</span>)</> : null} · 🎽 gradings {money(sum(r => r.fee_bookings?.fee_items?.kind === 'grading'))} · 🥋 BBBC {money(sum(r => r.fee_bookings?.fee_items?.kind === 'bbbc'))} · ⚡ Level Up {money(sum(r => r.fee_bookings?.fee_items?.kind === 'levelup'))} · 💵 cash {money(sum(r => r.method === 'cash' || r.method === 'refund_cash'))} · 💳 card {money(sum(r => r.method === 'card' || r.method === 'refund_card'))} · 🏦 transfer {money(sum(r => r.method === 'transfer' || r.method === 'refund_transfer'))}</div>
       {rows.map(r => (
         <div key={r.id} className="card" style={{ display: 'flex', gap: 8, padding: '8px 12px', marginBottom: 6, fontSize: 13 }}>
           <span style={{ flex: 1 }}><b>{r.fee_bookings?.students?.members ? `${r.fee_bookings.students.members.first_name} ${r.fee_bookings.students.members.last_name}` : '—'}</b> · {r.fee_bookings?.fee_items?.name}</span>
-          <span>{money(r.amount)} {r.method}</span>
+          <span style={{ color: Number(r.amount) < 0 ? '#8B5CF6' : undefined }}>{Number(r.amount) < 0 ? '−' + money(-r.amount) : money(r.amount)} {methodLabel(r.method)}</span>
           <span style={{ color: 'var(--text-tertiary)' }}>{new Date(r.created_at).toLocaleDateString('en-GB')}{r.taken_by_name ? ` · ${r.taken_by_name}` : ''}</span>
         </div>
       ))}

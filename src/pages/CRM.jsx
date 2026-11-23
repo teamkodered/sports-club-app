@@ -991,7 +991,7 @@ export default function CRM() {
     const gids = enriched.map(r => r.id)
     if (gids.length) {
       const { data: fb } = await supabase.from('fee_bookings').select('id, price, grading_request_id, fee_payments(amount)').in('grading_request_id', gids)
-      const feeBy = Object.fromEntries((fb || []).map(b => [b.grading_request_id, { price: Number(b.price), paid: (b.fee_payments || []).reduce((n, p) => n + Number(p.amount || 0), 0) }]))
+      const feeBy = Object.fromEntries((fb || []).map(b => [b.grading_request_id, { price: Number(b.price), paid: (b.fee_payments || []).reduce((n, p) => n + Number(p.amount || 0), 0), refunded: (b.fee_payments || []).filter(p => Number(p.amount) < 0).reduce((n, p) => n - Number(p.amount || 0), 0) }]))
       enriched.forEach(r => { r.fee = feeBy[r.id] || null })
     }
     setGradingRequests(enriched)
@@ -5264,8 +5264,8 @@ export default function CRM() {
                           </p>
                         )}
                         <BbbcLine r={r} />
-                        <div style={{ fontSize: 12, fontWeight: 600, margin: '2px 0', color: !r.fee ? 'var(--text-tertiary)' : r.fee.paid + 0.001 >= r.fee.price ? '#1D9E75' : r.fee.paid > 0 ? '#EF9F27' : '#E24B4A' }}>
-                          💷 {!r.fee ? 'Grading fee: not booked' : r.fee.paid + 0.001 >= r.fee.price ? `Paid £${r.fee.price.toFixed(2)}` : r.fee.paid > 0 ? `Part paid £${r.fee.paid.toFixed(2)} of £${r.fee.price.toFixed(2)}` : `Booked -- owes £${r.fee.price.toFixed(2)}`}
+                        <div style={{ fontSize: 12, fontWeight: 600, margin: '2px 0', color: !r.fee ? 'var(--text-tertiary)' : r.fee.refunded > 0 ? '#8B5CF6' : r.fee.paid + 0.001 >= r.fee.price ? '#1D9E75' : r.fee.paid > 0 ? '#EF9F27' : '#E24B4A' }}>
+                          💷 {!r.fee ? 'Grading fee: not booked' : r.fee.refunded > 0 ? (r.fee.paid > 0.001 ? `↩ Part refunded £${r.fee.refunded.toFixed(2)} (kept £${r.fee.paid.toFixed(2)})` : `↩ Fee refunded £${r.fee.refunded.toFixed(2)}`) : r.fee.paid + 0.001 >= r.fee.price ? `Paid £${r.fee.price.toFixed(2)}` : r.fee.paid > 0 ? `Part paid £${r.fee.paid.toFixed(2)} of £${r.fee.price.toFixed(2)}` : `Booked -- owes £${r.fee.price.toFixed(2)}`}
                         </div>
                         <button type="button" className="btn btn-sm" style={{ fontSize: 10, padding: '1px 7px', margin: '2px 0' }}
                           onClick={async () => {
