@@ -4157,7 +4157,7 @@ export default function AthleteProfiles() {
   useEffect(() => { supabase.from('settings').select('value').eq('key', 'focus_always_on').maybeSingle().then(({ data }) => { if (data?.value && typeof data.value === 'object') setFocusAlwaysOn({ ...FOCUS_ALWAYS_ON_DEFAULT, ...data.value }) }, () => {}) }, [])
   const sameQ = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
   const isAlwaysOn = (sec, label) => sec === 'wellbeing' || (focusAlwaysOn[sec] || []).some(x => sameQ(x, label))   // every Foundation question always counts
-  const isGreyedQ = (sec, label) => !!myFocus[sec] && !sameQ(myFocus[sec], label) && !isAlwaysOn(sec, label)
+  const isGreyedQ = (sec, label) => sec !== 'physical' && !!myFocus[sec] && !sameQ(myFocus[sec], label) && !isAlwaysOn(sec, label)
   // this month's focus question(s) go to the front of their list (ahead of the usual / alphabetical order)
   const focusFirst = (sec, labelOf) => (a, b) => (fq(sec, labelOf(b)).includes('is-focus') ? 1 : 0) - (fq(sec, labelOf(a)).includes('is-focus') ? 1 : 0)
   const fq = (sec, label) => sec === 'wellbeing' ? '' : isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))

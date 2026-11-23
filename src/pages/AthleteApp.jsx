@@ -3239,8 +3239,27 @@ export default function AthleteApp() {
   // identically whether the save came from the full F2F form or the
   // diamond's quick-log, since both funnel through these same three
   // save functions.
+  // Physical (Nov 2026): every question is always on, but points only up to its target -- e.g. Running
+  // '2 per week': runs 1 and 2 that week earn the question points, a 3rd is saved without points.
+  // No target set = no points. The coach-wide target is used unless the athlete has their own.
+  function physicalWithinTarget(questionLabel) {
+    const byPeriod = getQuestionProgressByPeriod('physical', questionLabel)
+    const set = Object.values(byPeriod).filter(p => p.target > 0)
+    return set.length > 0 && set.every(p => p.done < p.target)   // done = before this log
+  }
   function checkF2fQuestionPoints(oldSessionLike, newSessionLike, affected) {
     affected.forEach(({ sectionKey, questionLabel }) => {
+      if (sectionKey === 'physical') {
+        const wasLogged = questionLogged(sectionKey, questionLabel, oldSessionLike)
+        const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
+        if (!wasLogged && isLoggedNow) {
+          if (!physicalWithinTarget(questionLabel)) return
+          awardHousePoints('f2f_question', questionLabel)
+          const focus = myFocus.physical
+          if (focus && sameQ(focus, questionLabel)) awardHousePoints('f2f_focus', questionLabel)   // monthly focus = bonus on top
+        } else if (wasLogged && !isLoggedNow) revokeF2fQuestionPoint(questionLabel)
+        return
+      }
       const isTargeted = sectionTargets.some(t => t.section_key === sectionKey && t.question_label === questionLabel)
       const focus = myFocus[sectionKey]
       const isFocusQ = !!focus && sameQ(focus, questionLabel)
@@ -3893,7 +3912,7 @@ export default function AthleteApp() {
   useEffect(() => { supabase.from('settings').select('value').eq('key', 'focus_always_on').maybeSingle().then(({ data }) => { if (data?.value && typeof data.value === 'object') setFocusAlwaysOn({ ...FOCUS_ALWAYS_ON_DEFAULT, ...data.value }) }, () => {}) }, [])
   const sameQ = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
   const isAlwaysOn = (sec, label) => sec === 'wellbeing' || (focusAlwaysOn[sec] || []).some(x => sameQ(x, label))   // every Foundation question always counts
-  const isGreyedQ = (sec, label) => !!myFocus[sec] && !sameQ(myFocus[sec], label) && !isAlwaysOn(sec, label)
+  const isGreyedQ = (sec, label) => sec !== 'physical' && !!myFocus[sec] && !sameQ(myFocus[sec], label) && !isAlwaysOn(sec, label)   // Physical: always on (points capped by target)
   // this month's focus question(s) go to the front of their list (ahead of the usual / alphabetical order)
   const focusFirst = (sec, labelOf) => (a, b) => (fq(sec, labelOf(b)).includes('is-focus') ? 1 : 0) - (fq(sec, labelOf(a)).includes('is-focus') ? 1 : 0)
   const fq = (sec, label) => sec === 'wellbeing' ? '' : isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
@@ -3927,7 +3946,7 @@ export default function AthleteApp() {
                 const next = { ...(todaySess.custom_q || {}) }
                 if (done) delete next[k]; else next[k] = true
                 await savePhysicalField('custom_q', next)
-                if (!done && !isGreyedQ(sec, label)) awardHousePoints('f2f_question', label)
+                if (!done && (sec === 'physical' ? physicalWithinTarget(label) : !isGreyedQ(sec, label))) awardHousePoints('f2f_question', label)
               }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{label}{done ? ' ✓' : ''}</span>
               <QuestionProgressBarsVertical sectionKey={sec} questionLabel={label} />
