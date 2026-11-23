@@ -124,7 +124,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     <>
       {createPortal(
         <div className="kc-bh-hd" style={{ '--c': cur.colour, cursor: 'pointer' }} role="button" aria-label={`Close ${cur.label}`}
-          onPointerDown={press} onClick={() => open(cur)} title="Tap to close">
+          onPointerDown={press} onClick={() => { const q = tileEl(cur)?.parentElement?.querySelector('.neon-q.is-active'); if (q) q.click(); else open(cur) }} title="Tap to go back">
           <div className="kc-bh-hrow"><img src={cur.icon} alt="" /><b>{cur.label}</b><span>{slots.pts}</span></div>
           <div className="kc-bh-hrow2">
             {slots.viewEl && <button type="button" className="kc-bh-chip" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); slots.viewEl.click() }}>📈 VIEW</button>}

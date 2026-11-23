@@ -3307,6 +3307,13 @@ export default function AthleteApp() {
         } else if (wasLogged && !isLoggedNow) revokeF2fQuestionPoint(questionLabel)
         return
       }
+      if (sectionKey === 'wellbeing') {   // Foundation: always on -- 1 point per question per day (several entries in a day still 1)
+        const wasLogged = questionLogged(sectionKey, questionLabel, oldSessionLike)
+        const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
+        if (!wasLogged && isLoggedNow) awardHousePoints('f2f_question', questionLabel)
+        else if (wasLogged && !isLoggedNow) revokeF2fQuestionPoint(questionLabel)
+        return
+      }
       const isTargeted = sectionTargets.some(t => t.section_key === sectionKey && t.question_label === questionLabel)
       const focus = myFocus[sectionKey]
       const isFocusQ = !!focus && sameQ(focus, questionLabel)
@@ -7613,6 +7620,15 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         {expandedHomeWb === 'screenFree' && (
                           <>
                             <div className="field"><label>Time off screen</label>
+                              {(() => {
+                                const cur = parseFloat(String(todaysWellbeing.screenFree?.hours || todaysWellbeing.screenFree?.custom || '').replace(/[^0-9.]/g, '')) || 0
+                                return (
+                                  <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, borderColor: '#C93BFF', color: '#E6B3FF', fontWeight: 800 }}
+                                    onClick={() => saveWellbeingField('screenFree', () => ({ hours: '', custom: `${Math.min(24, cur + 1)} hours` }))}>
+                                    ➕ 1 hour{cur ? ` · ${cur} so far` : ''}
+                                  </button>
+                                )
+                              })()}
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                 {SCREEN_FREE_OPTIONS.map(v => {
                                   const active = todaysWellbeing.screenFree?.hours === v
