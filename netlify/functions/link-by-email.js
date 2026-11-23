@@ -37,7 +37,7 @@ exports.handler = async (event) => {
     if (!email) return { statusCode: 422, body: JSON.stringify({ error: 'This login has no email address to match against.' }) }
 
     const memberRes = await fetch(
-      `${supabaseUrl}/rest/v1/members?email=ilike.${encodeURIComponent(email)}&select=id,auth_id,first_name,last_name&limit=5`,
+      `${supabaseUrl}/rest/v1/members?email=ilike.${encodeURIComponent(email)}&select=id,auth_id,first_name,last_name,role,access&limit=5`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
     )
     const members = await memberRes.json()
@@ -50,6 +50,20 @@ exports.handler = async (event) => {
 
     if (!member) {
       return { statusCode: 404, body: JSON.stringify({ error: 'not_found', message: `No existing member record found for ${email}. If you're a new member, use one of the sign-up forms instead.` }) }
+    }
+
+    // Security (Nov 2026): automatic linking by email is only for STAFF records (coaches, leaders, admins,
+    // anyone given page access) and for students who are athletes (KR, KRBA, PT or app access switched on).
+    // Any other student must be sent an invite link by a coach -- never linked just because the email matches.
+    {
+      const STAFF_ROLES = ['admin', 'captain', 'coach', 'leader', 'head_coach']
+      const isStaffRec = STAFF_ROLES.includes(member.role) || !!member.access?.group || Object.values(member.access?.pages || {}).some(v => v === 'view' || v === 'edit')
+      if (!isStaffRec) {
+        const stRes = await fetch(`${supabaseUrl}/rest/v1/students?member_id=eq.${member.id}&select=is_kr,is_pts,discipline,app_access`, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } })
+        const sts = stRes.ok ? await stRes.json() : []
+        const athlete = (sts || []).some(x => x.is_kr || x.is_pts || x.discipline === 'KRBA' || x.app_access)
+        if (!athlete) return { statusCode: 403, body: JSON.stringify({ error: 'invite_required', message: 'Ask your coach for an app invite link to get access.' }) }
+      }
     }
 
     if (member.auth_id && member.auth_id === user.id) {

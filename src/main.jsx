@@ -121,7 +121,7 @@ function InviteLinker() {
 }
 
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false, excludeLeader = false, page = null }) {
-  const { session, profile, profileError, isAdmin, isStaff, isLeader, loading, pageAccess } = useAuth()
+  const { session, profile, profileError, isAdmin, isStaff, isLeader, isAthlete, loading, pageAccess } = useAuth()
   const location = useLocation()
   if (loading) return <div className="loading">Loading…</div>
   if (!session) {
@@ -150,6 +150,16 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false, exclud
     return <ViewOnlyScope page={page} viewOnly={level === 'view'}>{children}</ViewOnlyScope>
   }
   if (staffOnly && !isStaff) return <Navigate to="/athlete-app" replace />
+  // Security (Nov 2026): the athlete pages only for athletes (KR / KRBA / PT / app access) or staff
+  if (ATHLETE_ONLY_PATHS.includes(location.pathname) && !isAthlete && !isStaff) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+      <div>
+        <h2 style={{ marginBottom: 8 }}>The athlete app isn't switched on for you yet</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 16, maxWidth: 420 }}>Ask your coach for an app invite link.</p>
+        <button className="btn btn-primary" onClick={() => { supabase.auth.signOut(); window.location.href = '/athlete-login' }}>Sign out</button>
+      </div>
+    </div>
+  )
   // Leaders count as "staff" for most areas (registers, attendance,
   // points etc), but not for CRM/Email -- this is member payment,
   // contact, and mailbox access, which stays admin/coach only. The

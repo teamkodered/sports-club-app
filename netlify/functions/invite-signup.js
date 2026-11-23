@@ -56,6 +56,8 @@ exports.handler = async (event) => {
         await fetch(`${url}/rest/v1/members?auth_id=eq.${uid}&id=neq.${st.member_id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ auth_id: null }) })
         await fetch(`${url}/rest/v1/members?id=eq.${st.member_id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ auth_id: uid, ...(mem?.email ? {} : { email }) }) })
         await fetch(`${url}/rest/v1/app_invites?id=eq.${inv.id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ used_at: new Date().toISOString(), used_by: uid }) })
+        // an invite from a coach = athlete app switched on for this student (needed now the app checks access)
+        await fetch(`${url}/rest/v1/students?id=eq.${inv.student_id}`, { method: 'PATCH', headers: { ...S, Prefer: 'return=minimal' }, body: JSON.stringify({ app_access: true }) })
       }
       return json(200, { ok: true, linked: isAthlete })
     }
