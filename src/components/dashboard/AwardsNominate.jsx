@@ -154,7 +154,12 @@ function Picker({ cat, current, year, profile, allowed, already = [], myNoms = [
       const today = new Date().toISOString().split('T')[0], y0 = `${year}-01-01`
       let list = []
       if (cat.name === 'Coaches coach') {
-        // coaches only: coaching logins (not leaders) + students in the Coach group
+        // coaches only: coaching logins (not leaders) + students in the Coach group -- ALL of them, for every
+        // coach (kc_awards_coach_list gets past 'own classes only'); falls back to what this login can read
+        const { data: allCoaches, error: acErr } = await supabase.rpc('kc_awards_coach_list')
+        if (!acErr && allCoaches?.length) {
+          list = allCoaches.map(c => ({ member_id: c.member_id, name: c.name, sub: c.role === 'member' ? 'coach' : String(c.role || 'coach').replace('_', ' '), photo: c.photo_url }))
+        } else {
         const [{ data }, { data: stc }] = await Promise.all([
           supabase.from('members').select('id, first_name, last_name, role, status').in('role', ['admin', 'captain', 'coach', 'head_coach']),
           supabase.from('students').select('member_id, is_coach, photo_url, members(id, first_name, last_name, status)').eq('is_coach', true),
@@ -163,6 +168,7 @@ function Picker({ cat, current, year, profile, allowed, already = [], myNoms = [
         ;(data || []).filter(m => (m.status || 'active') !== 'stopped' && !/^test|^u$/i.test(m.first_name || '')).forEach(m => { byId[m.id] = { member_id: m.id, name: `${m.first_name} ${m.last_name}`.trim(), sub: m.role.replace('_', ' ') } })
         ;(stc || []).filter(x => x.members && (x.members.status || 'active') === 'active').forEach(x => { byId[x.members.id] ||= { member_id: x.members.id, name: `${x.members.first_name} ${x.members.last_name}`.trim(), sub: 'coach', photo: x.photo_url } })
         list = Object.values(byId)
+        }
       } else {
         let ids = null
         if (cat.grp_kind === 'class' && cat.class_id) {
