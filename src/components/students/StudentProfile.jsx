@@ -62,9 +62,27 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     // actually has a document attached, since that's the most
     // recently-added, most complete one to show.
     const { data } = await supabase.from('membership_forms').select('*').eq('member_id', memberId)
-    const best = (data || []).find(f => f.document_url) || (data || [])[0] || null
+    // the current form = the newest one not superseded by an updated form (updated forms win)
+    const current = (data || []).filter(f => !f.superseded_at).sort((a, b) => String(b.submitted_at || '').localeCompare(String(a.submitted_at || '')))
+    const best = current.find(f => f.updated_via_request) || current.find(f => f.document_url) || current[0] || (data || []).find(f => f.document_url) || (data || [])[0] || null
     setMembershipForm(best)
     setMembershipFormLoading(false)
+  }
+
+  // 📝 one-use link (14 days) for the parent / member to correct + re-sign the form on file; it saves onto
+  // THIS record (start date, history, grade etc. untouched)
+  async function requestUpdatedForm() {
+    const age = student.members?.date_of_birth ? Math.floor((Date.now() - new Date(student.members.date_of_birth)) / (365.25 * 864e5)) : null
+    const formType = student.discipline === 'KRBA' ? 'krba' : age != null && age >= 18 ? 'pka_adult' : 'pka_child'
+    if (formType !== 'pka_child') return alert('Updated forms work for the PKA child form for now -- adult and KRBA forms are coming next.')
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase.from('form_update_requests').insert({ member_id: student.member_id || student.members?.id, student_id: student.id, form_type: formType, created_by: user?.id }).select('token').single()
+    if (error) return alert('Could not make the link: ' + error.message + (/form_update_requests/.test(error.message) ? ' (run supabase_form_update_requests.sql)' : ''))
+    const link = `${window.location.origin}/join-pka-child?update=${data.token}`
+    const name = `${student.members?.first_name || ''} ${student.members?.last_name || ''}`.trim()
+    const text = `Hi, please could you check and update ${name}'s KR membership form (it only takes a couple of minutes, and nothing else changes): ${link}`
+    try { await navigator.clipboard.writeText(text) } catch { /* */ }
+    if (confirm(`Link made for ${name} (valid 14 days) and copied:\n\n${link}\n\nOpen WhatsApp to send it?`)) window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   // Attaches a scanned/photographed copy of the actual original form
@@ -793,6 +811,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                   onChange={e => { if (e.target.files[0]) uploadMembershipDocument(e.target.files[0]); e.target.value = '' }} />
               </label>
               {membershipForm && <button className="btn btn-sm" onClick={() => printMembershipForm(membershipForm)}>🖨️ Print</button>}
+              {(kcStaff || kcAdmin) && <button className="btn btn-sm" onClick={requestUpdatedForm} title="Send the parent / member a link to correct and re-sign the form -- saves onto this record">📝 Request updated form</button>}
               <button onClick={() => setShowMembershipForm(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: 4, lineHeight: 1 }}>✕</button>
             </div>
           </div>

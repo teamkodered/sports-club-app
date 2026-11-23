@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import DobWords from '../../components/shared/DobWords.jsx'
@@ -47,7 +47,28 @@ export default function JoinPKAChild() {
     sponsor_name: '',
   })
 
-  const draft = useFormDraft('pka_child', form, setForm, step, setStep)
+  // 📝 ?update=<token>: a parent updating the form on file -- filled in from the record, saved onto it
+  const [params] = useSearchParams()
+  const updateToken = params.get('update')
+  const [updateInfo, setUpdateInfo] = useState(null)   // { name } once loaded, or { error }
+  useEffect(() => {
+    if (!updateToken) return
+    supabase.rpc('kc_form_update_get', { p_token: updateToken }).then(({ data, error }) => {
+      if (error || !data || data.error) return setUpdateInfo({ error: data?.error || error?.message || 'This link is not valid.' })
+      const m = data.member || {}, st = data.student || {}, f = data.form || {}
+      setForm(x => ({ ...x,
+        first_name: m.first_name || '', last_name: m.last_name || '', dob: m.date_of_birth || '', school: st.school || f.school || '', year: f.year || '',
+        other_activities: f.other_activities || '', guardian_name: st.guardian_name || '', address: m.address_line1 || '', mobile_phone: m.phone || st.guardian_phone || '',
+        email: m.email || '', media_permission: st.media_restriction === 'Yes' ? 'Yes' : st.media_restriction ? 'No' : '', hear_about: f.hear_about || '', promo_code: f.promo_code || '',
+        goals: Array.isArray(f.goals) ? f.goals : [], goal_notes: f.goal_notes || '', medical_concerns: st.medical_conditions || '',
+        emergency_name: f.emergency_contact_name || '', emergency_phone: f.emergency_contact_phone || '', sponsor_name: f.sponsor_name || '',
+        waiver_agreed: false, signature_name: '', signature_surname: '', signature_dob: '', signature_postcode: '', signature_phone: '' }))
+      if (f.venue) setVenue?.(f.venue)
+      setUpdateInfo({ name: `${m.first_name || ''} ${m.last_name || ''}`.trim() })
+    })
+  }, [updateToken]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const draft = useFormDraft(updateToken ? 'pka_child_update' : 'pka_child', form, setForm, step, setStep)
   const [copiedLink, setCopiedLink] = useState(false)
   const returning = useReturningPerson()
 
@@ -64,6 +85,21 @@ export default function JoinPKAChild() {
 
   async function submit() {
     setSubmitting(true)
+    if (updateToken) {
+      // updating the form on file: same member / student, new signed form
+      const { data, error } = await supabase.rpc('kc_form_update_submit', { p_token: updateToken,
+        p_member: { first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob, address_line1: form.address },
+        p_student: { guardian_name: form.guardian_name, guardian_phone: form.mobile_phone, media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No', medical_conditions: form.medical_concerns || '', school: form.school },
+        p_form: { venue: venue || null, first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
+          sponsor_name: form.sponsor_name, school: form.school, year: form.year, other_activities: form.other_activities, hear_about: form.hear_about,
+          promo_code: form.promo_code, goals: form.goals, goal_notes: form.goal_notes, emergency_contact_name: form.emergency_name, emergency_contact_phone: form.emergency_phone,
+          waiver_agreed: form.waiver_agreed } })
+      setSubmitting(false)
+      if (error || !data?.ok) return alert('Could not save the form: ' + (error?.message || 'please try again'))
+      await draft.clearOnSubmit()
+      setSubmitted(true)
+      return
+    }
     try {
       const age = form.dob ? Math.floor((Date.now() - new Date(form.dob)) / (365.25*24*60*60*1000)) : 0
       const ageCategory = age < 8 ? 'Under 8' : age <= 11 ? '8-11' : age <= 15 ? '12-15' : age <= 17 ? '16-17' : '18+'
@@ -123,15 +159,25 @@ export default function JoinPKAChild() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div className="card" style={{ maxWidth: 420, textAlign: 'center', padding: 32 }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-        <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>Application received!</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>{updateToken ? 'Form updated — thank you!' : 'Application received!'}</h1>
+        {updateToken && <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{form.first_name} {form.last_name}'s details have been updated on file. Nothing else changes.</p>}
+        {!updateToken && <>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>Welcome, {form.first_name} {form.last_name}!</p>
         <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 20, fontFamily: 'monospace', background: 'var(--bg-secondary)', padding: '6px 12px', borderRadius: 'var(--radius)' }}>Student ID: {studentRef}</p>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Your application is pending coach approval. We'll be in touch shortly.</p>
+        </>}
       </div>
     </div>
   )
 
-  if (draft.hasPendingResume) return (
+  if (updateToken && !updateInfo) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading the form…</div>
+  if (updateToken && updateInfo?.error) return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div className="card" style={{ maxWidth: 420, textAlign: 'center', padding: 32 }}><div style={{ fontSize: 40 }}>⚠️</div><p style={{ marginTop: 10 }}>{updateInfo.error}</p></div>
+    </div>
+  )
+
+  if (draft.hasPendingResume && !updateToken) return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div className="card" style={{ maxWidth: 420, textAlign: 'center', padding: 32 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
@@ -161,6 +207,11 @@ export default function JoinPKAChild() {
           }}>{copiedLink ? '✓ Link copied!' : '🔗 Copy link to finish later'}</button>
         </div>
 
+        {updateToken && updateInfo?.name && (
+          <div className="card" style={{ marginBottom: 14, borderLeft: '3px solid #378ADD', fontSize: 13 }}>
+            📝 <b>Updating the form on file for {updateInfo.name}.</b> We've filled in what we have -- please check every page, correct anything wrong and sign again at the end. Their membership, start date and training history stay exactly as they are.
+          </div>
+        )}
         {/* Progress */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -198,7 +249,7 @@ export default function JoinPKAChild() {
             <div className="field"><label>Email <span className="required">*</span></label>
               <input type="email" value={form.email} onChange={e => { set('email')(e); returning.checkEmail(e.target.value) }} />
             </div>
-            {returning.match && (
+            {returning.match && !updateToken && (
               <div className="card" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', marginBottom: 14, padding: 12 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Welcome back!</p>
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
