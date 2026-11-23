@@ -1277,6 +1277,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // assigned beforehand) makes it show up in their own "Assigned
   // sessions" list on their profile going forward.
   async function ensureClassAssignment(studentId) {
+    // Switched off (Nov 2026): marking someone in a class no longer adds them to that class for good -- it put
+    // 7pm students on the 8pm register. Classes are only set on purpose (profile / 'Add to this class').
+    return
+    // eslint-disable-next-line no-unreachable
     if (!classFilter || classFilter === 'all') return
     const flag = specialRegisterFlag([...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].find(c => c.id === classFilter))
     if (flag && !students.find(x => x.id === studentId)?.[flag]) return   // don't add non-PTs / non-Leaders to those registers
