@@ -15,6 +15,7 @@ import SaveBar from '../components/shared/SaveBar.jsx'
 import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
+import ActivityTimer from '../components/shared/ActivityTimer.jsx'
 import { wearableVitals, latestTest } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
 import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
@@ -6485,6 +6486,9 @@ export default function AthleteApp() {
                       </div>
                       {!expandedHomeRun && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0' }}>Pick a run type to log it.</p>}
                     </div>
+                    {expandedHomeRun && expandedHomeRun !== '__bleep__' && <ActivityTimer label="run" afterTest="Timed run" studentId={student?.id} studentName={student?.members ? `${student.members.first_name} ${student.members.last_name}` : ''}
+                      onStop={s => flashSaved(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} -- add it to your entry`)}
+                      onRecovery={r => { if (r?.pct != null) saveTestValue('HRR % (after Timed run)', String(r.pct)) }} />}
                     {expandedHomeRun && expandedHomeRun !== '__bleep__' && (() => {
                       const efforts = todaysRunning.map((e, i) => ({ e, k: runKey(e, i), i })).filter(x => x.e.category === expandedHomeRun)
                       const selKey = runEffortSel[expandedHomeRun]
@@ -6610,6 +6614,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
                     {showWattCards && (
                     <div ref={wattPanelRef}>
+                    <ActivityTimer label="watt bike effort" afterTest="Watt bike" studentId={student?.id} studentName={student?.members ? `${student.members.first_name} ${student.members.last_name}` : ''}
+                      onStop={s => flashSaved(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} -- add it to your entry`)}
+                      onRecovery={r => { if (r?.pct != null) saveTestValue('HRR % (after Watt bike)', String(r.pct)) }} />
                     <WattBikePanel entries={todaysWattBike} onSaveEntries={list => savePhysicalField('watt_bike', list, setTodaysWattBike)}
                       history={sessions || []} groups={WATT_BIKE_GROUPS} presets={WATT_BIKE_PRESETS} normalize={normalizeIntervalMode}
                       singleTests={TEST_CATEGORIES.find(c => c.key === 'wattbike')?.tests || []} todaysTest={todaysTest} onSaveTest={saveTestValue} saving={savingPhysical}
@@ -6659,6 +6666,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         </button>
                       ) })}
                     </div>
+                    {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && <ActivityTimer label="bodyweight set" afterTest="Body weight max reps" studentId={student?.id} studentName={student?.members ? `${student.members.first_name} ${student.members.last_name}` : ''}
+                      onStop={s => flashSaved(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} -- add it to your entry`)}
+                      onRecovery={r => { if (r?.pct != null) saveTestValue('HRR % (after Body weight max reps)', String(r.pct)) }} />}
                     {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && renderBwPanel(expandedHomeBodyweight)}
                     {/* Jumps, Grip and Fixed load circuit results, moved here from the old Test tab */}
                     {expandedHomeBodyweight?.startsWith?.('__test:') && renderMovedTest([expandedHomeBodyweight.slice(7)], 'neon-qpanel neon-q-physical neon-run-panel')}
