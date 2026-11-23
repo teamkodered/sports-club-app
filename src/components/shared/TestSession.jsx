@@ -138,6 +138,9 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
   const [catKey, setCatKey] = useState(initialCat && TEST_CATEGORIES.some(c => c.key === initialCat) ? initialCat : TEST_CATEGORIES[0].key)
   const [history, setHistory] = useState([])
   const [vals, setVals] = useState({})      // name -> value (single-set tests)
+  const [actStart, setActStart] = useState(null)   // live activity timer (fixed load circuit)
+  const [actNow, setActNow] = useState(0)
+  useEffect(() => { if (!actStart) return; const t = setInterval(() => setActNow(Date.now()), 250); return () => clearInterval(t) }, [actStart])
   // start + end heart rate entered -> HRR (drop) and the method's HRR % worked out
   const hrStartV = vals['HRR start heart rate (bpm)'], hrEndV = vals['HRR end heart rate (bpm)']
   useEffect(() => {
@@ -225,6 +228,24 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
                     </div>
                   )}
                 </div>
+              )
+            })()}
+            {/* ▶ Start activity -> ⏹ Stop activity · start recovery: times the circuit live, puts the seconds in the box,
+                then goes straight into the 1-min HR recovery */}
+            {cat.key === 'fixedload' && (() => {
+              const name = flColour || cat.tests[0]?.name
+              const secs = actStart ? Math.floor((actNow - actStart) / 1000) : 0
+              const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
+              return actStart ? (
+                <button type="button" className="ts-measure-btn" style={{ borderColor: '#E24B4A', color: '#FF6B6B' }} onClick={() => {
+                  const v = Math.max(1, Math.round((Date.now() - actStart) / 1000))
+                  setActStart(null); setVals(p => ({ ...p, [name]: String(v) }))
+                  if (HRR_AFTER[cat.key]) setTimeout(() => setTool(`hrr-after:${HRR_AFTER[cat.key]}`), 50)
+                }}>⏹ Stop activity · start recovery <small style={{ display: 'block', fontSize: 13, fontStyle: 'normal' }}>⏱ {mmss}</small></button>
+              ) : (
+                <button type="button" className="ts-measure-btn" style={{ borderColor: '#1D9E75', color: '#22B14C' }} onClick={() => { setActStart(Date.now()); setActNow(Date.now()) }}>
+                  ▶ Start activity <small style={{ display: 'block', fontSize: 11, opacity: 0.75, fontStyle: 'normal', textTransform: 'none' }}>{(name || '').replace(/^Fixed load circuit - /, '')} circuit</small>
+                </button>
               )
             })()}
             {cat.key === 'fixedload' && <button type="button" className="ts-measure-btn" onClick={() => setTool(`timer:${flColour || cat.tests[0]?.name}`)}>📹 Time circuit from video ({(flColour || cat.tests[0]?.name || '').replace(/^Fixed load circuit - /, '')})</button>}
