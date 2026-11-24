@@ -103,7 +103,8 @@ exports.handler = async () => {
     const lock = await client.getMailboxLock('INBOX')
     try {
       const since = new Date(Date.now() - LOOK_BACK_DAYS * 864e5)
-      const uids = (await client.search({ since }, { uid: true })) || []
+      // ask the mail server for likely ones only (quick), then check each properly below
+      const uids = (await client.search({ since, or: [{ subject: 'enquiry' }, { subject: 'booking' }] }, { uid: true })) || []
       const candidates = []
       if (uids.length) {
         for await (const msg of client.fetch(uids, { envelope: true, bodyStructure: true }, { uid: true })) {
