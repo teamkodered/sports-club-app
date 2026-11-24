@@ -515,7 +515,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                       ['Competition team', localStudent.competition_team || '—'],
                       ['Weight', localStudent.weight_kg ? `${localStudent.weight_kg} kg` : '—'],
                       ['Weight category', localStudent.weight_category || '—'],
-                      ['Media', localStudent.media_restriction],
+                      ['Media', localStudent.media_restriction || 'Not asked (treat as No)'],
                       ['Medical', localStudent.medical_conditions || 'None recorded'],
                       ['Medication', localStudent.medication || 'None'],
                       ['Groups', [localStudent.is_kr && 'KR', localStudent.is_pts && 'PTs', localStudent.is_leader && 'Leader', localStudent.is_coach && 'Coach', localStudent.app_access && '📱 Athlete app'].filter(Boolean).join(', ') || 'Main class only'],
@@ -660,7 +660,8 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                     </select>
                   </div>
                   <div className="field"><label>Media restriction</label>
-                    <select value={editForm.media_restriction} onChange={e => setEditForm(f => ({ ...f, media_restriction: e.target.value }))}>
+                    <select value={editForm.media_restriction || ''} onChange={e => setEditForm(f => ({ ...f, media_restriction: e.target.value || null }))}>
+                      <option value="">Not asked yet (treated as No)</option>
                       <option value="Yes">Yes — media OK</option>
                       <option value="No">No — no media</option>
                       <option value="Limited">Limited</option>

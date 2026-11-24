@@ -780,8 +780,10 @@ export default function StudentDatabase() {
                       )
                       case 'media':       return (
                         <td key={c.key} style={{ textAlign: 'center' }}>
-                          <span className={`badge ${s.media_restriction==='No'?'badge-red':s.media_restriction==='Limited'?'badge-amber':'badge-green'}`} style={{ fontSize: 10 }}>
-                            {s.media_restriction==='No'?'⚠ No':s.media_restriction==='Limited'?'Limited':'OK'}
+                          {/* only an explicit Yes is OK for photos / video -- blank means never asked, so treat it as No */}
+                          <span className={`badge ${s.media_restriction==='Yes'?'badge-green':s.media_restriction==='Limited'?'badge-amber':s.media_restriction==='No'?'badge-red':'badge-gray'}`} style={{ fontSize: 10 }}
+                            title={s.media_restriction ? undefined : 'Media consent never given -- treat as No until they say Yes'}>
+                            {s.media_restriction==='Yes'?'OK':s.media_restriction==='Limited'?'Limited':s.media_restriction==='No'?'⚠ No':'Not asked'}
                           </span>
                         </td>
                       )

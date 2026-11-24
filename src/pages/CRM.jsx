@@ -9,6 +9,7 @@ import PhoneText from '../components/shared/PhoneText.jsx'
 import { useNavigate } from 'react-router-dom'
 import StockPanel from '../components/crm/StockPanel.jsx'
 import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
+import CampaignsPanel from '../components/crm/CampaignsPanel.jsx'
 import AwardsPanel from '../components/crm/AwardsPanel.jsx'
 import { INTEREST_GROUPS, interestOf, nextDateForDay, introOf } from '../lib/enquiryInterest.js'
 import { viewAsVenueScope } from '../lib/viewAsScope.js'
@@ -380,7 +381,7 @@ export default function CRM() {
   const [enqVenue, setEnqVenue] = useState('all')
   const [enqSearch, setEnqSearch] = useState('')   // Enquiries search: name, phone, email, who it's for, notes   // admin's venue filter on enquiries
   const location = useLocation()
-  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock', 'level_up', 'awards']
+  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock', 'level_up', 'awards', 'marketing']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
   // Adds any newly-introduced tab that predates a saved order, and
   // drops any that no longer exist, rather than silently hiding/
@@ -2712,7 +2713,16 @@ export default function CRM() {
     XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
+  // 📣 Campaigns to tag an enquiry with (admin only; empty until supabase_marketing_campaigns.sql is run)
+  const [campaignOpts, setCampaignOpts] = useState([])
+  function loadCampaignOpts() {
+    if (!isAdmin) return
+    supabase.from('campaigns').select('id, name, archived').order('created_at', { ascending: false })
+      .then(({ data, error }) => { if (!error) setCampaignOpts(data || []) })
+  }
+  const campaignName = id => campaignOpts.find(c => c.id === id)?.name
   function loadEnquiries() {
+    loadCampaignOpts()
     supabase.from('enquiries').select('*, members(id, first_name, last_name)').order('enquiry_date', { ascending: false })
       .then(async ({ data }) => {
         let rows = data || []
@@ -2733,6 +2743,7 @@ export default function CRM() {
       notes: enquiryDraft.notes?.trim() || null,
       status: 'not_started',
       created_by: user?.id || null,
+      ...(campaignOpts.length && enquiryDraft.campaign_id ? { campaign_id: enquiryDraft.campaign_id } : {}),
     })
     setSavingEnquiry(false)
     if (error) { alert('Error saving enquiry: ' + error.message); return }
@@ -2752,6 +2763,7 @@ export default function CRM() {
       enquiry_date: enquiryDraft.enquiry_date || new Date().toISOString().split('T')[0],
       notes: enquiryDraft.notes?.trim() || null,
       ...(enquiryDraft.status ? { status: enquiryDraft.status } : {}),
+      ...(campaignOpts.length && 'campaign_id' in enquiryDraft ? { campaign_id: enquiryDraft.campaign_id || null } : {}),
       ...(enquiryDraft.enquiry_for ? { enquiry_for: { self: !!enquiryDraft.enquiry_for.self, names: (enquiryDraft.enquiry_for.names || []).map(x => x.trim()).filter(Boolean) } } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', editingEnquiryId)
@@ -2805,6 +2817,15 @@ export default function CRM() {
                     <input type="date" value={enquiryDraft.enquiry_date} onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_date: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
                   </div>
                 </div>
+                {campaignOpts.length > 0 && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>📣 Campaign (ad, flyer, open day…)</label>
+                    <select value={enquiryDraft.campaign_id || ''} onChange={e => setEnquiryDraft(d => ({ ...d, campaign_id: e.target.value || null }))} style={{ fontSize: 13, width: '100%' }}>
+                      <option value="">{editingEnquiryId ? '— None —' : '— None / tag automatically —'}</option>
+                      {campaignOpts.filter(c => !c.archived || c.id === enquiryDraft.campaign_id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Enquiring for</label>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -3588,6 +3609,7 @@ export default function CRM() {
         const TAB_DEFS = {
           level_up: { label: 'Level Up', colour: '#E24B4A', onSelect: () => setTab('level_up') },
           awards: { label: '🏆 Awards', colour: '#EF9F27', onSelect: () => setTab('awards') },
+          marketing: { label: '📣 Campaigns', colour: '#EC4899', onSelect: () => setTab('marketing') },
           sell: { label: 'Sell', colour: '#1D9E75', onSelect: () => setTab('sell') },
           sales: { label: 'Sales', colour: '#8B5CF6', onSelect: () => setTab('sales') },
           stock: { label: 'Stock', colour: '#06B6D4', onSelect: () => setTab('stock') },
@@ -3642,6 +3664,7 @@ export default function CRM() {
               const def = TAB_DEFS[key]
               if (!def) return null
               if (isHeadCoach && !HEAD_COACH_TABS.includes(key)) return null
+              if (key === 'marketing' && !isAdmin) return null   // campaigns and spend: admin only
               const active = tab === key
               return (
                 <button key={key} data-tab-key={key}
@@ -3667,6 +3690,7 @@ export default function CRM() {
 
       {tab === 'level_up' && <LevelUpPanel />}
       {tab === 'awards' && isAdmin && <AwardsPanel />}
+      {tab === 'marketing' && isAdmin && <CampaignsPanel />}
       {tab === 'sell' && <StockPanel key="sell" section="sell" />}
       {tab === 'sales' && <StockPanel key="sales" section="sales" />}
       {tab === 'stock' && <StockPanel key="stock" section="stock" />}
@@ -3920,12 +3944,12 @@ export default function CRM() {
                       </span>
                     )}
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, enquiry_for: enq.enquiry_for || null, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
+                      <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, enquiry_for: enq.enquiry_for || null, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '', campaign_id: enq.campaign_id || null }) }}>Edit</button>
                       <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteEnquiry(enq.id)}>Delete</button>
                     </div>
                   </div>
                   <div style={{ textAlign: 'left', cursor: 'pointer' }} title="Tap to edit"
-                    onClick={e => { if (e.target.closest('button, a, input, textarea, select')) return; setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, enquiry_for: enq.enquiry_for || null, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>
+                    onClick={e => { if (e.target.closest('button, a, input, textarea, select')) return; setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, enquiry_for: enq.enquiry_for || null, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '', campaign_id: enq.campaign_id || null }) }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
@@ -3967,6 +3991,7 @@ export default function CRM() {
                         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                           {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                           {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[enq.contact_method]}
+                          {enq.campaign_id && campaignName(enq.campaign_id) ? <span style={{ color: '#EC4899' }}>{` · 📣 ${campaignName(enq.campaign_id)}`}</span> : null}
                           {enq.contact_email ? ` · ${enq.contact_email}` : ''}
                         </div>
                       </div>
@@ -6026,8 +6051,8 @@ export default function CRM() {
                     <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{studentGroupsLabel(s) || '—'}</td>
                     <td>
                       {s.media_restriction && (
-                        <span className={`badge ${s.media_restriction === 'No' ? 'badge-red' : s.media_restriction === 'Limited' ? 'badge-amber' : 'badge-green'}`} style={{ fontSize: 10 }}>
-                          {s.media_restriction === 'No' ? '⚠ No' : s.media_restriction === 'Limited' ? 'Limited' : 'OK'}
+                        <span className={`badge ${s.media_restriction === 'Yes' ? 'badge-green' : s.media_restriction === 'Limited' ? 'badge-amber' : s.media_restriction === 'No' ? 'badge-red' : 'badge-gray'}`} style={{ fontSize: 10 }}>
+                          {s.media_restriction === 'Yes' ? 'OK' : s.media_restriction === 'Limited' ? 'Limited' : s.media_restriction === 'No' ? '⚠ No' : 'Not asked'}
                         </span>
                       )}
                     </td>

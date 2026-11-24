@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { rememberCampaignFromLink } from './campaignCode.js'
 
 // Which venue a join form is for. A link can carry it (?venue=derby-moore) -- set by
 // the share window -- so the applicant isn't asked; otherwise the form asks once.
@@ -13,6 +14,8 @@ export const venueSchedule = key => key === 'derby-moore' ? 'Derby Moore' : key 
 export const venueLabel = key => VENUES.find(v => v.key === key)?.label || null
 
 export function useJoinVenue() {
+  // every join form uses this hook, so it's also where a campaign link's ?c=code is remembered
+  useState(() => { rememberCampaignFromLink(); return null })
   const fromLink = (() => {
     try { const v = new URLSearchParams(window.location.search).get('venue'); return VENUES.some(x => x.key === v) ? v : null } catch { return null }
   })()

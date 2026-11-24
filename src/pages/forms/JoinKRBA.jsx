@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { currentCampaignCode } from '../../lib/campaignCode.js'
 import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import DobWords from '../../components/shared/DobWords.jsx'
@@ -21,7 +22,7 @@ export default function JoinKRBA() {
     full_name: '', address: '', postcode: '', dob: '',
     home_phone: '', mobile_phone: '', email: '',
     additional_needs: '', medical_concerns: '', medication: '',
-    emergency_contact: '', previous_club: '', media_permission: '', hear_about: '',
+    emergency_contact: '', previous_club: '', media_permission: '', hear_about: '', promo_code: '',
     waiver_agreed: false, signed_name: '', signed_date: '',
   })
 
@@ -72,7 +73,7 @@ export default function JoinKRBA() {
         previous_club: form.previous_club,
         emergency_contact_name: form.emergency_contact,
         waiver_agreed: form.waiver_agreed,
-        hear_about: form.hear_about,
+        hear_about: form.hear_about, promo_code: form.promo_code || null, campaign_code: currentCampaignCode(),
         submitted_at: new Date().toISOString(),
       },
       })
@@ -176,6 +177,7 @@ export default function JoinKRBA() {
                 {HEAR_OPTIONS.map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
+            <div className="field"><label>Promo code</label><input value={form.promo_code} onChange={set('promo_code')} /></div>
             <div className="field"><label>Media permissions <span className="required">*</span></label>
               <select value={form.media_permission} onChange={set('media_permission')}>
                 <option value="">Select…</option>

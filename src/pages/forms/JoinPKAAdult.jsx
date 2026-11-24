@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { currentCampaignCode } from '../../lib/campaignCode.js'
 import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import DobWords from '../../components/shared/DobWords.jsx'
@@ -84,7 +85,7 @@ export default function JoinPKAAdult() {
           venue: venue || null,
         member_id: memberId, form_type: 'pka_adult',
         first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
-        hear_about: form.hear_about, promo_code: form.promo_code,
+        hear_about: form.hear_about, campaign_code: currentCampaignCode(), promo_code: form.promo_code,
         goals: form.goals, goal_notes: form.goal_notes,
         fitness_level: form.fitness_level, other_activities: form.other_activities,
         waiver_agreed: form.waiver_agreed, submitted_at: new Date().toISOString(),

@@ -79,7 +79,7 @@ export async function createMemberAndStudent({ form, discipline, guardianEmail }
       pka_belt: discipline === 'PKA' ? 'Ungraded' : null,
       krba_level: discipline === 'KRBA' ? 'Beginner' : null,
       age_category: ageCategory,
-      media_restriction: form.media || 'Yes',
+      media_restriction: form.media || null,   // never assume consent: blank = not asked
       medical_conditions: form.medical || null,
       guardian_name: form.guardian_name || form.parents_carers || null,
       guardian_phone: form.guardian_phone || form.mobile_phone || null,

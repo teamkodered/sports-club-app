@@ -68,7 +68,8 @@ export default function MembershipFormView({ f, onViewScan, logoSrc, blank = fal
       {row('Phone', f.phone)}
       {row('Emergency contact', [f.emergency_contact_name, f.emergency_contact_phone].filter(Boolean).join(' — '))}
       {row('How did you hear about us?', f.hear_about)}
-      {row('Promo code', f.promo_code, ['pka_child', 'pka_adult'])}
+      {row('Promo code', f.promo_code, ['pka_child', 'pka_adult', 'krba'])}
+      {f.campaign_code && row('Campaign link', f.campaign_code, [])}
       {row('School', f.school, ['pka_child'])}
       {row('Year', f.school_year || f.year, ['pka_child'])}
       {row('Other activities', f.other_activities)}

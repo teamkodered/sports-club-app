@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { currentCampaignCode } from '../../lib/campaignCode.js'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
@@ -136,7 +137,7 @@ export default function JoinPKAChild() {
         member_id: memberId, form_type: 'pka_child',
         first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         sponsor_name: form.sponsor_name, school: form.school, year: form.year,
-        other_activities: form.other_activities, hear_about: form.hear_about,
+        other_activities: form.other_activities, hear_about: form.hear_about, campaign_code: currentCampaignCode(),
         promo_code: form.promo_code, goals: form.goals, goal_notes: form.goal_notes,
         emergency_contact_name: form.emergency_name, emergency_contact_phone: form.emergency_phone,
         waiver_agreed: form.waiver_agreed, submitted_at: new Date().toISOString(),
