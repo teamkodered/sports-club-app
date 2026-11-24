@@ -11,6 +11,7 @@ import StockPanel from '../components/crm/StockPanel.jsx'
 import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
 import CampaignsPanel from '../components/crm/CampaignsPanel.jsx'
 import PostsPanel from '../components/crm/PostsPanel.jsx'
+import AdminPushToggle from '../components/shared/AdminPushToggle.jsx'
 import AwardsPanel from '../components/crm/AwardsPanel.jsx'
 import { INTEREST_GROUPS, interestOf, nextDateForDay, introOf } from '../lib/enquiryInterest.js'
 import { viewAsVenueScope } from '../lib/viewAsScope.js'
@@ -3573,9 +3574,12 @@ export default function CRM() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>CRM</h1>
-        <p>Standing orders, and more to come</p>
+      <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1 }}>
+          <h1>CRM</h1>
+          <p>Standing orders, and more to come</p>
+        </div>
+        <AdminPushToggle />
       </div>
 
       {(() => {

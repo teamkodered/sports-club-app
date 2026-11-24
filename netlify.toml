@@ -42,3 +42,7 @@
 # Website enquiry-form and booking emails -> CRM Enquiries, every 15 minutes (see the function for what it touches)
 [functions."auto-email-enquiries"]
   schedule = "*/15 * * * *"
+
+# Phone notifications for admins: new enquiries + today's birthdays (see the function)
+[functions."admin-notifications"]
+  schedule = "*/15 * * * *"
