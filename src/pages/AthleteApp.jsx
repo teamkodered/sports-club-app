@@ -3040,6 +3040,15 @@ export default function AthleteApp() {
   // Save a single wellbeing question's data directly from the Home page,
   // without needing to open the full Fit2Fight log form. Updates today's
   // session if one already exists, otherwise creates one.
+  // A new day while the app was left open: reload so 'today' is really today. Without this, yesterday's answers
+  // were still in memory and got copied into today's entry the first time anything saved (e.g. the sleep fill).
+  useEffect(() => {
+    const day0 = new Date().toISOString().split('T')[0]
+    const check = () => { if (new Date().toISOString().split('T')[0] !== day0) window.location.reload() }
+    const t = setInterval(check, 60000)
+    document.addEventListener('visibilitychange', check); window.addEventListener('focus', check)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); window.removeEventListener('focus', check) }
+  }, [])
   async function saveWellbeingField(field, updater, confirmMsg) {
     if (!student) return
     setSavingWellbeing(true)
