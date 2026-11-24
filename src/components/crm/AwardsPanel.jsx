@@ -215,7 +215,7 @@ export default function AwardsPanel() {
         <button className={`btn btn-sm${cur.open ? ' btn-primary' : ''}`} onClick={() => saveCur({ open: !cur.open })}>{cur.open ? '✓ Nominations open' : 'Open nominations'}</button>
         {cats.length > 0 && <button type="button" title={`Delete all ${cur.year} awards to start again`} onClick={deleteYear}
           style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid #E24B4A88', background: 'none', color: '#E24B4A', cursor: 'pointer' }}>🗑 Delete</button>}
-        {cats.length > 0 && !setup && <button type="button" title="Change which classes get class awards" onClick={startEdit}
+        {cats.length > 0 && !setup?.edit && <button type="button" title="Change which classes get class awards" onClick={startEdit}
           style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text)', cursor: 'pointer' }}>✏️ Edit classes</button>}
         {cats.length > 0 && <span style={{ fontSize: 13, fontWeight: 700, background: '#EF9F2722', color: '#EF9F27', borderRadius: 999, padding: '2px 10px' }}>{cats.filter(c => c.grp_kind !== 'house').length} awards</span>}
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{cats.length ? `${decided} decided · ${noms.length} nominations · ${votes.length} votes` : ''}</span>
@@ -250,8 +250,8 @@ export default function AwardsPanel() {
             <>
               <div style={{ fontSize: 13, marginBottom: 6 }}>Classes that get class awards ({CLASS_CATS.join(', ')}). KR, KRBA and club awards are added too.</div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set(classes.filter(c => showOther || !isOtherSession(c)).map(c => c.id)) })}>Tick all</button>
-                <button className="btn btn-sm" onClick={() => setSetup({ classIds: new Set() })}>Untick all</button>
+                <button className="btn btn-sm" onClick={() => setSetup(s => ({ ...s, classIds: new Set(classes.filter(c => showOther || !isOtherSession(c)).map(c => c.id)) }))}>Tick all</button>
+                <button className="btn btn-sm" onClick={() => setSetup(s => ({ ...s, classIds: new Set() }))}>Untick all</button>
                 <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--text-secondary)' }}>{awardGroupsFromClasses(sortClasses(classes.filter(c => showOther || !isOtherSession(c)))).filter(g => g.ids.every(id => setup.classIds.has(id))).length} of {awardGroupsFromClasses(sortClasses(classes.filter(c => showOther || !isOtherSession(c)))).length} classes</span>
                 <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setShowOther(v => !v)}>{showOther ? 'Hide other sessions' : `Show other sessions (${classes.filter(isOtherSession).length})`}</button>
               </div>
@@ -263,7 +263,7 @@ export default function AwardsPanel() {
                     <label key={g.ids.join('-')} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 16, padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
                       border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7518' : 'transparent' }}>
                       <input type="checkbox" checked={on} style={{ width: 24, height: 24, flex: '0 0 24px', margin: 0 }}
-                        onChange={() => setSetup(s => { const n = new Set(s.classIds); g.ids.forEach(id => on ? n.delete(id) : n.add(id)); return { classIds: n } })} />
+                        onChange={() => setSetup(s => { const n = new Set(s.classIds); g.ids.forEach(id => on ? n.delete(id) : n.add(id)); return { ...s, classIds: n } })} />
                       <span><b>{g.label.split(' ').slice(0, 2).join(' ')}</b> {g.label.split(' ').slice(2).join(' ')}</span>
                     </label>
                   )
