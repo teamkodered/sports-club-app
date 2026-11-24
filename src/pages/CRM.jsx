@@ -625,6 +625,7 @@ export default function CRM() {
   const [addedToEnquiriesUids, setAddedToEnquiriesUids] = useState(() => new Set()) // session-only marker, turns the row green after a successful "Add to Enquiries"
   const [pendingDeleteUids, setPendingDeleteUids] = useState(() => new Set())
   const pendingDeleteTimers = useRef({})
+  const [autoChecking, setAutoChecking] = useState(false)
   const [pendingMoveUids, setPendingMoveUids] = useState(() => new Set())
   const pendingMoveTimers = useRef({})
   const [pendingContactUids, setPendingContactUids] = useState(() => new Set())
@@ -1248,6 +1249,18 @@ export default function CRM() {
   // Runs any in-flight "deleted/moved/contacted, undo?" actions
   // immediately if this page/component ever unmounts mid-countdown
   // (e.g. navigating away), rather than silently discarding them.
+  // Switching app or locking the phone pauses the page, so a delete / move still waiting out its
+  // undo seconds never happened (the email came back). Do them straight away when the app is hidden.
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState !== 'hidden') return
+      ;[pendingDeleteTimers, pendingMoveTimers, pendingContactTimers].forEach(ref =>
+        Object.values(ref.current).forEach(({ timerId, run }) => { clearTimeout(timerId); run() }))
+    }
+    document.addEventListener('visibilitychange', flush)
+    window.addEventListener('pagehide', flush)
+    return () => { document.removeEventListener('visibilitychange', flush); window.removeEventListener('pagehide', flush) }
+  }, [])
   useEffect(() => () => {
     // Unmounting (e.g. navigating away from this page) used to just
     // cancel any pending delete/move/mark-contacted action outright --
@@ -1582,7 +1595,7 @@ export default function CRM() {
     const { data: sessionData } = await supabase.auth.getSession()
     const accessToken = sessionData?.session?.access_token
     const res = await fetch('/.netlify/functions/move-email', {
-      method: 'POST',
+      method: 'POST', keepalive: true,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ uid, targetFolder, sourceFolder }),
     })
@@ -1903,7 +1916,7 @@ export default function CRM() {
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
       const res = await fetch('/.netlify/functions/delete-email', {
-        method: 'POST',
+        method: 'POST', keepalive: true,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ uid: m.uid, folder: emailFolder }),
       })
@@ -6137,6 +6150,23 @@ export default function CRM() {
                 {f === 'INBOX' ? '📥 Inbox' : f}
               </button>
             ))}
+            {emailFolder === 'INBOX' && (
+              <button className="btn btn-sm" disabled={autoChecking} title="Website enquiry-form and booking emails go to Enquiries by themselves every 15 minutes -- this does it now"
+                onClick={async () => {
+                  setAutoChecking(true)
+                  try {
+                    const { data: sd } = await supabase.auth.getSession()
+                    const res = await fetch('/.netlify/functions/auto-email-enquiries-now', { method: 'POST', headers: { Authorization: `Bearer ${sd?.session?.access_token}` } })
+                    const r = await res.json().catch(() => ({}))
+                    if (!res.ok) throw new Error(r.error || res.statusText)
+                    const moved = (r.added || 0) + (r.updated || 0)
+                    alert(moved ? `✓ ${r.added || 0} added to Enquiries${r.updated ? `, ${r.updated} already there (updated)` : ''}.${r.failed ? `\n${r.failed} couldn't be done and stay in the Inbox.` : ''}`
+                      : `No website enquiry-form or booking emails in the Inbox.${r.failed ? `\n${r.failed} couldn't be read.` : ''}\n\nOther emails stay here for you to deal with.`)
+                    loadInbox('INBOX'); if (enquiriesLoaded) loadEnquiries()
+                  } catch (e) { alert('Check failed: ' + e.message) }
+                  setAutoChecking(false)
+                }}>{autoChecking ? 'Checking…' : '⚡ Check website emails now'}</button>
+            )}
           </div>
 
           <div className="card" style={{ padding: 0 }}>
@@ -6166,8 +6196,8 @@ export default function CRM() {
                     <button className="btn btn-sm btn-primary" style={{ flexShrink: 0 }} onClick={() => undoMarkContacted(m.uid)}>↺ Undo ({undoSecs(m.uid)}s)</button>
                   </div>
                 ) : (
-                  <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: addedToEnquiriesUids.has(m.uid) ? '#1D9E7518' : undefined }}>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                  <div key={m.uid} className="email-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: addedToEnquiriesUids.has(m.uid) ? '#1D9E7518' : undefined }}>
+                    <div className="email-row-btns" style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                       {emailFolder === 'INBOX' && (
                         <button className="btn btn-sm" title="Send to Enquiries (as a new enquiry) -- 8 seconds to undo" onClick={() => markContactedForMessage(m)}>➕ Enquiries</button>
                       )}
@@ -6187,7 +6217,7 @@ export default function CRM() {
                       )}
                       <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteEmailWithUndo(m)}>🗑️</button>
                     </div>
-                    <div onClick={() => openInboxMessage(m.uid)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                    <div className="email-row-main" onClick={() => openInboxMessage(m.uid)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
                       <div style={{ minWidth: 0, overflow: 'hidden' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                           {!m.seen && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#378ADD', flexShrink: 0 }} />}

@@ -6,13 +6,13 @@
 // For each one: adds the enquiry (or updates the one already in the CRM for that person),
 // then moves the email to the "Contacted" folder -- exactly like the button.
 // Every other email is left in the Inbox for staff to deal with by hand.
-// Only looks at emails from the last 3 days, so old mail sitting in the Inbox is never swept up.
+// Looks at Inbox emails from the last 60 days (anything still in the Inbox hasn't been dealt with).
 const { ImapFlow } = require('imapflow')
 
 const CLUB_EMAIL_ADDRESS = 'info@derbykickboxing.org.uk'
 const IMAP_HOST = 'mail.derbykickboxing.org.uk'
 const DONE_FOLDER = 'Contacted'
-const LOOK_BACK_DAYS = 3
+const LOOK_BACK_DAYS = 60   // anything still in the Inbox hasn't been processed; existing enquiries are updated, never duplicated
 
 // ── the same parsing the Email tab uses (CRM.jsx) ──────────────────────────
 function parseWebsiteEnquiry(body) {

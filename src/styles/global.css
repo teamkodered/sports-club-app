@@ -2226,3 +2226,10 @@ body.kc-bh .kc-bh-openwrap { will-change: auto; }
 .neon-q-focus { position: absolute; top: 6px; right: 8px; font-size: 14px; cursor: pointer; z-index: 2; line-height: 1; }
 .neon-q-focus-tip { position: absolute; top: 26px; right: 6px; left: 6px; z-index: 3; font-size: 11px; line-height: 1.3; padding: 6px 8px; border-radius: 6px;
   background: #111518; border: 1px solid #1D9E75; color: #F2F2F2; font-style: normal; font-weight: 500; text-align: left; }
+
+/* CRM Email tab on phones: sender + subject get the full width, buttons go underneath */
+@media (max-width: 700px) {
+  .email-row { flex-wrap: wrap; }
+  .email-row-main { order: 1; flex-basis: 100% !important; }
+  .email-row-btns { order: 2; }
+}
