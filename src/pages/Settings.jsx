@@ -519,16 +519,6 @@ export default function Settings() {
       <QuestionsManager />
 
 
-      {SECTION('PKA Belt System')}
-      <ListSetting label="Junior belts (under 16)" settingKey="pka_junior_belts" hint="Displayed on PKA student records for members under 16" />
-      <ListSetting label="Senior belts (16+)" settingKey="pka_senior_belts" hint="Displayed on PKA student records for members 16 and over" />
-
-      {SECTION('KRBA Levels')}
-      <ListSetting label="KRBA boxing levels" settingKey="krba_levels" hint="Used on KRBA student records" />
-
-      {SECTION('Age Categories')}
-      <ListSetting label="Age categories" settingKey="age_categories" hint='JSON format: [{"label":"Under 8","min":0,"max":7}, …]' />
-
       {SECTION('Points System')}
       <PointTypesEditor />
       <AthleteHousePointsEditor />
@@ -546,6 +536,17 @@ export default function Settings() {
       <ListSetting label="Test types" settingKey="f2f_test_types" hint="One per line" />
       <ListSetting label="Technique types" settingKey="f2f_technique_types" hint="One per line" />
       <ListSetting label="Mentality activities" settingKey="f2f_mentality_types" hint="One per line" />
+
+      {/* belts, levels and age groups -- near the bottom, just above the database connection */}
+      {SECTION('PKA Belt System')}
+      <ListSetting label="Junior belts (under 16)" settingKey="pka_junior_belts" hint="Displayed on PKA student records for members under 16" />
+      <ListSetting label="Senior belts (16+)" settingKey="pka_senior_belts" hint="Displayed on PKA student records for members 16 and over" />
+
+      {SECTION('KRBA Levels')}
+      <ListSetting label="KRBA boxing levels" settingKey="krba_levels" hint="Used on KRBA student records" />
+
+      {SECTION('Age Categories')}
+      <ListSetting label="Age categories" settingKey="age_categories" hint='JSON format: [{"label":"Under 8","min":0,"max":7}, …]' />
 
       {SECTION('Supabase Connection')}
       <div className="card">
