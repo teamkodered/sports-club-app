@@ -8,6 +8,7 @@ import WebsiteProfiles from '../components/dashboard/WebsiteProfiles.jsx'
 import MyGradingStudents from '../components/dashboard/MyGradingStudents.jsx'
 import AwardsNominate from '../components/dashboard/AwardsNominate.jsx'
 import BlackBeltList from '../components/dashboard/BlackBeltList.jsx'
+import SendMoment from '../components/dashboard/SendMoment.jsx'
 import { supabase } from '../lib/supabase.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -480,6 +481,9 @@ export default function Dashboard() {
 
       {/* 🎽 coaches: grading requests from their own students */}
       <MyGradingStudents />
+
+      {/* 📸 coaches: send a photo for the club's social media (consent-checked) */}
+      <SendMoment />
 
 
       {/* 🌐 Website profiles approval (teamkodered.com) -- bottom of the coach dashboard */}
