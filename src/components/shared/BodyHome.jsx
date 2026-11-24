@@ -118,7 +118,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     if (rail && host) {
       if (getComputedStyle(host).position === 'static') host.style.position = 'relative'
       const i = SECS.findIndex(x => x.key === openKey)
-      const top = rail.getBoundingClientRect().top - host.getBoundingClientRect().top   // every section opens level with the TOP square, so the whole menu is in view (Foundation / Physical no longer start half way down)
+      const top = rail.getBoundingClientRect().top - host.getBoundingClientRect().top + i * 62   // level with its own square (slides out of it)
       wrap.classList.add('kc-bh-float'); wrap.style.top = `${Math.max(0, top)}px`
     }
     return () => { head.remove(); foot.remove(); wrap.classList.remove('kc-bh-float'); wrap.style.top = '' }
