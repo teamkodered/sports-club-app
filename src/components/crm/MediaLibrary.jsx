@@ -154,6 +154,9 @@ export default function MediaLibrary({ students, onUseInGraphic }) {
           {included.some(f => !f.done) && ' · indexing not finished'}
         </div>
         <button className="btn btn-sm" onClick={() => setChoosing(true)}>📁 Folders</button>
+        <button className="btn btn-sm" title="Unlink this Dropbox account (e.g. to connect a different one). Nothing in Dropbox changes."
+          onClick={async () => { if (!confirm(`Disconnect ${conn.account}?\n\nThe library stops reaching Dropbox until you connect again. Your checks and tags are kept. Nothing in Dropbox changes.`)) return
+            try { await dbx('disconnect'); loadStatus() } catch (e) { alert(e.message) } }}>Disconnect</button>
         <button className="btn btn-sm btn-primary" disabled={!!syncing || !included.length} onClick={indexNow}>{syncing ? `Indexing… ${syncing.added.toLocaleString()} found` : '🔄 Index now'}</button>
       </div>
       {included.length === 0 && <div className="card" style={{ padding: 16, marginBottom: 10, color: 'var(--text-secondary)' }}>Press 📁 Folders and include the folders with club photos and videos (not personal ones). Then press 🔄 Index now.</div>}
