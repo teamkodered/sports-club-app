@@ -3321,6 +3321,9 @@ export default function AthleteProfiles() {
   const [newNoteShared, setNewNoteShared] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [showNotesList, setShowNotesList] = useState(false)
+  const [noteSearch, setNoteSearch] = useState('')   // coach Notes: search all notes
+  // every word typed must appear somewhere in the note (text, title, author, date)
+  const noteMatches = (n, q) => { const hay = `${n.note_text || ''} ${n.title || ''} ${n.author_name || ''} ${n.logged_at ? new Date(n.logged_at).toLocaleDateString('en-GB') : ''}`.toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)) }
   const [showTargetsList, setShowTargetsList] = useState(false)
   const [showTeamNotesList, setShowTeamNotesList] = useState(false)
   const [editingNoteText, setEditingNoteText] = useState('')
@@ -14127,7 +14130,11 @@ export default function AthleteProfiles() {
 
                 <div className="card" style={{ cursor: 'pointer', marginBottom: notesLog.length > 0 && showNotesList ? 10 : 0 }} onClick={() => setShowNotesList(v => !v)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{showNotesList ? '▾' : '▸'} All notes ({notesLog.length})</h2>
+                    <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, whiteSpace: 'nowrap' }}>{showNotesList ? '▾' : '▸'} All notes ({notesLog.length})</h2>
+                    {/* 🔍 search all notes -- typing opens the list and shows only the matches */}
+                    <input type="search" value={noteSearch} placeholder="🔍 Search notes…" aria-label="Search notes"
+                      onClick={e => e.stopPropagation()} onChange={e => { setNoteSearch(e.target.value); if (e.target.value) setShowNotesList(true) }}
+                      style={{ flex: 1, minWidth: 0, marginLeft: 12, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 14 }} />
                   </div>
                 </div>
 
@@ -14135,7 +14142,8 @@ export default function AthleteProfiles() {
                   <div className="empty-state"><h3>No notes yet</h3><p>Notes logged here can be sent to any PDP category</p></div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {[...notesLog.filter(n => !isCompletedPdp(n)), ...(showDonePdpNotes ? notesLog.filter(isCompletedPdp) : [])].map(note => (
+                    {noteSearch.trim() && <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{notesLog.filter(n => noteMatches(n, noteSearch)).length} note{notesLog.filter(n => noteMatches(n, noteSearch)).length === 1 ? '' : 's'} match "{noteSearch.trim()}"</div>}
+                    {(noteSearch.trim() ? notesLog.filter(n => noteMatches(n, noteSearch)) : [...notesLog.filter(n => !isCompletedPdp(n)), ...(showDonePdpNotes ? notesLog.filter(isCompletedPdp) : [])]).map(note => (
                       <div key={note.id} className="card" onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.note_text) }} style={{ cursor: 'pointer', ...doneCardStyle(note) }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 10 }}>
                           <DoneTick note={note} onChange={u => setNotesLog(prev => prev.map(x => x.id === u.id ? u : x))} />
