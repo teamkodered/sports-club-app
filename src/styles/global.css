@@ -2236,3 +2236,8 @@ body.kc-bh .kc-bh-openwrap { will-change: auto; }
 
 /* 🎯 sub-option focus name under the card's target, e.g. 'Calm' / 'Body jab' */
 .neon-q-focus-sub { display: block; text-align: center; margin: -2px 0 4px; font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #FF8A8A; }
+
+/* Once a section's monthly focus is set, fold away the other (greyed) questions; '▼ Other questions' shows them.
+   The 'Other questions' button only shows when there are folded questions in that set. */
+.neon-home .q-swipe:not(.kc-show-all) > .neon-q.is-greyed { display: none !important; }
+.neon-home .kc-swipe-hint:not(:has(+ .q-swipe .neon-q.is-greyed)) .kc-others-btn { display: none; }
