@@ -139,7 +139,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
         </div>, slots.head)}
     </>
   ) : null
-  const fig = gender === 'F' ? '/figures/boxer-female.png' : '/figures/boxer-male.png'
+  const fig = /^f/i.test(String(gender || '').trim()) ? '/figures/boxer-female.png' : '/figures/boxer-male.png'   // F / f / Female
   const glow = SECS.find(x => x.key === openKey)?.colour || '#F5C542'
 
   return (
