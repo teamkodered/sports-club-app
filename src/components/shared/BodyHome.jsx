@@ -22,6 +22,21 @@ const has = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ?
 const tileEl = s => document.querySelector(`.neon-pillar.${s.tile}`)
 
 export default function BodyHome({ sessions = [], gender, openKey }) {
+  // A question opened inside a section: if it (and what opens under it) is off screen, scroll just enough to show it
+  useEffect(() => {
+    const onClick = e => {
+      const q = e.target.closest?.('.neon-home .neon-q, .neon-home .neon-run-btn')
+      if (!q || e.target.closest('.kc-bh-rail')) return
+      setTimeout(() => {
+        const el = q.isConnected ? q : document.querySelector('.neon-home .neon-q.is-active')
+        if (!el || !(el.classList.contains('is-active') || el.classList.contains('on') || el.classList.contains('is-on') || el.getAttribute('aria-expanded') === 'true')) return   // only when it OPENED
+        const r = el.getBoundingClientRect(), vh = window.innerHeight
+        if (r.top < 60 || r.top > vh * 0.45) window.scrollTo({ top: window.scrollY + r.top - 80, behavior: 'smooth' })
+      }, 320)
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [])
   const [busy, setBusy] = useState(false)
   useEffect(() => { document.body.classList.add('kc-bh'); return () => document.body.classList.remove('kc-bh', 'kc-bh-open') }, [])
   useEffect(() => {

@@ -2004,6 +2004,7 @@ export default function AthleteApp() {
   const showStretchCards = activePhysicalCategory === 'stretch'
   const [expandedHomeWatt, setExpandedHomeWatt] = useState(null)
   const [expandedHomeBodyweight, setExpandedHomeBodyweight] = useState(null)
+  const bwOpenRow = useRef(0)   // row of the open Bodyweight card (its panel opens under that row)
   const [expandedHomeStretch, setExpandedHomeStretch] = useState(null)
   const [stretchInfoOpen, setStretchInfoOpen] = useState({})
 
@@ -6707,12 +6708,13 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     {showBodyweightCards && (
                     <div ref={bodyweightPanelRef}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
-                      {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts' && !qHidden(qcfg, 'physical', g.label)).sort(qSort(qcfg, 'physical', g => g.label)).sort(focusFirst('physical', g => g.label)).map(grp => {
+                      {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts' && !qHidden(qcfg, 'physical', g.label)).sort(qSort(qcfg, 'physical', g => g.label)).sort(focusFirst('physical', g => g.label)).map((grp, gi, arr) => {
+                        if (expandedHomeBodyweight === grp.key) bwOpenRow.current = Math.floor(gi / 2)
                         const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                         const active = expandedHomeBodyweight === grp.key
                         return (
                           <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}${fq('physical', grp.label)}`} key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
+                            order: gi * 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
@@ -6737,11 +6739,16 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           <span style={{ fontSize: 22 }}>{tc.icon}</span>
                         </button>
                       ) })}
-                    </div>
-                    {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && <ActivityTimer label="bodyweight set" afterTest="Body weight max reps" studentId={student?.id} studentName={student?.members ? `${student.members.first_name} ${student.members.last_name}` : ''}
+                      {/* the open card's panel: full width, straight under the row the card is in */}
+                      {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && (
+                        <div style={{ gridColumn: '1 / -1', order: (bwOpenRow.current * 2 + 1) * 2 + 1, minWidth: 0 }}>
+                          {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && <ActivityTimer label="bodyweight set" afterTest="Body weight max reps" studentId={student?.id} studentName={student?.members ? `${student.members.first_name} ${student.members.last_name}` : ''}
                       onStop={s => flashSaved(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} -- add it to your entry`)}
                       onRecovery={r => { if (r?.pct != null) saveTestValue('HRR % (after Body weight max reps)', String(r.pct)) }} />}
-                    {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && renderBwPanel(expandedHomeBodyweight)}
+                          {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && renderBwPanel(expandedHomeBodyweight)}
+                        </div>
+                      )}
+                    </div>
                     {/* Jumps, Grip and Fixed load circuit results, moved here from the old Test tab */}
                     {expandedHomeBodyweight?.startsWith?.('__test:') && renderMovedTest([expandedHomeBodyweight.slice(7)], 'neon-qpanel neon-q-physical neon-run-panel')}
                     </div>
