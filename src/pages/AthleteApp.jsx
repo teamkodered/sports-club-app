@@ -3142,6 +3142,7 @@ export default function AthleteApp() {
     const newLog = { ...todaysMentalityLog, [field]: updatedField }
     const q = MENTALITY_QUESTIONS.find(q => q.key === field)
     if (q) checkF2fQuestionPoints({ mentality_log: { [field]: current } }, { mentality_log: { [field]: updatedField } }, [{ sectionKey: 'mentality', questionLabel: q.label }])
+    else if (field === 'videoAnalysis') checkF2fQuestionPoints({ mentality_log: { [field]: current } }, { mentality_log: { [field]: updatedField } }, [{ sectionKey: 'tactical', questionLabel: 'Video analysis' }])   // Tactical question
     setTodaysMentalityLog(newLog)
 
     const existing = sessions.find(s => s.session_date === todaysDate)
@@ -3429,6 +3430,8 @@ export default function AthleteApp() {
           productivity: w => ({ ...w, count: (w.count || 0) + 1 }),
         }
         if (q && defaults[q.key]) await saveWellbeingField(q.key, defaults[q.key])
+      } else if (sectionKey === 'mentality' && /^video analysis$/i.test(questionLabel)) {
+        await saveMentalityField('videoAnalysis', m => ({ ...m, entries: [...(m?.entries || []), { quickLogged: true }] }))
       } else if (sectionKey === 'mentality') {
         const q = MENTALITY_QUESTIONS.find(q => q.label === questionLabel)
         const defaults = {
@@ -3564,6 +3567,7 @@ export default function AthleteApp() {
   }
   function questionLogged(sectionKey, questionLabel, s) {
     if (s?.custom_q && s.custom_q[`${sectionKey}::${questionLabel}`]) return true   // added questions
+    if (/^video analysis$/i.test(questionLabel || '')) return !!(s?.mentality_log?.videoAnalysis?.entries?.length > 0)
     if (sectionKey === 'wellbeing') {
       const q = WELLBEING_QUESTIONS.find(q => q.label === questionLabel)
       return q ? isWellbeingQComplete(q.key, s.wellbeing) : false
@@ -3598,6 +3602,7 @@ export default function AthleteApp() {
   // can only ever hold one value per day still just contribute 0 or 1.
   function questionLoggedCount(sectionKey, questionLabel, s) {
     if (sectionKey === 'technique') return (s.techniques || []).filter(t => t.style === questionLabel).length
+    if (/^video analysis$/i.test(questionLabel || '')) return (s?.mentality_log?.videoAnalysis?.entries || []).length
     if (sectionKey === 'tactical') return (s.tactical || []).filter(t => t.category === questionLabel).length
     if (sectionKey === 'physical' && RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
       return toEntries(s.running).filter(e => e.category === RUN_CATEGORY_TARGET_LABELS[questionLabel]).length
