@@ -76,7 +76,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     if (window.__kcHold) return
     const st = window.scrollTo, siv = Element.prototype.scrollIntoView
     window.__kcHold = true; window.scrollTo = () => {}; Element.prototype.scrollIntoView = function () {}
-    setTimeout(() => { window.scrollTo = st; Element.prototype.scrollIntoView = siv; window.__kcHold = false }, 700)
+    setTimeout(() => { window.scrollTo = st; Element.prototype.scrollIntoView = siv; window.__kcHold = false }, 1300)
   }
   // which section was open when the finger went down (the page's tap-outside handler can shut it
   // before the click arrives -- so the click must not read that as "nothing open" and reopen it)
@@ -85,6 +85,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
   // Opening a section: go STRAIGHT to the same place every time -- the Sessions / Results / PDP tiles at the top of the
   // screen, squares + figure + the section below them. Runs at the press (not after the slide), with the browser's own
   // scroll (the page's scroll guard is on during a press), so there's no open-then-scroll or down-then-up.
+  useEffect(() => { try { const old = window.history.scrollRestoration; window.history.scrollRestoration = 'manual'; return () => { window.history.scrollRestoration = old } } catch { return undefined } }, [])
   const nativeScroll = useRef(typeof window !== 'undefined' ? window.scrollTo.bind(window) : null)
   const showSection = () => {
     const tiles = document.querySelector('.neon-stat')

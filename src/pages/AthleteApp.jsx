@@ -1975,7 +1975,8 @@ export default function AthleteApp() {
   useEffect(() => {
     const ref = { physical: physicalSectionRef, technique: techniqueSectionRef, tactical: tacticalSectionRef, mentality: mentalitySectionRef }[openSec]
     const y = el => el ? el.getBoundingClientRect().top + window.scrollY - 70 : null
-    if (openSec && ref?.current) requestAnimationFrame(() => { const t = y(ref.current); if (t != null) window.scrollTo({ top: Math.max(0, t), behavior: 'auto' }) })
+    const bh = document.body.classList.contains('kc-bh')   // new home: the squares do their own scrolling -- the old jump-to-section must not run
+    if (bh) { /* no scroll */ } else if (openSec && ref?.current) requestAnimationFrame(() => { const t = y(ref.current); if (t != null) window.scrollTo({ top: Math.max(0, t), behavior: 'auto' }) })
     else if (!openSec && lastOpenSec.current && quadRef.current) requestAnimationFrame(() => { const t = y(quadRef.current); if (t != null) window.scrollTo({ top: Math.max(0, t), behavior: 'auto' }) })
     // the phone's back closes the open section first
     if (openSec && !lastOpenSec.current) { try { window.history.pushState({ ...(window.history.state || {}), kcSec: 1 }, '') } catch { /* */ } }
