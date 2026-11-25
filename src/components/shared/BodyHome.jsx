@@ -87,7 +87,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     const el = tileEl(s)?.parentElement
     if (!el || !tileEl(s)?.classList.contains('is-open')) return
     const r = el.getBoundingClientRect(), vh = window.innerHeight
-    if (r.top < 0 || r.top > vh * 0.3) window.scrollTo({ top: window.scrollY + r.top - 70, behavior: 'smooth' })
+    if (r.top < 0 || r.top > vh * 0.5) window.scrollTo({ top: window.scrollY + r.top - vh * 0.38, behavior: 'smooth' })   // header about a third of the way down (tiles still in view above)
   }, 760)   // after the slide-out (and after the page's scroll guard lets go)
   const open = s => {
     if (busy) return
