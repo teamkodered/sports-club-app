@@ -82,18 +82,25 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
   // before the click arrives -- so the click must not read that as "nothing open" and reopen it)
   const downOpen = useRef(null)
   const press = () => { downOpen.current = openKey; holdScroll() }
+  // after a section opens, bring its card into view (header near the top) if it's low down or off screen
+  const showSection = s => setTimeout(() => {
+    const el = tileEl(s)?.parentElement
+    if (!el || !tileEl(s)?.classList.contains('is-open')) return
+    const r = el.getBoundingClientRect(), vh = window.innerHeight
+    if (r.top < 0 || r.top > vh * 0.3) window.scrollTo({ top: window.scrollY + r.top - 70, behavior: 'smooth' })
+  }, 760)   // after the slide-out (and after the page's scroll guard lets go)
   const open = s => {
     if (busy) return
     const was = downOpen.current ?? openKey
     downOpen.current = null
     const cur = SECS.find(x => x.key === was)
-    if (!cur) { if (!tileEl(s)?.classList.contains('is-open')) tileEl(s)?.click(); return }
+    if (!cur) { if (!tileEl(s)?.classList.contains('is-open')) { tileEl(s)?.click(); showSection(s) } return }
     const wrap = tileEl(cur)?.parentElement
     setBusy(true); wrap?.classList.add('kc-closing')
     setTimeout(() => {
       wrap?.classList.remove('kc-closing')
       if (tileEl(cur)?.classList.contains('is-open')) tileEl(cur).click()
-      if (cur.key !== s.key) setTimeout(() => { if (!tileEl(s)?.classList.contains('is-open')) tileEl(s)?.click() }, 30)
+      if (cur.key !== s.key) { setTimeout(() => { if (!tileEl(s)?.classList.contains('is-open')) tileEl(s)?.click() }, 30); showSection(s) }
       setBusy(false)
     }, 520)
   }
