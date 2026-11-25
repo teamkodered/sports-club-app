@@ -3336,8 +3336,8 @@ export default function AthleteApp() {
       if (subF && myFocus[sectionKey]) {
         if (!sameQ(myFocus[sectionKey], questionLabel)) return   // other questions: no points while a sub-option is the focus
         const was = subLogged(sectionKey, questionLabel, subF, oldSessionLike), now = subLogged(sectionKey, questionLabel, subF, newSessionLike)
-        if (!was && now) awardHousePoints('f2f_focus', `${questionLabel} · ${subF}`)
-        else if (was && !now) revokeF2fQuestionPoint(`${questionLabel} · ${subF}`)
+        if (now) awardHousePoints('f2f_focus', questionLabel)   // server: once a day per question
+        else if (was && !now) revokeF2fQuestionPoint(questionLabel)
         return
       }
       const isTargeted = sectionTargets.some(t => t.section_key === sectionKey && t.question_label === questionLabel)
@@ -3348,7 +3348,7 @@ export default function AthleteApp() {
       const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
       // No question points in a section until this month's 🎯 focus is chosen. Then: the focus question
       // scores f2f_focus (3), 'always on' questions score as normal, everything else logs without points.
-      if (!wasLogged && isLoggedNow) {
+      if (isLoggedNow) {   // the server only awards once a day per question, so it's safe to ask each time
         if (!focus) return
         if (isFocusQ) awardHousePoints('f2f_focus', questionLabel)
         else if (!isGreyedQ(sectionKey, questionLabel)) awardHousePoints('f2f_question', questionLabel)
@@ -4104,7 +4104,7 @@ export default function AthleteApp() {
       }
       setSectionPts(out)
     }, () => {})
-  }, [student?.id, monthHousePoints])
+  }, [student?.id, monthHousePoints, student?.individual_points])   // refresh after each award
   const SectionPoints = ({ sec }) => (
     <span className="neon-sec-pts" title="Points earned in this section this month">{sectionPts[sec] ? `${sectionPts[sec]} PTS` : '0 PTS'}</span>
   )
