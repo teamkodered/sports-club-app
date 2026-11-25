@@ -1746,6 +1746,7 @@ export default function AthleteApp() {
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return
     const onDown = e => {
+      if (!e.isTrusted) return   // only the finger's own press -- not the app pressing buttons for itself (opening a section buzzed twice)
       const t = e.target?.closest?.('button, a, [role="button"], input[type="checkbox"], input[type="radio"], select, summary')
       if (t && !t.disabled && t.getAttribute('aria-disabled') !== 'true') { try { navigator.vibrate(8) } catch { /* not supported */ } }
     }
