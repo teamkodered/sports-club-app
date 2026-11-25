@@ -13,7 +13,7 @@ export default function BringAFriend({ memberId }) {
     supabase.from('referrals').select('id').eq('referrer_member_id', memberId).then(({ data }) => setCount(data?.length || 0))
   }, [memberId])
   if (!code) return null
-  const link = `${window.location.origin}/join?c=${code}`
+  const link = `${window.location.origin}/join?c=${code}&i=kr`   // &i=kr: a new link address, so WhatsApp etc fetch the new KR preview instead of their saved PKA one
   const text = `Come and train with me at KR Centre! Use my code ${code} when you join: ${link}`
   async function share() {
     try {
