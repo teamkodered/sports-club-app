@@ -3278,7 +3278,10 @@ export default function AthleteApp() {
   // "logged" (not on every edit/keystroke), regardless of whether the
   // save came from the full F2F form or the diamond's quick-log.
   function questionsAffectedByPhysicalSave(dbField, newValue) {
-    if (dbField === 'techniques') return [...new Set(toEntries(newValue).map(t => t.style).filter(Boolean))].map(style => ({ sectionKey: 'technique', questionLabel: style }))
+    if (dbField === 'techniques') return [   // the style (weekly targets) AND each technique question (the monthly focus is a question, e.g. Offensive punches)
+      ...[...new Set(toEntries(newValue).map(t => t.style).filter(Boolean))].map(style => ({ sectionKey: 'technique', questionLabel: style })),
+      ...[...new Set(toEntries(newValue).map(t => t.category).filter(c => c && c !== 'Quick log'))].map(cat => ({ sectionKey: 'technique', questionLabel: cat })),
+    ]
     if (dbField === 'tactical') return [...new Set(toEntries(newValue).map(t => t.category).filter(Boolean))].map(category => ({ sectionKey: 'tactical', questionLabel: category }))
     if (dbField === 'test') return TEST_CATEGORIES.map(cat => ({ sectionKey: 'test', questionLabel: cat.label }))
     if (dbField === 'running') {
@@ -3327,6 +3330,14 @@ export default function AthleteApp() {
         const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
         if (!wasLogged && isLoggedNow) awardHousePoints('f2f_question', questionLabel)
         else if (wasLogged && !isLoggedNow) revokeF2fQuestionPoint(questionLabel)
+        return
+      }
+      const subF = myFocus[`${sectionKey}__sub`]
+      if (subF && myFocus[sectionKey]) {
+        if (!sameQ(myFocus[sectionKey], questionLabel)) return   // other questions: no points while a sub-option is the focus
+        const was = subLogged(sectionKey, questionLabel, subF, oldSessionLike), now = subLogged(sectionKey, questionLabel, subF, newSessionLike)
+        if (!was && now) awardHousePoints('f2f_focus', `${questionLabel} · ${subF}`)
+        else if (was && !now) revokeF2fQuestionPoint(`${questionLabel} · ${subF}`)
         return
       }
       const isTargeted = sectionTargets.some(t => t.section_key === sectionKey && t.question_label === questionLabel)
@@ -3577,7 +3588,7 @@ export default function AthleteApp() {
       return q ? isMentalityQComplete(q.key, s.mentality_log) : false
     }
     if (sectionKey === 'technique') {
-      return (s.techniques || []).some(t => t.style === questionLabel) // Boxing/Kickboxing -- label equals matchStyle exactly
+      return (s.techniques || []).some(t => t.style === questionLabel || (t.category && t.category !== 'Quick log' && sameQ(t.category, questionLabel))) // a style (Boxing/Kickboxing) or a technique question (Offensive punches)
     }
     if (sectionKey === 'tactical') {
       return (s.tactical || []).some(t => t.category === questionLabel) // label equals matchCategory exactly
@@ -3601,7 +3612,7 @@ export default function AthleteApp() {
   // count, rather than the whole day only counting once. Fields that
   // can only ever hold one value per day still just contribute 0 or 1.
   function questionLoggedCount(sectionKey, questionLabel, s) {
-    if (sectionKey === 'technique') return (s.techniques || []).filter(t => t.style === questionLabel).length
+    if (sectionKey === 'technique') return (s.techniques || []).filter(t => t.style === questionLabel || (t.category && t.category !== 'Quick log' && sameQ(t.category, questionLabel))).length
     if (/^video analysis$/i.test(questionLabel || '')) return (s?.mentality_log?.videoAnalysis?.entries || []).length
     if (sectionKey === 'tactical') return (s.tactical || []).filter(t => t.category === questionLabel).length
     if (sectionKey === 'physical' && RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
@@ -3989,11 +4000,40 @@ export default function AthleteApp() {
   // this month's focus question(s) go to the front of their list (ahead of the usual / alphabetical order)
   const focusFirst = (sec, labelOf) => (a, b) => (fq(sec, labelOf(b)).includes('is-focus') ? 1 : 0) - (fq(sec, labelOf(a)).includes('is-focus') ? 1 : 0)
   const fq = (sec, label) => sec === 'wellbeing' ? '' : isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
+  // 🎯 sub-option focus inside the focus question: only logging THAT option scores in the section
+  const mySub = (sec, label) => (myFocus[sec] && sameQ(myFocus[sec], label)) ? (myFocus[`${sec}__sub`] || null) : null
+  async function setMySubFocus(sec, label, sub) {
+    if (!student) return
+    const cur = apData?.pdp_notes || {}
+    const allF = { ...(cur.__focus || {}) }
+    const m = { ...(allF[focusMonth] || {}) }
+    if (!m[sec] || !sameQ(m[sec], label)) m[sec] = label   // choosing a sub-option also makes its question the focus
+    if (sub) m[`${sec}__sub`] = sub; else delete m[`${sec}__sub`]
+    allF[focusMonth] = m
+    const updated = { ...cur, __focus: allF }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Could not save your focus: ' + error.message); return }
+    setApData(prev => ({ ...(prev || {}), pdp_notes: updated }))
+    flashSaved(sub ? `🎯 Focus: ${sub}` : '🎯 Focus on the whole question')
+  }
+  // was the focus sub-option logged in this day's data?
+  function subLogged(sec, label, sub, s) {
+    if (!s || !sub) return false
+    const eq = v => String(v || '').trim().toLowerCase() === String(sub).trim().toLowerCase()
+    if (sec === 'technique') return (s.techniques || []).some(t => sameQ(t.category, label) && eq(t.technique))
+    if (sec === 'tactical') return (s.tactical || []).some(t => sameQ(t.category, label) && eq(t.item))
+    if (sec === 'mentality') {
+      const q = MENTALITY_QUESTIONS.find(q => sameQ(q.label, label)); const v = q ? s.mentality_log?.[q.key] : null
+      return !!(v?.entries || []).some(e => eq(e.category) || eq(e.type) || eq(e.item))
+    }
+    return false
+  }
   async function setMyFocus(sec, label) {
     if (!student) return
     const cur = apData?.pdp_notes || {}
     const allF = { ...(cur.__focus || {}) }
     allF[focusMonth] = { ...(allF[focusMonth] || {}), [sec]: label }
+    if (allF[focusMonth][`${sec}__sub`] && !sameQ(cur.__focus?.[focusMonth]?.[sec] || '', label)) delete allF[focusMonth][`${sec}__sub`]
     const updated = { ...cur, __focus: allF }
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
     if (error) { alert('Could not save your focus: ' + error.message); return }
@@ -4566,6 +4606,21 @@ export default function AthleteApp() {
   // D / W / M charge lines are switched off for now (Nov 2026) but kept -- set SHOW_DWM back to true to bring them
   // back, or reuse getQuestionProgressByPeriod for another display. In their place: a quick ✓ DONE and the 🎯.
   async function quickDoneQuestion(sectionKey, questionLabel, doneStyle) {
+    const sub = mySub(sectionKey, questionLabel)
+    if (sub && sectionKey === 'technique') {
+      const prev = todaysTechniques
+      await savePhysicalField('techniques', [...todaysTechniques, { style: doneStyle || questionLabel, category: questionLabel, technique: sub, note: '', quickLogged: true }], setTodaysTechniques)
+      offerUndo(sub, () => savePhysicalField('techniques', prev, setTodaysTechniques)); return
+    }
+    if (sub && sectionKey === 'tactical') {
+      const prev = todaysTactical
+      await savePhysicalField('tactical', [...todaysTactical, { category: questionLabel, item: sub, note: '', quickLogged: true }], setTodaysTactical)
+      offerUndo(sub, () => savePhysicalField('tactical', prev, setTodaysTactical)); return
+    }
+    if (sub && sectionKey === 'mentality') {
+      const q = MENTALITY_QUESTIONS.find(q => sameQ(q.label, questionLabel))
+      if (q) { await saveMentalityField(q.key, m => ({ ...m, entries: [...(m?.entries || []), { category: String(sub).toLowerCase(), type: sub, quickLogged: true }] })); return }
+    }
     if (sectionKey === 'technique') {
       const prev = todaysTechniques
       await savePhysicalField('techniques', [...todaysTechniques, { style: doneStyle || questionLabel, category: questionLabel, technique: 'Quick log', note: '', quickLogged: true }], setTodaysTechniques)
@@ -4584,6 +4639,7 @@ export default function AthleteApp() {
           <span role="button" tabIndex={0} className="neon-q-focus" aria-label="Monthly focus"
             onClick={e => { e.stopPropagation(); setFocusTip(t => t === `${sectionKey}::${questionLabel}` ? null : `${sectionKey}::${questionLabel}`) }}>🎯</span>
         )}
+        {mySub(focusSec || sectionKey, questionLabel) && <span className="neon-q-focus-sub">{mySub(focusSec || sectionKey, questionLabel)}</span>}
         {focusTip === `${sectionKey}::${questionLabel}` && (
           <span className="neon-q-focus-tip" onClick={e => { e.stopPropagation(); setFocusTip(null) }}>🎯 This is one of your monthly focus points -- it scores every day you log it.</span>
         )}
@@ -4762,7 +4818,7 @@ export default function AthleteApp() {
   // options, add ONE optional note, press ONE Save -- each saved item is the
   // same entry the old tick-box made. Saved items list above; tap one to
   // edit its note (same box, same Save) or x to remove it.
-  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C', pdp = null, pdpTarget = null, isFocus = false }) {
+  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C', pdp = null, pdpTarget = null, isFocus = false, subFocus = null, onSetSub = null }) {
     const pdpItems = pdp?.items || new Set()
     const picking = pdpTarget && pdpPickMode === draftKey
     const blank = { sel: [], note: '', edit: null }
@@ -4770,7 +4826,7 @@ export default function AthleteApp() {
     const set = patch => setPickDraft(p => ({ ...p, [draftKey]: { ...blank, ...(p[draftKey] || {}), ...patch } }))
     const loggedNames = logged.map(l => l.item)
     const editing = d.edit && loggedNames.includes(d.edit) ? d.edit : null
-    const avail = items.filter(i => !loggedNames.includes(i))
+    const avail = items.filter(i => !loggedNames.includes(i)).sort((a, b) => (b === subFocus) - (a === subFocus))   // focus option first
     const sel = d.sel.filter(i => avail.includes(i))
     const canSave = editing ? true : sel.length > 0
     const save = () => {
@@ -4797,7 +4853,7 @@ export default function AthleteApp() {
                 <div key={l.item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editing === l.item ? `1px solid ${colour}` : (pdpItems.has(l.item) ? `1px solid ${PDP_GOLD}` : '1px solid transparent') }}>
                   <button type="button" onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: l.item }) : set({ edit: editing === l.item ? null : l.item, note: editing === l.item ? '' : (l.note || ''), sel: [] })}
                     style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>
-                    {l.item}{isFocus && <span title="Monthly focus" style={{ marginLeft: 6 }}>🎯</span>}
+                    {l.item}{(subFocus ? l.item === subFocus : isFocus) && <span title="Monthly focus" style={{ marginLeft: 6 }}>🎯</span>}
                     <span style={{ display: 'block', fontSize: 11, color: l.note ? 'var(--text-secondary)' : 'var(--text-tertiary)', marginTop: 2 }}>{l.note || 'Tap to add a note'}</span>
                   </button>
                   <button type="button" aria-label={`Remove ${l.item}`} onClick={() => { onRemove(l.item); if (editing === l.item) set(blank) }}
@@ -4816,13 +4872,17 @@ export default function AthleteApp() {
                 return (
                   <button key={i} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
                     onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: i }) : set({ sel: on ? sel.filter(x => x !== i) : [...sel, i] })}
-                    data-pdp={pdpItems.has(i) ? 'gold' : undefined}
+                    data-pdp={pdpItems.has(i) ? 'gold' : undefined} data-focus={i === subFocus ? '1' : undefined}
                     style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : (pdpItems.has(i) ? PDP_GOLD : undefined), boxShadow: pdpItems.has(i) ? `0 0 0 1px ${PDP_GOLD}, 0 0 8px ${PDP_GOLD}66` : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }}>
-                    {i}
+                    {i === subFocus ? '🎯 ' : ''}{i}
                   </button>
                 )
               })}
             </div>
+            {onSetSub && sel.length === 1 && (
+              <button type="button" className="btn btn-sm" style={{ marginBottom: 10, borderColor: '#E24B4A', color: '#FF8A8A' }}
+                onClick={() => onSetSub(subFocus === sel[0] ? null : sel[0])}>{subFocus === sel[0] ? `✕ Stop focusing on ${sel[0]}` : `🎯 Make ${sel[0]} my focus`}</button>
+            )}
           </>
         )}
         {(editing || avail.length > 0) && (
@@ -4866,10 +4926,16 @@ export default function AthleteApp() {
                 setMentalityDraftDurations(prev => ({ ...prev, [`${field}::__type`]: null }))
               }}
               className="btn btn-sm" style={{ background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
-              {c.label}
+              {mySub('mentality', MENTALITY_QUESTIONS.find(q => q.key === field)?.label || '') && String(mySub('mentality', MENTALITY_QUESTIONS.find(q => q.key === field)?.label || '')).toLowerCase() === String(c.label).toLowerCase() ? '🎯 ' : ''}{c.label}
             </button>
           ))}
         </div>
+        {expandedCategory && (() => {
+          const ql = MENTALITY_QUESTIONS.find(q => q.key === field)?.label; const c = categories.find(x => x.key === expandedCategory)
+          if (!ql || !c) return null
+          const on = String(mySub('mentality', ql) || '').toLowerCase() === String(c.label).toLowerCase()
+          return <button type="button" className="btn btn-sm" style={{ marginBottom: 10, borderColor: '#E24B4A', color: '#FF8A8A' }} onClick={() => setMySubFocus('mentality', ql, on ? null : c.label)}>{on ? `✕ Stop focusing on ${c.label}` : `🎯 Make ${c.label} my focus`}</button>
+        })()}
         {cat && (
           <div style={{ width: '100%', minWidth: 0 }}>
             {cat.description && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8, fontStyle: 'italic' }}>{cat.description}</p>}
@@ -7002,7 +7068,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           return (
                             <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
                               {HistoryViewButton({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' }, style: { marginBottom: 8 } })}
-                              {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, isFocus: fq('technique', cat).includes('is-focus'), items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: null, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
+                              {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, isFocus: fq('technique', cat).includes('is-focus'), subFocus: mySub('technique', cat), onSetSub: sub => setMySubFocus('technique', cat, sub), items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: null, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
                               <QuestionMediaUpload sectionKey="technique" questionLabel={cat} />
                             </div>
                           )
@@ -7097,7 +7163,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       return (
                         <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                           {HistoryViewButton({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' }, style: { marginBottom: 8 } })}
-                          {ChecklistPicker({ draftKey: `tac:${cat}`, isFocus: fq('tactical', cat).includes('is-focus'), items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: null, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
+                          {ChecklistPicker({ draftKey: `tac:${cat}`, isFocus: fq('tactical', cat).includes('is-focus'), subFocus: mySub('tactical', cat), onSetSub: sub => setMySubFocus('tactical', cat, sub), items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: null, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
                           <QuestionMediaUpload sectionKey="tactical" questionLabel={cat} />
                         </div>
                       )

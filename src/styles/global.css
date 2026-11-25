@@ -2233,3 +2233,6 @@ body.kc-bh .kc-bh-openwrap { will-change: auto; }
   .email-row-main { order: 1; flex-basis: 100% !important; }
   .email-row-btns { order: 2; }
 }
+
+/* 🎯 sub-option focus name under the card's target, e.g. 'Calm' / 'Body jab' */
+.neon-q-focus-sub { display: block; text-align: center; margin: -2px 0 4px; font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #FF8A8A; }
