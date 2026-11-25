@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import BringAFriend from '../components/shared/BringAFriend.jsx'
 import AwardsVote from '../components/shared/AwardsVote.jsx'
 import MonthlyReport from '../components/shared/MonthlyReport.jsx'
 import { readScale, scaleSupported } from '../lib/btScale.js'
@@ -6052,6 +6053,7 @@ export default function AthleteApp() {
           {student ? (
             <>
               <InstallAppButton />
+              <BringAFriend memberId={student.member_id} />
               {pushPermission === 'default' && (
                 <div className="card" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12 }}>🔔 Get notified when your coach logs something, or you move on the league ladder.</span>

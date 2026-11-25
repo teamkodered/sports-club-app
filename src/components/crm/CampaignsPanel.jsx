@@ -17,7 +17,7 @@ const GROUPS = ['All', 'PKA kids', 'PKA adults', 'KRBA', 'KR squad']
 const ALL_VENUES = [...VENUES, { key: 'alvaston', label: 'Alvaston Project' }]
 const TRIAL_STAGES = ['trial_booked', 'attended', 'joined']
 const JOINED_MEMBER = ['active', 'stopped', 'inactive']     // approved at some point (stopped later still counts)
-const JOIN_FORMS = [['join-pka-child', 'PKA kids'], ['join-pka-adult', 'PKA adults'], ['join-krba', 'KRBA']]
+const JOIN_FORMS = [['join', 'Any class (pick on the page)'], ['join-pka-child', 'PKA kids'], ['join-pka-adult', 'PKA adults'], ['join-krba', 'KRBA']]
 
 const money = n => '£' + Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 const per = (spend, n) => (Number(spend) > 0 && n > 0 ? money(Math.round((spend / n) * 100) / 100) : '—')

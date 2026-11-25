@@ -11,6 +11,7 @@ import StockPanel from '../components/crm/StockPanel.jsx'
 import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
 import CampaignsPanel from '../components/crm/CampaignsPanel.jsx'
 import PostsPanel from '../components/crm/PostsPanel.jsx'
+import WinBackPanel from '../components/crm/WinBackPanel.jsx'
 import AdminPushToggle from '../components/shared/AdminPushToggle.jsx'
 import AwardsPanel from '../components/crm/AwardsPanel.jsx'
 import { INTEREST_GROUPS, interestOf, nextDateForDay, introOf } from '../lib/enquiryInterest.js'
@@ -383,7 +384,7 @@ export default function CRM() {
   const [enqVenue, setEnqVenue] = useState('all')
   const [enqSearch, setEnqSearch] = useState('')   // Enquiries search: name, phone, email, who it's for, notes   // admin's venue filter on enquiries
   const location = useLocation()
-  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock', 'level_up', 'awards', 'marketing', 'posts']
+  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock', 'level_up', 'awards', 'marketing', 'posts', 'winback']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
   // Adds any newly-introduced tab that predates a saved order, and
   // drops any that no longer exist, rather than silently hiding/
@@ -3649,6 +3650,7 @@ export default function CRM() {
           awards: { label: '🏆 Awards', colour: '#EF9F27', onSelect: () => setTab('awards') },
           marketing: { label: '📣 Campaigns', colour: '#EC4899', onSelect: () => setTab('marketing') },
           posts: { label: '📸 Posts', colour: '#A855F7', onSelect: () => setTab('posts') },
+          winback: { label: '🔁 Win back', colour: '#F97316', onSelect: () => setTab('winback') },
           sell: { label: 'Sell', colour: '#1D9E75', onSelect: () => setTab('sell') },
           sales: { label: 'Sales', colour: '#8B5CF6', onSelect: () => setTab('sales') },
           stock: { label: 'Stock', colour: '#06B6D4', onSelect: () => setTab('stock') },
@@ -3703,7 +3705,7 @@ export default function CRM() {
               const def = TAB_DEFS[key]
               if (!def) return null
               if (isHeadCoach && !HEAD_COACH_TABS.includes(key)) return null
-              if ((key === 'marketing' || key === 'posts') && !isAdmin) return null   // campaigns and spend: admin only
+              if ((key === 'marketing' || key === 'posts' || key === 'winback') && !isAdmin) return null   // campaigns and spend: admin only
               const active = tab === key
               return (
                 <button key={key} data-tab-key={key}
@@ -3731,6 +3733,7 @@ export default function CRM() {
       {tab === 'awards' && isAdmin && <AwardsPanel />}
       {tab === 'marketing' && isAdmin && <CampaignsPanel />}
       {tab === 'posts' && isAdmin && <PostsPanel />}
+      {tab === 'winback' && isAdmin && <WinBackPanel sendRealEmail={sendRealEmail} />}
       {tab === 'sell' && <StockPanel key="sell" section="sell" />}
       {tab === 'sales' && <StockPanel key="sales" section="sales" />}
       {tab === 'stock' && <StockPanel key="stock" section="stock" />}

@@ -37,6 +37,7 @@ const LevelUp = lazyPage(() => import('./pages/LevelUp.jsx'))
 const FightFinder = lazyPage(() => import('./pages/FightFinder.jsx'))
 const Claim = lazyPage(() => import('./pages/Claim.jsx'))
 const JoinPKAChild = lazyPage(() => import('./pages/forms/JoinPKAChild.jsx'))
+const JoinChooser = lazyPage(() => import('./pages/forms/JoinChooser.jsx'))
 const JoinPKAAdult = lazyPage(() => import('./pages/forms/JoinPKAAdult.jsx'))
 const JoinKRBA = lazyPage(() => import('./pages/forms/JoinKRBA.jsx'))
 const GradingExpression = lazyPage(() => import('./pages/forms/GradingExpression.jsx'))
@@ -186,6 +187,7 @@ function App() {
           <Route path="/level-up"        element={<LevelUp />} />
           <Route path="/parent"          element={<ProtectedRoute><ParentView /></ProtectedRoute>} />
           <Route path="/claim"           element={<Claim />} />
+          <Route path="/join"            element={<JoinChooser />} />
           <Route path="/join-pka-child"  element={<JoinPKAChild />} />
           <Route path="/join-pka-adult"  element={<JoinPKAAdult />} />
           <Route path="/join-krba"       element={<JoinKRBA />} />
