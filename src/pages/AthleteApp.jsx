@@ -4668,6 +4668,9 @@ export default function AthleteApp() {
           const sec = focusSec || sectionKey
           if (!['mentality', 'tactical', 'technique', 'physical'].includes(sec) || myFocus[sec]) return null   // no focus in Foundation (all always on)   // always-on questions can be the focus too
           const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' })
+          // questions with options inside (techniques, tactical areas, meditation areas): pick an option as the focus instead
+          if (sec === 'technique' || (sec === 'tactical' && !/^video analysis$/i.test(questionLabel)) || (sec === 'mentality' && /^meditation$/i.test(questionLabel)))
+            return <span className="kc-setfocus" style={{ '--c': accent, cursor: 'default' }}>🎯 Pick an option below to make it your {monthName} focus</span>
           return (
             <span role="button" tabIndex={0} className="kc-setfocus" style={{ '--c': accent }}
               onClick={e => { e.stopPropagation(); if (confirm(`Make "${questionLabel}" your ${monthName} focus? It's locked in until the end of the month.`)) setMyFocus(sec, questionLabel) }}>
@@ -4821,12 +4824,13 @@ export default function AthleteApp() {
   function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C', pdp = null, pdpTarget = null, isFocus = false, subFocus = null, onSetSub = null }) {
     const pdpItems = pdp?.items || new Set()
     const picking = pdpTarget && pdpPickMode === draftKey
-    const blank = { sel: [], note: '', edit: null }
+    const blank = { sel: [], note: '', edit: null, others: false }
     const d = { ...blank, ...(pickDraft[draftKey] || {}) }
     const set = patch => setPickDraft(p => ({ ...p, [draftKey]: { ...blank, ...(p[draftKey] || {}), ...patch } }))
     const loggedNames = logged.map(l => l.item)
     const editing = d.edit && loggedNames.includes(d.edit) ? d.edit : null
-    const avail = items.filter(i => !loggedNames.includes(i)).sort((a, b) => (b === subFocus) - (a === subFocus))   // focus option first
+    const availAll = items.filter(i => !loggedNames.includes(i)).sort((a, b) => (b === subFocus) - (a === subFocus))   // focus option first
+    const avail = subFocus && !d.others ? availAll.filter(i => i === subFocus) : availAll   // focus option only, unless '▼ Other options'
     const sel = d.sel.filter(i => avail.includes(i))
     const canSave = editing ? true : sel.length > 0
     const save = () => {
@@ -4879,6 +4883,9 @@ export default function AthleteApp() {
                 )
               })}
             </div>
+            {subFocus && availAll.length > 1 && (
+              <button type="button" className="btn btn-sm" style={{ marginBottom: 10, fontSize: 11 }} onClick={() => set({ others: !d.others })}>{d.others ? '▲ Focus option only' : `▼ Other options (${availAll.length - 1})`}</button>
+            )}
             {onSetSub && sel.length === 1 && (
               <button type="button" className="btn btn-sm" style={{ marginBottom: 10, borderColor: '#E24B4A', color: '#FF8A8A' }}
                 onClick={() => onSetSub(subFocus === sel[0] ? null : sel[0])}>{subFocus === sel[0] ? `✕ Stop focusing on ${sel[0]}` : `🎯 Make ${sel[0]} my focus`}</button>
@@ -4918,8 +4925,11 @@ export default function AthleteApp() {
       <div className="field" style={{ marginBottom: 0, width: '100%', minWidth: 0 }}>
         {LoggedTodayList({ field, colour })}
         <label>Choose a performance area</label>
+        {(() => { const ql = MENTALITY_QUESTIONS.find(q => q.key === field)?.label; const sub = ql ? mySub('mentality', ql) : null; return sub && categories.length > 1 ? (
+          <button type="button" className="btn btn-sm" style={{ marginBottom: 8, fontSize: 11 }} onClick={() => setMentalityDraftDurations(p => ({ ...p, [`${field}::__others`]: !p[`${field}::__others`] }))}>{mentalityDraftDurations[`${field}::__others`] ? '▲ Focus area only' : `▼ Other areas (${categories.length - 1})`}</button>
+        ) : null })()}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-          {categories.map(c => (
+          {categories.filter(c => { const ql = MENTALITY_QUESTIONS.find(q => q.key === field)?.label; const sub = ql ? mySub('mentality', ql) : null; return !sub || mentalityDraftDurations[`${field}::__others`] || String(c.label).toLowerCase() === String(sub).toLowerCase() }).map(c => (
             <button key={c.key} type="button"
               onClick={() => {
                 setExpandedLoggerCategory(prev => ({ ...prev, [field]: prev[field] === c.key ? null : c.key }))
