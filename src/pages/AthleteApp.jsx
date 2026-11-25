@@ -1771,6 +1771,8 @@ export default function AthleteApp() {
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
   const [pendingLiveHr, setPendingLiveHr] = useState(null)
   const [focusTip, setFocusTip] = useState(null)
+  const [myNoteSearch, setMyNoteSearch] = useState('')   // Notes page: search my notes
+  const myNoteMatches = (n, q) => { const hay = `${n.note_text || ''} ${n.title || ''} ${n.logged_at ? new Date(n.logged_at).toLocaleDateString('en-GB') : ''}`.toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)) }
   const [outdoorsDismissed, setOutdoorsDismissed] = useState('')
   const [wearActsTick, setWearActsTick] = useState(0)
   const [recoveryDismissed, setRecoveryDismissed] = useState('')   // re-render after confirming / skipping wearable activities   // which question's 🎯 note is showing
@@ -8925,7 +8927,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             <div className="empty-state"><h3>No notes yet</h3></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[...myNotesLog.filter(n => !isCompletedPdp(n)), ...(showDonePdpNotes ? myNotesLog.filter(isCompletedPdp) : [])].map((note, ni, arr) => {
+              {/* 🔍 search all my notes -- every word typed must appear in the note */}
+              <input type="search" value={myNoteSearch} onChange={e => setMyNoteSearch(e.target.value)} placeholder="🔍 Search my notes…" aria-label="Search my notes"
+                style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 14 }} />
+              {myNoteSearch.trim() && <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{myNotesLog.filter(n => myNoteMatches(n, myNoteSearch)).length} note{myNotesLog.filter(n => myNoteMatches(n, myNoteSearch)).length === 1 ? '' : 's'} match "{myNoteSearch.trim()}"</div>}
+              {(myNoteSearch.trim() ? myNotesLog.filter(n => myNoteMatches(n, myNoteSearch)) : [...myNotesLog.filter(n => !isCompletedPdp(n)), ...(showDonePdpNotes ? myNotesLog.filter(isCompletedPdp) : [])]).map((note, ni, arr) => {
                 const match = detectNoteCategory(note.note_text)
                 const firstPdp = isCompletedPdp(note) && (ni === 0 || !isCompletedPdp(arr[ni - 1]))
                 return (
