@@ -37,7 +37,7 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), payment=()"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https://zhlefvardwawjstulifb.supabase.co https://5e4dc24e01eaf0a5aa68ea42b52968b7.r2.cloudflarestorage.com; connect-src 'self' https://zhlefvardwawjstulifb.supabase.co wss://zhlefvardwawjstulifb.supabase.co https://api.prod.whoop.com https://5e4dc24e01eaf0a5aa68ea42b52968b7.r2.cloudflarestorage.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https://*.dropboxusercontent.com https://zhlefvardwawjstulifb.supabase.co https://5e4dc24e01eaf0a5aa68ea42b52968b7.r2.cloudflarestorage.com; connect-src 'self' https://zhlefvardwawjstulifb.supabase.co wss://zhlefvardwawjstulifb.supabase.co https://api.prod.whoop.com https://5e4dc24e01eaf0a5aa68ea42b52968b7.r2.cloudflarestorage.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
 # Website enquiry-form and booking emails -> CRM Enquiries, every 15 minutes (see the function for what it touches)
 [functions."auto-email-enquiries"]
@@ -46,3 +46,7 @@
 # Phone notifications for admins: new enquiries + today's birthdays (see the function)
 [functions."admin-notifications"]
   schedule = "*/15 * * * *"
+
+# Media library: keep the Dropbox index up to date (read-only)
+[functions."dropbox-sync"]
+  schedule = "7 * * * *"

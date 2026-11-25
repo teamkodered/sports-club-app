@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 import { fetchAll } from '../../lib/fetchAll.js'
 import { loadPostIdeas, postName, consentOk, BRANDS } from '../../lib/postIdeas.js'
 import PostGraphic from './PostGraphic.jsx'
+import MediaLibrary from './MediaLibrary.jsx'
 
 // 📸 Admin: post ideas from real club events, a content calendar, and photos coaches send in.
 const CHANNELS = [['instagram', 'Instagram'], ['facebook', 'Facebook'], ['website', 'Website'], ['tiktok', 'TikTok']]
@@ -16,7 +17,7 @@ function copyText(t) {
 }
 
 export default function PostsPanel() {
-  const [view, setView] = useState('ideas')
+  const [view, setView] = useState(() => new URLSearchParams(window.location.search).get('dropbox') ? 'library' : 'ideas')
   const [missingSql, setMissingSql] = useState(false)
   const [days, setDays] = useState(30)
   const [ideas, setIdeas] = useState(null)
@@ -112,7 +113,7 @@ export default function PostsPanel() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ fontSize: 18, fontWeight: 800, fontStyle: 'italic', marginRight: 8 }}>📸 Posts</div>
-        {[['ideas', '💡 Ideas'], ['calendar', '📅 Calendar'], ['moments', `📷 Moments${newMoments ? ` (${newMoments})` : ''}`]].map(([k, l]) => (
+        {[['ideas', '💡 Ideas'], ['calendar', '📅 Calendar'], ['moments', `📷 Moments${newMoments ? ` (${newMoments})` : ''}`], ['library', '📚 Library']].map(([k, l]) => (
           <button key={k} className={`btn btn-sm${view === k ? ' btn-primary' : ''}`} onClick={() => setView(k)}>{l}</button>
         ))}
         <div style={{ flex: 1 }} />
@@ -239,6 +240,9 @@ export default function PostsPanel() {
           })}
         </div>
       )}
+
+      {view === 'library' && <MediaLibrary students={students}
+        onUseInGraphic={(dataUrl, names) => setGraphic({ photo: dataUrl, names: names.join('\n'), showNames: names.length > 0 })} />}
 
       {graphic && <PostGraphic initial={graphic} moments={usableMoments} onClose={() => setGraphic(null)} />}
     </div>

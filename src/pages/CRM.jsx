@@ -404,7 +404,7 @@ export default function CRM() {
   // previously always opened there regardless of how the tabs had
   // been dragged around, since this default never looked at tabOrder
   // at all.
-  const [tab, setTab] = useBackableTab(tabOrder[0])
+  const [tab, setTab] = useBackableTab(new URLSearchParams(window.location.search).get('dropbox') ? 'posts' : tabOrder[0])   // back from connecting Dropbox -> Posts > Library
   useEffect(() => { if (isHeadCoach && !HEAD_COACH_TABS.includes(tab)) setTab('enquiries') }, [isHeadCoach, tab])
   const [draggingTab, setDraggingTab] = useState(null)
   const tabHoldTimerRef = useRef(null)
