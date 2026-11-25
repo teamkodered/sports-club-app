@@ -84,6 +84,9 @@ async function runSync(budgetMs = 8000) {
   const started = Date.now()
   const dbx = await client()
   const folders = (await db('media_folders?included=eq.true&select=*&order=done.asc,last_synced.asc.nullsfirst')) || []
+  // subfolders marked "Leave out" inside an included folder are never indexed
+  const leftOut = ((await db('media_folders?included=eq.false&select=path')) || []).map(f => f.path.toLowerCase() + '/')
+  const isLeftOut = p => leftOut.some(x => (String(p).toLowerCase() + '/').startsWith(x))
   let added = 0, more = false
   for (const folder of folders) {
     if (Date.now() - started > budgetMs) { more = true; break }
@@ -97,6 +100,7 @@ async function runSync(budgetMs = 8000) {
       for (const en of page.entries) {
         if (en['.tag'] === 'deleted') { gone.push(en.path_lower); continue }
         if (en['.tag'] !== 'file') continue
+        if (isLeftOut(en.path_display)) continue
         const kind = PHOTO.test(en.name) ? 'photo' : VIDEO.test(en.name) ? 'video' : null
         if (!kind) continue
         rows.push({ dropbox_id: en.id, path: en.path_display, name: en.name, folder_path: folder.path, kind, taken_at: takenAt(en), size: en.size || null, missing: false })

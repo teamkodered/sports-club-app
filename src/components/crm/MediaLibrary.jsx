@@ -293,25 +293,59 @@ function TagPeople({ students, count, onSave, onClose }) {
 function FolderChooser({ folders, onClose }) {
   const [path, setPath] = useState('')
   const [subs, setSubs] = useState(null)
-  const [inc, setInc] = useState(folders)
+  const [rows, setRows] = useState(folders)
+  const [busy, setBusy] = useState(false)
   useEffect(() => {
     setSubs(null)
     dbx('folders', { path }).then(r => setSubs(r.folders)).catch(e => { alert(e.message); setSubs([]) })
   }, [path])
-  const isIn = p => inc.find(f => f.path.toLowerCase() === p.toLowerCase() && f.included)
-  async function toggle(f) {
-    const ex = inc.find(x => x.path.toLowerCase() === f.path.toLowerCase())
-    if (ex) {
-      const { data, error } = await supabase.from('media_folders').update({ included: !ex.included }).eq('id', ex.id).select()
-      if (error || !data?.length) return alert('Not saved: ' + (error?.message || 'no permission'))
-      setInc(list => list.map(x => x.id === ex.id ? data[0] : x))
-    } else {
-      const { data, error } = await supabase.from('media_folders').insert({ path: f.path, name: f.name }).select()
-      if (error || !data?.length) return alert('Not saved: ' + (error?.message || 'no permission'))
-      setInc(list => [...list, data[0]])
+  const low = p => p.toLowerCase()
+  const rowFor = p => rows.find(r => low(r.path) === low(p))
+  const under = (p, parent) => low(p).startsWith(low(parent) + '/')
+  // the nearest folder above (or this one) with a setting decides: included or left out
+  function stateOf(p) {
+    const own = rowFor(p)
+    if (own) return own.included ? 'included' : (rows.some(r => r.included && under(p, r.path)) ? 'left_out' : 'none')
+    const above = rows.filter(r => under(p, r.path)).sort((a, b) => b.path.length - a.path.length)[0]
+    return above?.included ? 'inherited' : 'none'
+  }
+  async function forgetIndexed(p) {
+    // removes the library's index entries only -- nothing in Dropbox changes
+    const esc = p.replace(/[%_]/g, '')
+    await supabase.from('media_items').delete().ilike('path', `${esc}/%`)
+  }
+  async function setRow(p, name, included) {
+    const ex = rowFor(p)
+    const q = ex ? supabase.from('media_folders').update({ included, cursor: null, done: false, file_count: 0 }).eq('id', ex.id)
+      : supabase.from('media_folders').insert({ path: p, name, included })
+    const { data, error } = await q.select()
+    if (error || !data?.length) { alert('Not saved: ' + (error?.message || 'no permission')); return false }
+    setRows(list => ex ? list.map(x => x.id === ex.id ? data[0] : x) : [...list, data[0]])
+    return true
+  }
+  async function act(f) {
+    const st = stateOf(f.path)
+    setBusy(true)
+    if (st === 'none') await setRow(f.path, f.name, true)
+    else if (st === 'included' || st === 'inherited') {
+      const msg = st === 'included'
+        ? `Stop including "${f.name}"?\n\nIts photos and videos are taken out of the library (any tags on them are lost). Nothing in Dropbox changes.`
+        : `Leave out "${f.name}"?\n\nIt won't be shown or indexed, and anything already found in it is taken out of the library. Nothing in Dropbox changes.`
+      if (confirm(msg) && await setRow(f.path, f.name, false)) await forgetIndexed(f.path)
+    } else if (st === 'left_out') {
+      // put it back: remove the "leave out" and re-walk the included folder above so its files come back
+      const ex = rowFor(f.path)
+      await supabase.from('media_folders').delete().eq('id', ex.id)
+      const parent = rows.filter(r => r.included && under(f.path, r.path)).sort((a, b) => b.path.length - a.path.length)[0]
+      if (parent) await supabase.from('media_folders').update({ cursor: null, done: false }).eq('id', parent.id)
+      setRows(list => list.filter(x => x.id !== ex.id).map(x => x.id === parent?.id ? { ...x, cursor: null, done: false } : x))
+      alert('Put back. Press 🔄 Index now to bring its photos in.')
     }
+    setBusy(false)
   }
   const crumbs = path.split('/').filter(Boolean)
+  const BTN = { none: ['+ Include', ''], included: ['✓ Included', ' btn-primary'], inherited: ['Leave out', ''], left_out: ['🚫 Left out', ''] }
+  const included = rows.filter(r => r.included), leftOut = rows.filter(r => !r.included && rows.some(x => x.included && under(r.path, x.path)))
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1001, background: 'rgba(0,0,0,0.7)', padding: 12, overflowY: 'auto' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="card" style={{ maxWidth: 560, margin: '30px auto', padding: 16 }}>
@@ -319,22 +353,30 @@ function FolderChooser({ folders, onClose }) {
           <div style={{ fontWeight: 700, flex: 1 }}>📁 Folders to include</div>
           <button className="btn btn-sm btn-primary" onClick={onClose}>Done</button>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>Include club photo / video folders only. Everything inside an included folder (and its subfolders) is indexed.</div>
+        <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>
+          Only folders you include are ever shown or indexed — everything else stays private. Including a folder includes its subfolders too; open it and press <b>Leave out</b> on any private subfolder.
+        </div>
         <div style={{ fontSize: 14, marginBottom: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           <a style={{ cursor: 'pointer', color: '#378ADD' }} onClick={() => setPath('')}>Dropbox</a>
           {crumbs.map((c, i) => <span key={i}> › <a style={{ cursor: 'pointer', color: '#378ADD' }} onClick={() => setPath('/' + crumbs.slice(0, i + 1).join('/'))}>{c}</a></span>)}
         </div>
         {subs === null ? <div style={{ color: 'var(--text-secondary)', padding: 10 }}>Loading…</div>
           : subs.length === 0 ? <div style={{ color: 'var(--text-secondary)', padding: 10 }}>No folders inside this one.</div>
-          : subs.map(f => (
-            <div key={f.path} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
-              <a style={{ flex: 1, cursor: 'pointer', fontSize: 15 }} onClick={() => setPath(f.path)}>📁 {f.name} ›</a>
-              <button className={`btn btn-sm${isIn(f.path) ? ' btn-primary' : ''}`} onClick={() => toggle(f)}>{isIn(f.path) ? '✓ Included' : '+ Include'}</button>
-            </div>
-          ))}
-        {inc.filter(f => f.included).length > 0 && (
+          : subs.map(f => {
+            const st = stateOf(f.path)
+            return (
+              <div key={f.path} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid var(--border)', opacity: st === 'left_out' ? 0.6 : 1 }}>
+                <a style={{ flex: 1, cursor: 'pointer', fontSize: 15 }} onClick={() => setPath(f.path)}>
+                  📁 {f.name} ›{st === 'inherited' && <span style={{ fontSize: 12, color: '#1D9E75' }}> included</span>}
+                </a>
+                <button className={`btn btn-sm${BTN[st][1]}`} disabled={busy} onClick={() => act(f)}>{BTN[st][0]}</button>
+              </div>
+            )
+          })}
+        {(included.length > 0 || leftOut.length > 0) && (
           <div style={{ marginTop: 12, fontSize: 13 }}>
-            <b>Included:</b> {inc.filter(f => f.included).map(f => f.path).join(', ')}
+            {included.length > 0 && <div><b>Included:</b> {included.map(f => f.path).join(', ')}</div>}
+            {leftOut.length > 0 && <div style={{ marginTop: 4 }}><b>Left out:</b> {leftOut.map(f => f.path).join(', ')}</div>}
           </div>
         )}
       </div>
