@@ -479,6 +479,17 @@ export default function CRM() {
   const [birthdaysLoaded, setBirthdaysLoaded] = useState(false)
   const [enquiries, setEnquiries] = useState([])
   const [enquiriesLoaded, setEnquiriesLoaded] = useState(false)
+  // 📥 banner at the top: enquiries still at the first stage (refreshes every minute and after any change)
+  const [enqToContact, setEnqToContact] = useState({ count: 0, today: 0 })
+  useEffect(() => {
+    let stop = false
+    const today = new Date().toISOString().slice(0, 10)
+    const load = () => supabase.from('enquiries').select('id, enquiry_date').eq('status', 'not_started')
+      .then(({ data, error }) => { if (!stop && !error) setEnqToContact({ count: data.length, today: data.filter(e => e.enquiry_date === today).length }) })
+    load()
+    const t = setInterval(load, 60000)
+    return () => { stop = true; clearInterval(t) }
+  }, [enquiries])
   const [enquiryStatusFilter, setEnquiryStatusFilter] = useState('all')
   const [enquiryMethodFilter, setEnquiryMethodFilter] = useState('all')
   const [leadSources, setLeadSources] = useState([])
@@ -3588,10 +3599,19 @@ export default function CRM() {
         const standingOrderNeverChecked = standingOrderCheckMonth === null
         const birthdaysToday = birthdays.filter(b => b.daysUntil === 0)
         const birthdaysThisWeek = birthdays.filter(b => b.daysUntil > 0 && b.daysUntil <= 7)
-        const hasAnyReminder = !isHeadCoach && (standingOrderDue || standingOrderNeverChecked || missedActiveCount > 0 || birthdaysToday.length > 0 || birthdaysThisWeek.length > 0)
+        const hasAnyReminder = !isHeadCoach && (enqToContact.count > 0 || standingOrderDue || standingOrderNeverChecked || missedActiveCount > 0 || birthdaysToday.length > 0 || birthdaysThisWeek.length > 0)
         if (!hasAnyReminder) return null
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+            {enqToContact.count > 0 && (
+              <div className="card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#1D9E7518' }}>
+                <span style={{ fontSize: 13 }}>
+                  📥 {enqToContact.today > 0 ? <b>{enqToContact.today === 1 ? 'You have a new enquiry today. ' : `You have ${enqToContact.today} new enquiries today. `}</b> : null}
+                  {enqToContact.count} {enqToContact.count === 1 ? 'enquiry' : 'enquiries'} to contact
+                </span>
+                <button className="btn btn-sm" onClick={() => setTab('enquiries')}>View</button>
+              </div>
+            )}
             {(standingOrderDue || standingOrderNeverChecked) && (
               <div className="card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#EF9F2718' }}>
                 <span style={{ fontSize: 13 }}>📋 Standing order check {standingOrderNeverChecked ? 'has never been marked done' : `hasn't been done for ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })} yet`}</span>
