@@ -13,6 +13,7 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import LabResults from '../components/shared/LabResults.jsx'
 import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
@@ -10057,6 +10058,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
           {/* Results entries (graphs + every logged entry) moved to the Results page (tab 'reports'). */}
           <button type="button" className="btn" onClick={() => setTab('reports')} style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }}>📊 See all results →</button>
 
+          {/* 🧪 Lab testing results (DIS and other providers) -- read-only for athletes */}
+          {student?.id && <LabResults studentId={student.id} />}
           {/* 📋 MTP (moved here from the home tiles): results radar if a form has been done, then the form buttons */}
           {(() => {
             const rows = [...(tptData.kickboxing || []).map(r => ({ ...r, _d: 'Kickboxing' })), ...(tptData.boxing || []).map(r => ({ ...r, _d: 'Boxing' }))].filter(r => r.assessed_at)

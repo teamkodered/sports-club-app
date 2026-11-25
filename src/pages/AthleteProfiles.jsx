@@ -7,6 +7,7 @@ import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
+import LabResults from '../components/shared/LabResults.jsx'
 import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
@@ -13644,6 +13645,8 @@ export default function AthleteProfiles() {
                 )}
 
                 {/* 📋 MTP over time (graph) + its records (hidden, press to view) */}
+                {/* 🧪 Lab testing (DIS and other providers): import a report / spreadsheet, record only */}
+                <LabResults studentId={selected.id} studentName={`${selected.members?.first_name || ''} ${selected.members?.last_name || ''}`} canEdit />
                 {(() => {
                   const scoreOf = r => { const v = Object.entries(r || {}).filter(([k, x]) => typeof x === 'number' && x >= 0 && x <= 10 && !/weight|age|height|_id$|^id$/i.test(k)).map(([, x]) => x); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / (v.length * 10) * 100) : null }
                   const rows = [...(tptData.kickboxing || []).map(r => ({ ...r, _d: 'Kickboxing', _c: '#E6B800' })), ...(tptData.boxing || []).map(r => ({ ...r, _d: 'Boxing', _c: '#E24B4A' }))]
