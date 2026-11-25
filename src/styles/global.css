@@ -464,7 +464,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
   text-align: left !important; transition: border-color 0.2s, box-shadow 0.2s;
 }
 .neon-home .neon-q > .neon-qbars { grid-area: bars; align-self: end; }
-.neon-home .neon-q > span:nth-of-type(1) { grid-area: title; text-align: left !important; }
+.neon-home .neon-q > span:nth-of-type(1) { grid-area: title; text-align: left !important; min-width: 0; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere; }   /* long one-word titles (VISUALISATION) break instead of running under the icon */
 .neon-home .neon-q > span:nth-of-type(2) { grid-area: icon; font-size: 20px !important; line-height: 1; }
 .neon-home .neon-q > span:nth-of-type(1),
 .neon-home .neon-q > span:nth-of-type(1) > span:first-child {
