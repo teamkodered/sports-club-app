@@ -198,7 +198,8 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
             {slots.viewEl && <button type="button" className="kc-bh-chip" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); slots.viewEl.click() }}>📈 VIEW</button>}
             <span>THIS WEEK · {(prog.__days?.[cur.key] || []).filter(Boolean).length} done</span>
           </div>
-          <div className="kc-bh-week">{(prog.__days?.[cur.key] || []).map((d, i) => <i key={i} className={d ? 'd' : ''} />)}</div>
+          {/* charges left to right: one bar lit for each day logged this week (not tied to which weekday) */}
+          <div className="kc-bh-week">{(() => { const days = prog.__days?.[cur.key] || []; const n = days.filter(Boolean).length; return days.map((_, i) => <i key={i} className={i < n ? 'd' : ''} />) })()}</div>
           {slots.quote && <div className="kc-bh-quote">{slots.quote}</div>}
         </div>, slots.head)}
     </>
