@@ -10,7 +10,7 @@ export default function SwipeHint() {
   useEffect(() => {
     const b = box(); if (!b) return
     const check = () => {
-      const others = !!b.querySelector(':scope > .neon-q.is-greyed')
+      const others = !!b.querySelector(':scope > .neon-q.is-greyed, :scope > .neon-q.is-always')
       const scroll = b.scrollWidth > b.clientWidth + 4
       setState(s => (s.others === others && s.scroll === scroll) ? s : { others, scroll })
     }
