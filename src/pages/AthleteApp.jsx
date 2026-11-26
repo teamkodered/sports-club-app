@@ -4963,7 +4963,7 @@ export default function AthleteApp() {
         {cat && (
           <div style={{ width: '100%', minWidth: 0 }}>
             {cat.description && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8, fontStyle: 'italic' }}>{cat.description}</p>}
-            <label>Choose one</label>
+            <label>{field === "meditation" ? "Use in app meditation" : "Choose one"}</label>
             {SessionPicker({ field, types: cat.types, colour })}
           </div>
         )}
