@@ -566,12 +566,12 @@ const RUN_PRESET_TESTS = {
   ],
 }
 const WATT_BIKE_PRESETS = {
-  output: ['10 seconds on 90 seconds off', '15 seconds on 90 seconds off', '10 seconds on 20 seconds off', '15 seconds on 30 seconds off'],
+  output: ['15 seconds on 90 seconds off', '10 seconds on 20 seconds off', '15 seconds on 30 seconds off'],   // '10s on 90s off' removed (Nov 2026) -- old entries still count as Output
   standard: ['20 seconds on 20 seconds off', '20 seconds on 40 seconds off', '30 seconds on 30 seconds off'],
   distance: ['30 seconds on 60 seconds off', '40 seconds on 40 seconds off', '90 seconds on 60 seconds off'],
 }
 const WATT_BIKE_GROUPS = [
-  { key: 'output', label: 'Output interval', icon: '⚡', match: m => WATT_BIKE_PRESETS.output.includes(normalizeIntervalMode(m)) },
+  { key: 'output', label: 'Output interval', icon: '⚡', match: m => [...WATT_BIKE_PRESETS.output, '10 seconds on 90 seconds off'].includes(normalizeIntervalMode(m)) },
   { key: 'standard', label: 'Standard interval', icon: '🚴', match: m => WATT_BIKE_PRESETS.standard.includes(normalizeIntervalMode(m)) },
   { key: 'distance', label: 'Distance interval', icon: '📏', match: m => WATT_BIKE_PRESETS.distance.includes(normalizeIntervalMode(m)) },
 ]
