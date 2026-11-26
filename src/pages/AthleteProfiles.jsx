@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
 import LabResults from '../components/shared/LabResults.jsx'
 import CoachCheckInDrawer from '../components/shared/CoachCheckInDrawer.jsx'
+import ActivityTimer from '../components/shared/ActivityTimer.jsx'
+import HrrEntry from '../components/shared/HrrEntry.jsx'
 import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
@@ -10650,6 +10652,9 @@ export default function AthleteProfiles() {
                     </div>
                     {!expandedHomeRun && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0' }}>Pick a run type to log it.</p>}
                   </div>
+                  {expandedHomeRun && expandedHomeRun !== '__bleep__' && <ActivityTimer label="run" afterTest="Timed run" mode="coach" studentId={selected?.id} studentName={selected?.members ? `${selected.members.first_name} ${selected.members.last_name}` : ''}
+                    onStop={s => flashSaved(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`)}
+                    onRecovery={r => { if (r?.pct != null) saveTestValue('HRR % (after Timed run)', String(r.pct)) }} />}
                   {expandedHomeRun && expandedHomeRun !== '__bleep__' && (() => {
                     const efforts = todaysRunning.map((e, i) => ({ e, k: runKey(e, i), i })).filter(x => x.e.category === expandedHomeRun)
                     const selKey = runEffortSel[expandedHomeRun]
@@ -10731,6 +10736,7 @@ export default function AthleteProfiles() {
                       </div>
                     )
                   })()}
+                  {expandedHomeRun && expandedHomeRun !== '__bleep__' && <HrrEntry afterTest="Timed run" colour="#F5C542" onSaveValues={saveTestValues} />}
                   {/* Bleep test + Timed run results, moved here from the old Test tab */}
                   {expandedHomeRun === '__bleep__' && renderMovedTest(['bleep'], 'neon-qpanel neon-q-physical neon-run-panel')}
                   </div>
@@ -10739,6 +10745,9 @@ export default function AthleteProfiles() {
                   {showWattCards && InlineResults({ view: { sectionKey: 'physical', q: 'watt_bike', label: 'Watt bike', colour: '#E6B800' } })}
                   {showWattCards && (
                   <div ref={wattPanelRef}>
+                  <ActivityTimer label="watt bike effort" afterTest="Watt bike" mode="coach" studentId={selected?.id} studentName={selected?.members ? `${selected.members.first_name} ${selected.members.last_name}` : ''}
+                    onStop={s => flashSaved(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`)}
+                    onRecovery={r => { if (r?.pct != null) saveTestValue('HRR % (after Watt bike)', String(r.pct)) }} />
                   <WattBikePanel entries={todaysWattBike} onSaveEntries={list => savePhysicalField('watt_bike', list, setTodaysWattBike)}
                     history={f2fData || []} groups={WATT_BIKE_GROUPS} presets={WATT_BIKE_PRESETS} normalize={normalizeIntervalMode}
                     singleTests={TEST_CATEGORIES.find(c => c.key === 'wattbike')?.tests || []} todaysTest={todaysTest} onSaveTest={saveTestValue} onSaveTestValues={saveTestValues} saving={savingPhysical}
@@ -10783,7 +10792,11 @@ export default function AthleteProfiles() {
                       </button>
                     ) })}
                   </div>
+                  {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && <ActivityTimer label="bodyweight set" afterTest="Body weight max reps" mode="coach" studentId={selected?.id} studentName={selected?.members ? `${selected.members.first_name} ${selected.members.last_name}` : ''}
+                    onStop={s => flashSaved(`⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`)}
+                    onRecovery={r => { if (r?.pct != null) saveTestValue('HRR % (after Body weight max reps)', String(r.pct)) }} />}
                   {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && renderBwPanel(expandedHomeBodyweight)}
+                  {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && <HrrEntry afterTest="Body weight max reps" colour="#F5C542" onSaveValues={saveTestValues} />}
                   {/* Jumps, Grip and Fixed load circuit results, moved here from the old Test tab */}
                   {expandedHomeBodyweight?.startsWith?.('__test:') && renderMovedTest([expandedHomeBodyweight.slice(7)], 'neon-qpanel neon-q-physical neon-run-panel')}
                   </div>
