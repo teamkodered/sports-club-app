@@ -4675,7 +4675,12 @@ export default function AthleteApp() {
         {/* 🎯 this is one of your monthly focus points -- tap for the note */}
         {fq(focusSec || sectionKey, questionLabel).includes('is-focus') && (
           <span role="button" tabIndex={0} className="neon-q-focus" aria-label="Monthly focus"
-            onClick={e => { e.stopPropagation(); setFocusTip(t => t === `${sectionKey}::${questionLabel}` ? null : `${sectionKey}::${questionLabel}`) }}>🎯</span>
+            onClick={e => {   // the note shows once only -- after that the 🎯 opens the question like the rest of the card
+              let seen = false; try { seen = localStorage.getItem('kc-focus-tip-seen') === '1' } catch { /* */ }
+              if (seen) return
+              e.stopPropagation(); try { localStorage.setItem('kc-focus-tip-seen', '1') } catch { /* */ }
+              setFocusTip(t => t === `${sectionKey}::${questionLabel}` ? null : `${sectionKey}::${questionLabel}`)
+            }}>🎯</span>
         )}
         {mySub(focusSec || sectionKey, questionLabel) && <span className="neon-q-focus-sub">{mySub(focusSec || sectionKey, questionLabel)}</span>}
         {focusTip === `${sectionKey}::${questionLabel}` && (
