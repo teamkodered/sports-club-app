@@ -5011,7 +5011,7 @@ export default function AthleteProfiles() {
   function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C', pdp = null, pdpTarget = null, isFocus = false }) {
     const pdpItems = pdp?.items || new Set()
     const picking = pdpTarget && pdpPickMode === draftKey
-    const blank = { sel: [], note: '', edit: null }
+    const blank = { sel: [], note: '', edit: null, showLog: false }
     const d = { ...blank, ...(pickDraft[draftKey] || {}) }
     const set = patch => setPickDraft(p => ({ ...p, [draftKey]: { ...blank, ...(p[draftKey] || {}), ...patch } }))
     const loggedNames = logged.map(l => l.item)
@@ -5039,20 +5039,20 @@ export default function AthleteProfiles() {
         {picking && <button type="button" className="btn btn-sm neon-pdp-btn" style={{ fontSize: 11, marginBottom: 8 }} onClick={() => setPdpAddTarget({ ...pdpTarget, item: null })}>+ Whole area: {pdpTarget.label}</button>}
         {logged.length > 0 && (
           <div style={{ marginBottom: 12 }}>
-            <label>Logged today</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button type="button" onClick={() => set({ showLog: !d.showLog })} style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, fontSize: 11, letterSpacing: 2, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Logged today ({loggedK.length}) {d.showLog ? '▲' : '▼'}</button>
+            {d.showLog && <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {loggedK.map(l => (
                 <div key={l.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editKey === l.k ? `1px solid ${colour}` : (pdpItems.has(l.item) ? `1px solid ${PDP_GOLD}` : '1px solid transparent') }}>
                   <button type="button" onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: l.item }) : set({ edit: editKey === l.k ? null : l.k, note: editKey === l.k ? '' : (l.note || ''), sel: [] })}
                     style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>
-                    {l.item}{isFocus && <span title="Monthly focus" style={{ marginLeft: 6 }}>🎯</span>}
+                    {l.item}{l.at && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400 }}>{new Date(l.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>}{isFocus && <span title="Monthly focus" style={{ marginLeft: 6 }}>🎯</span>}
                     <span style={{ display: 'block', fontSize: 11, color: l.note ? 'var(--text-secondary)' : 'var(--text-tertiary)', marginTop: 2 }}>{l.note || 'Tap to add a note'}</span>
                   </button>
                   <button type="button" aria-label={`Remove ${l.item}`} onClick={() => { onRemove(l.item, l.n); if (editKey === l.k) set(blank) }}
                     style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>×</button>
                 </div>
               ))}
-            </div>
+            </div>}
           </div>
         )}
         {!editing && avail.length > 0 && (
@@ -11045,7 +11045,7 @@ export default function AthleteProfiles() {
                         return (
                           <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
                             {InlineResults({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' } })}
-                            {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, isFocus: fq('technique', cat).includes('is-focus'), items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: { pillar: 'technique', pillarLabel: 'Technical', q: `${style}::${cat}`, label: cat }, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: (technique, nth = 0) => { let k = -1; savePhysicalField('techniques', todaysTechniques.filter(t => !((t.style === style && t.category === cat && t.technique === technique) && ++k === nth)), setTodaysTechniques) }, onUpdateNote: (technique, note, nth = 0) => { let k = -1; savePhysicalField('techniques', todaysTechniques.map(t => ((t.style === style && t.category === cat && t.technique === technique) && ++k === nth) ? { ...t, note } : t), setTodaysTechniques) } })}
+                            {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, isFocus: fq('technique', cat).includes('is-focus'), items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: { pillar: 'technique', pillarLabel: 'Technical', q: `${style}::${cat}`, label: cat }, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note, at: t.at })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note, at: new Date().toISOString() }))], setTodaysTechniques), onRemove: (technique, nth = 0) => { let k = -1; savePhysicalField('techniques', todaysTechniques.filter(t => !((t.style === style && t.category === cat && t.technique === technique) && ++k === nth)), setTodaysTechniques) }, onUpdateNote: (technique, note, nth = 0) => { let k = -1; savePhysicalField('techniques', todaysTechniques.map(t => ((t.style === style && t.category === cat && t.technique === technique) && ++k === nth) ? { ...t, note } : t), setTodaysTechniques) } })}
                           </div>
                         )
                       })}
@@ -11140,7 +11140,7 @@ export default function AthleteProfiles() {
                     return (
                       <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                         {InlineResults({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' } })}
-                        {ChecklistPicker({ draftKey: `tac:${cat}`, isFocus: fq('tactical', cat).includes('is-focus'), items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: { pillar: 'tactical', pillarLabel: 'Tactical', q: cat, label: cat }, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: (item, nth = 0) => { let k = -1; savePhysicalField('tactical', todaysTactical.filter(t => !((t.category === cat && t.item === item) && ++k === nth)), setTodaysTactical) }, onUpdateNote: (item, note, nth = 0) => { let k = -1; savePhysicalField('tactical', todaysTactical.map(t => ((t.category === cat && t.item === item) && ++k === nth) ? { ...t, note } : t), setTodaysTactical) } })}
+                        {ChecklistPicker({ draftKey: `tac:${cat}`, isFocus: fq('tactical', cat).includes('is-focus'), items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: { pillar: 'tactical', pillarLabel: 'Tactical', q: cat, label: cat }, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note, at: t.at })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note, at: new Date().toISOString() }))], setTodaysTactical), onRemove: (item, nth = 0) => { let k = -1; savePhysicalField('tactical', todaysTactical.filter(t => !((t.category === cat && t.item === item) && ++k === nth)), setTodaysTactical) }, onUpdateNote: (item, note, nth = 0) => { let k = -1; savePhysicalField('tactical', todaysTactical.map(t => ((t.category === cat && t.item === item) && ++k === nth) ? { ...t, note } : t), setTodaysTactical) } })}
                       </div>
                     )
                   })}
