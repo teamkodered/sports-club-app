@@ -22,6 +22,32 @@ const has = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ?
 const tileEl = s => document.querySelector(`.neon-pillar.${s.tile}`)
 
 export default function BodyHome({ sessions = [], gender, openKey }) {
+  // A question open: swipe left / right on the section header or the question's card to go to the next / previous
+  // question in that set (the folded-away ones are skipped unless '▼ Other questions' is showing them)
+  useEffect(() => {
+    let x0 = null, y0 = null, from = null
+    const down = e => {
+      const t = e.touches?.[0]; if (!t) return
+      const el = e.target.closest?.('.kc-bh-hd, .neon-home .neon-q.is-active')
+      if (!el) { x0 = null; return }
+      x0 = t.clientX; y0 = t.clientY; from = el
+    }
+    const up = e => {
+      if (x0 == null) return
+      const t = e.changedTouches?.[0]; if (!t) return
+      const dx = t.clientX - x0, dy = t.clientY - y0; x0 = null
+      if (Math.abs(dx) < 60 || Math.abs(dy) > 45) return
+      const scope = from.classList.contains('kc-bh-hd') ? document.querySelector('.neon-home') : from.closest('.neon-home') || document
+      const active = scope?.querySelector('.neon-q.is-active'); if (!active) return
+      const box = active.parentElement, showAll = box.classList.contains('kc-show-all')
+      const list = [...box.querySelectorAll(':scope > .neon-q')].filter(q => q === active || showAll || !(q.classList.contains('is-greyed') || q.classList.contains('is-always')))
+      const i = list.indexOf(active), next = list[i + (dx < 0 ? 1 : -1)]
+      if (next) { e.preventDefault?.(); next.click() }
+    }
+    document.addEventListener('touchstart', down, { passive: true })
+    document.addEventListener('touchend', up)
+    return () => { document.removeEventListener('touchstart', down); document.removeEventListener('touchend', up) }
+  }, [])
   // A question opened inside a section: if it (and what opens under it) is off screen, scroll just enough to show it
   useEffect(() => {
     const onClick = e => {
