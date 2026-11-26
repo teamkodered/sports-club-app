@@ -61,7 +61,7 @@ export default function OtherSessions({ studentId, canAdd = true, title = 'Other
     <div className="oth">
       <button type="button" className="oth-head" onClick={() => setOpen(v => !v)} aria-expanded={open}>
         <span>🏃 {title}</span>
-        <span className="oth-sum">{rows ? `${rows.length} in 30 days${total ? ` · ${Math.round(total / 60 * 10) / 10}h` : ''}` : '…'} {open ? '▾' : '▸'}</span>
+        <span className="oth-sum">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="oth-body">

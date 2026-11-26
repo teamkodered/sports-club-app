@@ -1188,7 +1188,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
         minWidth: 0, touchAction: isPhysicalModule ? 'pan-y' : undefined,   // sideways swipe changes the card; up / down still scrolls the page
       }}>
-        {questionProgressByPeriod && (
+        {false && questionProgressByPeriod && (   // D / W / M charge bars on the Physical cards: switched off (Nov 2026)
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 18, flexShrink: 0 }}>
             {[['day', 'D'], ['week', 'W'], ['month', 'M']].map(([key, letter]) => {
               const { done, target } = questionProgressByPeriod[key]
