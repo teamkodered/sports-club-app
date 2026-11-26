@@ -28,7 +28,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     let x0 = null, y0 = null, from = null
     const down = e => {
       const t = e.touches?.[0]; if (!t) return
-      const el = e.target.closest?.('.kc-bh-hd, .neon-home .neon-q.is-active')
+      const el = e.target.closest?.('.kc-bh-hd, .neon-q.is-active')   // section header, or the open question's title card (any section)
       if (!el) { x0 = null; return }
       x0 = t.clientX; y0 = t.clientY; from = el
     }
@@ -37,8 +37,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
       const t = e.changedTouches?.[0]; if (!t) return
       const dx = t.clientX - x0, dy = t.clientY - y0; x0 = null
       if (Math.abs(dx) < 60 || Math.abs(dy) > 45) return
-      const scope = from.classList.contains('kc-bh-hd') ? document.querySelector('.neon-home') : from.closest('.neon-home') || document
-      const active = scope?.querySelector('.neon-q.is-active'); if (!active) return
+      const active = from.classList.contains('neon-q') ? from : document.querySelector('.kc-bh-openwrap .neon-q.is-active, .neon-q.is-active'); if (!active) return
       const box = active.parentElement, showAll = box.classList.contains('kc-show-all')
       const list = [...box.querySelectorAll(':scope > .neon-q')].filter(q => q === active || showAll || !(q.classList.contains('is-greyed') || q.classList.contains('is-always')))
       const i = list.indexOf(active), next = list[i + (dx < 0 ? 1 : -1)]
