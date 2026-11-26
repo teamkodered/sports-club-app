@@ -1773,6 +1773,7 @@ export default function AthleteApp() {
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
   const [pendingLiveHr, setPendingLiveHr] = useState(null)
   const [focusTip, setFocusTip] = useState(null)
+  const [doneNote, setDoneNote] = useState(null)   // after ✓ DONE: 'Add a note?' -> write -> saved on that entry
   const [myNoteSearch, setMyNoteSearch] = useState('')   // Notes page: search my notes
   const myNoteMatches = (n, q) => { const hay = `${n.note_text || ''} ${n.title || ''} ${n.logged_at ? new Date(n.logged_at).toLocaleDateString('en-GB') : ''}`.toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)) }
   const [outdoorsDismissed, setOutdoorsDismissed] = useState('')
@@ -4642,6 +4643,23 @@ export default function AthleteApp() {
   // SectionProgressBars instead.
   // D / W / M charge lines are switched off for now (Nov 2026) but kept -- set SHOW_DWM back to true to bring them
   // back, or reuse getQuestionProgressByPeriod for another display. In their place: a quick ✓ DONE and the 🎯.
+  async function saveDoneNote({ sec, label, text }) {
+    const note = String(text || '').trim(); if (!note) return
+    const lastIdx = (arr, pred) => { for (let i = arr.length - 1; i >= 0; i--) if (pred(arr[i])) return i; return -1 }
+    if (/^video analysis$/i.test(label)) {
+      await saveMentalityField('videoAnalysis', m => { const e = [...(m?.entries || [])]; if (e.length) e[e.length - 1] = { ...e[e.length - 1], note }; return { ...m, entries: e } })
+    } else if (sec === 'technique') {
+      const i = lastIdx(todaysTechniques, t => sameQ(t.category, label) || t.style === label); if (i < 0) return
+      await savePhysicalField('techniques', todaysTechniques.map((t, k) => k === i ? { ...t, note } : t), setTodaysTechniques)
+    } else if (sec === 'tactical') {
+      const i = lastIdx(todaysTactical, t => sameQ(t.category, label)); if (i < 0) return
+      await savePhysicalField('tactical', todaysTactical.map((t, k) => k === i ? { ...t, note } : t), setTodaysTactical)
+    } else if (sec === 'mentality') {
+      const q = MENTALITY_QUESTIONS.find(q => sameQ(q.label, label)); if (!q) return
+      await saveMentalityField(q.key, m => { const e = [...(m?.entries || [])]; if (e.length) e[e.length - 1] = { ...e[e.length - 1], note }; return { ...m, entries: e } })
+    }
+    flashSaved('✓ Note saved')
+  }
   async function quickDoneQuestion(sectionKey, questionLabel, doneStyle) {
     if (/^video analysis$/i.test(questionLabel) && mySub('tactical', 'Video analysis')) {
       await saveMentalityField('videoAnalysis', m => ({ ...m, entries: [...(m?.entries || []), { type: mySub('tactical', 'Video analysis'), quickLogged: true }] })); return
@@ -4690,7 +4708,7 @@ export default function AthleteApp() {
         )}
         {!SHOW_DWM && fq(focusSec || sectionKey, questionLabel).includes('is-focus') && (
           <span role="button" tabIndex={0} className="neon-q-done" style={{ '--qa': accent }}
-            onClick={e => { e.stopPropagation(); quickDoneQuestion(sectionKey, questionLabel, doneStyle) }}>
+            onClick={async e => { e.stopPropagation(); await quickDoneQuestion(sectionKey, questionLabel, doneStyle); if (['technique', 'tactical', 'mentality'].includes(sectionKey)) setDoneNote({ sec: sectionKey, label: questionLabel, stage: 'ask', text: '' }) }}>
             ✓ DONE{byPeriod.day.done > 0 ? ` · ${byPeriod.day.done}` : ''}
           </span>
         )}
@@ -4956,10 +4974,10 @@ export default function AthleteApp() {
         )}
         {(editing || avail.length > 0) && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-            <input type="text" className="neon-min neon-note" value={d.note} onChange={e => set({ note: e.target.value })}
-              onKeyDown={e => { if (e.key === 'Enter') save() }}
+            <textarea rows={2} className="neon-min neon-note" value={d.note} onChange={e => set({ note: e.target.value })} enterKeyHint="enter"
+              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(160, e.target.scrollHeight) + 'px' }}
               placeholder={editing ? `Note for “${editing}”` : 'Note (optional)'} aria-label="Note"
-              style={{ flex: 1, minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+              style={{ resize: 'none', lineHeight: 1.35, flex: 1, minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
             <button type="button" className="btn btn-sm neon-save" disabled={!canSave} onClick={save}>{editing ? 'Save note' : sel.length > 1 ? `Save ${sel.length}` : 'Save'}</button>
           </div>
         )}
@@ -6071,6 +6089,28 @@ export default function AthleteApp() {
                 <div className="kc-today-title" style={{ marginBottom: 8 }}>Your coach noticed</div>
                 {reactions.map(r => <div key={r.id} className="kc-today-row"><span style={{ fontSize: 22, color: 'inherit' }}>{r.emoji}</span><span style={{ color: '#F2F2F2' }}><b>{r.from_name || 'Coach'}</b> -- {r.target.replace(/^PDP (action done|task completed):?\s*/, '') || 'your PDP'}</span></div>)}
                 <button type="button" className="btn btn-primary" style={{ width: '100%', marginTop: 10 }} onClick={closeReactions}>Nice 💪</button>
+              </div>
+            </div>
+          )}
+          {doneNote && (
+            <div role="dialog" aria-modal="true" onClick={() => setDoneNote(null)} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '18vh 16px 0' }}>
+              <div onClick={e => e.stopPropagation()} className="card" style={{ width: 'min(420px, 100%)', padding: 16 }}>
+                <b style={{ display: 'block', marginBottom: 10 }}>✓ Logged — add a note?</b>
+                {doneNote.stage === 'ask' ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setDoneNote(d => ({ ...d, stage: 'write' }))}>Yes</button>
+                    <button type="button" className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setDoneNote(null)}>No</button>
+                  </div>
+                ) : (
+                  <>
+                    <textarea autoFocus rows={3} value={doneNote.text} onChange={e => setDoneNote(d => ({ ...d, text: e.target.value }))} placeholder="Your note…" enterKeyHint="enter"
+                      style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text)', marginBottom: 10 }} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!doneNote.text.trim()} onClick={async () => { const d = doneNote; setDoneNote(null); await saveDoneNote(d) }}>💾 Save</button>
+                      <button type="button" className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setDoneNote(null)}>Cancel</button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

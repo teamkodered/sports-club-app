@@ -5077,10 +5077,10 @@ export default function AthleteProfiles() {
         )}
         {(editing || avail.length > 0) && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-            <input type="text" className="neon-min neon-note" value={d.note} onChange={e => set({ note: e.target.value })}
-              onKeyDown={e => { if (e.key === 'Enter') save() }}
+            <textarea rows={2} className="neon-min neon-note" value={d.note} onChange={e => set({ note: e.target.value })} enterKeyHint="enter"
+              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(160, e.target.scrollHeight) + 'px' }}
               placeholder={editing ? `Note for “${editing}”` : 'Note (optional)'} aria-label="Note"
-              style={{ flex: 1, minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+              style={{ resize: 'none', lineHeight: 1.35, flex: 1, minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
             <button type="button" className="btn btn-sm neon-save" disabled={!canSave} onClick={save}>{editing ? 'Save note' : sel.length > 1 ? `Save ${sel.length}` : 'Save'}</button>
           </div>
         )}
