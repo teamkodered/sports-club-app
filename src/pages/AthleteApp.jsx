@@ -6497,10 +6497,16 @@ export default function AthleteApp() {
                   const k = `${t.section_key}::${t.question_label}`
                   if (!byQuestion[k] || (t.student_id === student?.id && byQuestion[k].student_id !== student?.id)) byQuestion[k] = t
                 })
-                const f2fTargetTotal = Object.values(byQuestion).reduce((sum, t) => sum + (parseNum(t.target_value) || 0), 0)
+                // each target checked in its own period (this week for weekly, this month for monthly, today for daily)
+                const resultsParts = [...new Set(Object.values(byQuestion).map(t => `${t.section_key}::${t.question_label}`))].flatMap(k => {
+                  const [sec, lab] = k.split('::'); let bp = {}; try { bp = getQuestionProgressByPeriod(sec, lab) || {} } catch { /* */ }
+                  return Object.values(bp).filter(x => x && x.target > 0).map(x => ({ frac: Math.min(1, x.done / x.target), met: x.done >= x.target }))
+                })
+                const f2fTargetTotal = resultsParts.length
                 const f2fHasPct = f2fTargetTotal > 0
-                const f2fValue = f2fHasPct ? `${f2fCount}/${f2fTargetTotal}` : f2fCount
-                const f2fPct = f2fHasPct ? `${Math.round((f2fCount / f2fTargetTotal) * 100)}%` : '0%'
+                const resultsMet = resultsParts.filter(x => x.met).length
+                const f2fValue = f2fHasPct ? `${resultsMet}/${f2fTargetTotal}` : f2fCount
+                const f2fPct = f2fHasPct ? `${Math.round(resultsParts.reduce((n, x) => n + x.frac, 0) / f2fTargetTotal * 100)}%` : '0%'   // 100% = every target met this period
 
                 // PDP card values
                 // only what the athlete can SEE counts: the 'Work on' items the coach has sent them, and of

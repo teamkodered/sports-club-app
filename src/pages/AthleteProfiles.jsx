@@ -10555,11 +10555,16 @@ export default function AthleteProfiles() {
                         const k = `${t.section_key}::${t.question_label}`
                         if (!byQuestion[k] || (t.student_id === selected?.id && byQuestion[k].student_id !== selected?.id)) byQuestion[k] = t
                       })
-                      const f2fTargetTotal = Object.values(byQuestion).reduce((sum, t) => sum + (parseNum(t.target_value) || 0), 0)
+                      // each target checked in its own period; 100% = every target met this period
+                      const resultsParts = [...new Set(Object.values(byQuestion).map(t => `${t.section_key}::${t.question_label}`))].flatMap(k => {
+                        const [sec, lab] = k.split('::'); let bp = {}; try { bp = getCoachQuestionProgressByPeriod(sec, lab) || {} } catch { /* */ }
+                        return Object.values(bp).filter(x => x && x.target > 0).map(x => ({ frac: Math.min(1, x.done / x.target), met: x.done >= x.target }))
+                      })
+                      const f2fTargetTotal = resultsParts.length
                       return (
                         <TopStatCard onNavigate={() => setTab('fit2fight')} iconImg="/logos/neon/results.svg"
-                          value={f2fTargetTotal > 0 ? `${f2fCount}/${f2fTargetTotal}` : f2fCount}
-                          pctValue={f2fTargetTotal > 0 ? `${Math.round((f2fCount / f2fTargetTotal) * 100)}%` : f2fCount}
+                          value={f2fTargetTotal > 0 ? `${resultsParts.filter(x => x.met).length}/${f2fTargetTotal}` : f2fCount}
+                          pctValue={f2fTargetTotal > 0 ? `${Math.round(resultsParts.reduce((n, x) => n + x.frac, 0) / f2fTargetTotal * 100)}%` : '0%'}
                           hasPct={f2fTargetTotal > 0} label="Results" colour="#378ADD" />
                       )
                     })()}
