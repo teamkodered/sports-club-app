@@ -1774,7 +1774,9 @@ export default function AthleteApp() {
   const [pendingLiveHr, setPendingLiveHr] = useState(null)
   const [focusTip, setFocusTip] = useState(null)
   const [hrrOpen, setHrrOpen] = useState(false)
-  const [doneNote, setDoneNote] = useState(null)   // after ✓ DONE: 'Add a note?' -> write -> saved on that entry
+  const [doneNote, setDoneNote] = useState(null)
+  const [, setVvTick] = useState(0)
+  useEffect(() => { const vv = window.visualViewport; if (!vv || !doneNote) return; const f = () => setVvTick(t => t + 1); vv.addEventListener('resize', f); vv.addEventListener('scroll', f); return () => { vv.removeEventListener('resize', f); vv.removeEventListener('scroll', f) } }, [doneNote])   // after ✓ DONE: 'Add a note?' -> write -> saved on that entry
   const [myNoteSearch, setMyNoteSearch] = useState('')   // Notes page: search my notes
   const myNoteMatches = (n, q) => { const hay = `${n.note_text || ''} ${n.title || ''} ${n.logged_at ? new Date(n.logged_at).toLocaleDateString('en-GB') : ''}`.toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)) }
   const [outdoorsDismissed, setOutdoorsDismissed] = useState('')
@@ -6098,28 +6100,33 @@ export default function AthleteApp() {
               </div>
             </div>
           )}
-          {doneNote && (
-            <div role="dialog" aria-modal="true" onClick={() => setDoneNote(null)} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '18vh 16px 0' }}>
-              <div onClick={e => e.stopPropagation()} className="card" style={{ width: 'min(420px, 100%)', padding: 16 }}>
-                <b style={{ display: 'block', marginBottom: 10 }}>✓ Logged — add a note?</b>
-                {doneNote.stage === 'ask' ? (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setDoneNote(d => ({ ...d, stage: 'write' }))}>Yes</button>
-                    <button type="button" className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setDoneNote(null)}>No</button>
-                  </div>
-                ) : (
-                  <>
-                    <textarea autoFocus rows={3} value={doneNote.text} onChange={e => setDoneNote(d => ({ ...d, text: e.target.value }))} placeholder="Your note…" enterKeyHint="enter"
-                      style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text)', marginBottom: 10 }} />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!doneNote.text.trim()} onClick={async () => { const d = doneNote; setDoneNote(null); await saveDoneNote(d) }}>💾 Save</button>
-                      <button type="button" className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setDoneNote(null)}>Cancel</button>
+          {doneNote && (() => {
+            // in the app's own style, centred in the part of the screen you can see (so the keyboard never covers it)
+            const c = { technique: '#2F6BFF', mentality: '#22B14C', tactical: '#E24B4A' }[doneNote.sec] || '#C93BFF'
+            const vv = typeof window !== 'undefined' ? window.visualViewport : null
+            return (
+              <div role="dialog" aria-modal="true" onClick={() => setDoneNote(null)} style={{ position: 'fixed', left: 0, right: 0, top: vv ? vv.offsetTop : 0, height: vv ? vv.height : '100%', zIndex: 500, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
+                <div onClick={e => e.stopPropagation()} style={{ width: 'min(420px, 100%)', padding: 16, borderRadius: 14, background: '#14181C', border: `1.5px solid ${c}`, boxShadow: `0 0 18px ${c}55` }}>
+                  <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 20, letterSpacing: 1, textTransform: 'uppercase', color: c, marginBottom: 12 }}>✓ Logged — add a note?</div>
+                  {doneNote.stage === 'ask' ? (
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button type="button" className="btn neon-save" style={{ flex: 1, justifyContent: 'center', background: c, borderColor: c }} onClick={() => setDoneNote(d => ({ ...d, stage: 'write' }))}>YES</button>
+                      <button type="button" className="btn neon-opt" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setDoneNote(null)}>NO</button>
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <textarea autoFocus rows={3} className="neon-min neon-note" value={doneNote.text} onChange={e => setDoneNote(d => ({ ...d, text: e.target.value }))} placeholder="Your note…" enterKeyHint="enter"
+                        style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '10px 12px', border: `1px solid ${c}88`, borderRadius: 8, fontSize: 15, background: '#0B0D10', color: 'var(--text)', marginBottom: 12 }} />
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button type="button" className="btn neon-save" style={{ flex: 1, justifyContent: 'center', background: doneNote.text.trim() ? c : undefined, borderColor: c, opacity: doneNote.text.trim() ? 1 : 0.5 }} disabled={!doneNote.text.trim()} onClick={async () => { const d = doneNote; setDoneNote(null); await saveDoneNote(d) }}>💾 SAVE</button>
+                        <button type="button" className="btn neon-opt" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setDoneNote(null)}>CANCEL</button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
           {reminderToast && (
             <div role="status" onClick={() => setReminderToast(null)} style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))', zIndex: 120, padding: '12px 14px', borderRadius: 12, background: '#14181C', border: '1px solid #F5C542', boxShadow: '0 6px 20px rgba(0,0,0,.5)', fontSize: 13, display: 'flex', gap: 10, alignItems: 'center' }}>
               <span style={{ flex: 1 }}>🔔 {reminderToast}</span><span style={{ color: 'var(--text-tertiary)' }}>✕</span>
