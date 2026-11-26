@@ -22,6 +22,29 @@ const has = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ?
 const tileEl = s => document.querySelector(`.neon-pillar.${s.tile}`)
 
 export default function BodyHome({ sessions = [], gender, openKey }) {
+  // Physical cards (SNC, Stretch flows, Tests…) and other buttons that open something new inside a section:
+  // whatever opens is brought into view (its top near the top of the screen) if it would be off screen
+  useEffect(() => {
+    const onClick = e => {
+      const b = e.target.closest?.('.neon-home button, .neon-home [role="button"], .neon-home .neon-module')
+      if (!b || !e.isTrusted || e.target.closest('.kc-bh-rail, .neon-q, .kc-bh-hd, input, textarea, select')) return
+      const wrap = b.closest('.kc-bh-openwrap') || b.closest('.neon-pillar')?.parentElement
+      if (!wrap) return
+      const added = []
+      const mo = new MutationObserver(list => { for (const r of list) for (const n of r.addedNodes) if (n.nodeType === 1) added.push(n) })
+      mo.observe(wrap, { childList: true, subtree: true })
+      setTimeout(() => {
+        mo.disconnect()
+        const vis = added.filter(n => n.isConnected && n.offsetHeight > 80)
+        if (!vis.length) return
+        vis.sort((a, c) => a.getBoundingClientRect().top - c.getBoundingClientRect().top)
+        const r = vis[0].getBoundingClientRect(), vh = window.innerHeight
+        if (r.top < 60 || r.top > vh * 0.55) window.scrollTo({ top: window.scrollY + r.top - 80, behavior: 'smooth' })
+      }, 380)
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [])
   // A question open: swipe left / right on the section header or the question's card to go to the next / previous
   // question in that set (the folded-away ones are skipped unless '▼ Other questions' is showing them)
   useEffect(() => {
