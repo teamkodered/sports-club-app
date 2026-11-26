@@ -4030,6 +4030,7 @@ export default function AthleteApp() {
     if (!s || !sub) return false
     const eq = v => String(v || '').trim().toLowerCase() === String(sub).trim().toLowerCase()
     if (sec === 'technique') return (s.techniques || []).some(t => sameQ(t.category, label) && eq(t.technique))
+    if (/^video analysis$/i.test(label)) return (s.mentality_log?.videoAnalysis?.entries || []).some(e => eq(e.type) || eq(e.item))
     if (sec === 'tactical') return (s.tactical || []).some(t => sameQ(t.category, label) && eq(t.item))
     if (sec === 'mentality') {
       const q = MENTALITY_QUESTIONS.find(q => sameQ(q.label, label)); const v = q ? s.mentality_log?.[q.key] : null
@@ -4615,6 +4616,9 @@ export default function AthleteApp() {
   // D / W / M charge lines are switched off for now (Nov 2026) but kept -- set SHOW_DWM back to true to bring them
   // back, or reuse getQuestionProgressByPeriod for another display. In their place: a quick ✓ DONE and the 🎯.
   async function quickDoneQuestion(sectionKey, questionLabel, doneStyle) {
+    if (/^video analysis$/i.test(questionLabel) && mySub('tactical', 'Video analysis')) {
+      await saveMentalityField('videoAnalysis', m => ({ ...m, entries: [...(m?.entries || []), { type: mySub('tactical', 'Video analysis'), quickLogged: true }] })); return
+    }
     const sub = mySub(sectionKey, questionLabel)
     if (sub && sectionKey === 'technique') {
       const prev = todaysTechniques
@@ -4678,7 +4682,7 @@ export default function AthleteApp() {
           if (!['mentality', 'tactical', 'technique', 'physical'].includes(sec) || myFocus[sec]) return null   // no focus in Foundation (all always on)   // always-on questions can be the focus too
           const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' })
           // questions with options inside (techniques, tactical areas, meditation areas): pick an option as the focus instead
-          if (sec === 'technique' || (sec === 'tactical' && !/^video analysis$/i.test(questionLabel)) || (sec === 'mentality' && /^meditation$/i.test(questionLabel)))
+          if (sec === 'technique' || sec === 'tactical' || (sec === 'mentality' && /^(meditation|visualisation)$/i.test(questionLabel)))
             return <span className="kc-setfocus" style={{ '--c': accent, cursor: 'default' }}>🎯 Pick an option below to make it your {monthName} focus</span>
           return (
             <span role="button" tabIndex={0} className="kc-setfocus" style={{ '--c': accent }}
@@ -4749,22 +4753,34 @@ export default function AthleteApp() {
       saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: sel.name, duration: Number(minutes) > 0 ? minutes : '' }] }))
       setMentalityDraftDurations(prev => ({ ...prev, [selKey]: null, [minKey]: '' }))
     }
+    // 🎯 focus option (Video analysis -> Tactical, Visualisation -> Mentality): set once, change once, then locked
+    const fSec = field === 'videoAnalysis' ? 'tactical' : field === 'visualisation' ? 'mentality' : null
+    const fLabel = field === 'videoAnalysis' ? 'Video analysis' : (MENTALITY_QUESTIONS.find(q => q.key === field)?.label || field)
+    const fSub = fSec ? mySub(fSec, fLabel) : null
+    const showOthers = !!mentalityDraftDurations[`${field}::__others`]
+    const shownTypes = fSub && !showOthers ? types.filter(t => t.name === fSub) : [...types].sort((a, b) => (b.name === fSub) - (a.name === fSub))
     const pk = field === 'videoAnalysis' ? pdpItemPick(`sp:${field}`, 'tactical', 'Tactical', '__videoAnalysis__', 'Video Analysis') : pdpItemPick(`sp:${field}`, 'mentality', 'Mentality', field, MENTALITY_QUESTIONS.find(q => q.key === field)?.label || field)
     return (
       <div className="neon-picker" style={{ width: '100%', minWidth: 0 }}>
         {pk.bar}
+        {fSub && types.length > 1 && (
+          <button type="button" className="btn btn-sm" style={{ marginBottom: 8, fontSize: 11 }} onClick={() => setMentalityDraftDurations(p => ({ ...p, [`${field}::__others`]: !showOthers }))}>{showOthers ? '▲ Focus option only' : `▼ Other options (${types.length - 1})`}</button>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-          {types.map(t => {
+          {shownTypes.map(t => {
             const on = selected === t.name
             return (
               <button key={t.name} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
                 onClick={() => pk.picking ? pk.pick(t.name) : setMentalityDraftDurations(prev => ({ ...prev, [selKey]: on ? null : t.name }))}
                 style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto', ...(pk.gold.has(t.name) && !on ? pdpGoldStyle(true) : {}) }}>
-                {t.name}
+                {t.name === fSub ? '🎯 ' : ''}{t.name}
               </button>
             )
           })}
         </div>
+        {fSec && sel && sel.name !== fSub && (fSub && subChangesLeft(fSec) === 0
+          ? <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 10px' }}>🔒 Your focus is locked for this month (already changed once).</p>
+          : <button type="button" className="btn btn-sm" style={{ marginBottom: 10, borderColor: '#E24B4A', color: '#FF8A8A' }} onClick={() => setMySubFocus(fSec, fLabel, sel.name)}>{fSub ? `🎯 Change my focus to ${sel.name} (1 change left)` : `🎯 Make ${sel.name} my focus`}</button>)}
         {sel?.howTo && <p className="neon-howto" style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.45 }}>{sel.howTo}</p>}
         <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
           <input type="number" inputMode="numeric" min="1" placeholder="Minutes (optional)" aria-label="Minutes (optional)" value={minutes}
