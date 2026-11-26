@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { confirmWeight } from '../lib/vitals.js'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -38,6 +39,8 @@ export default function Fit2FightForm() {
   function set(field) { return e => setForm(f => ({ ...f, [field]: e.target.value })) }
 
   async function save() {
+    // typo check: before vs after more than ~15% apart (e.g. 41.7 then 148.5)
+    if (form.weight_before && form.weight_after && !confirmWeight(form.weight_after, form.weight_before)) return
     if (!student) return alert('No student linked to this account')
     setSaving(true)
     const payload = {

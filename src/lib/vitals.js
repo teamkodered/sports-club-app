@@ -33,3 +33,12 @@ export function hrrResults(sessions = []) {
   }
   return out.sort((a, b) => String(b.date).localeCompare(String(a.date)))
 }
+
+// Typo check for weights: more than ~15% away from the last known weight (e.g. 148.5 after 41.7) -> ask first.
+// Returns true if OK to save.
+export function confirmWeight(kg, lastKg) {
+  const n = parseFloat(kg), last = parseFloat(lastKg)
+  if (isNaN(n) || isNaN(last) || last <= 0) return true
+  if (Math.abs(n - last) / last <= 0.15) return true
+  return window.confirm(`${n}kg — is that right? The last weight was ${last}kg.`)
+}

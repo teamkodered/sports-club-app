@@ -18,7 +18,7 @@ import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
 import ActivityTimer from '../components/shared/ActivityTimer.jsx'
-import { wearableVitals, latestTest, hrrResults } from '../lib/vitals.js'
+import { wearableVitals, latestTest, hrrResults, confirmWeight } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
 import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
@@ -5568,6 +5568,7 @@ export default function AthleteApp() {
     setCheckingIn(true)
     const field = showWeightCheckPrompt === 'in' ? 'weight_before' : 'weight_after'
     const updates = { [field]: skip || !weightCheckValue.trim() ? null : parseFloat(weightCheckValue) }
+    if (updates[field] != null && !confirmWeight(updates[field], activeCheckIn?.weight_before ?? student?.weight_kg)) { setCheckingIn(false); return }   // typo check
     if (showWeightCheckPrompt === 'out') updates.checked_out_at = new Date().toISOString()
     // Full kit is decided here via the checkbox rather than a separate
     // button pressed before checking in -- only applies at check-in.

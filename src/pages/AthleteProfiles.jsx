@@ -12,7 +12,7 @@ import CoachCheckInDrawer from '../components/shared/CoachCheckInDrawer.jsx'
 import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
-import { wearableVitals, latestTest, hrrResults } from '../lib/vitals.js'
+import { wearableVitals, latestTest, hrrResults, confirmWeight } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
 import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
@@ -3324,7 +3324,8 @@ export default function AthleteProfiles() {
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [showNotesList, setShowNotesList] = useState(false)
   const [coachCheckInOpen, setCoachCheckInOpen] = useState(false)
-  const [hrrOpenC, setHrrOpenC] = useState(false)   // coach Home: CHECK IN side menu
+  const [hrrOpenC, setHrrOpenC] = useState(false)
+  const [openRecTech, setOpenRecTech] = useState({})   // records list: which day's Techniques line is opened   // coach Home: CHECK IN side menu
   const [noteSearch, setNoteSearch] = useState('')   // coach Notes: search all notes
   // every word typed must appear somewhere in the note (text, title, author, date)
   const noteMatches = (n, q) => { const hay = `${n.note_text || ''} ${n.title || ''} ${n.author_name || ''} ${n.logged_at ? new Date(n.logged_at).toLocaleDateString('en-GB') : ''}`.toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)) }
@@ -6973,6 +6974,8 @@ export default function AthleteProfiles() {
   }
 
   async function saveFit2FightSession() {
+    // typo check on the weights (e.g. 148.5 after 41.7)
+    { const last = selected?.weight_kg; for (const w of [sessionForm.weight_before, sessionForm.weight_after]) if (w !== '' && w != null && !confirmWeight(w, last)) return }
     if (!selected) return
     setSavingSession(true)
     // VO2 Max still lives in the same test:{} map as everything else that
@@ -13489,7 +13492,17 @@ export default function AthleteProfiles() {
                               {s.running && renderSetDetail(s.running, { icon: '🏃', colour: '#1D9E75', unit: '', fallbackLabel: 'Running', getLabel: e => e.category || e.test })}
                               {s.watt_bike && renderSetDetail(s.watt_bike, { icon: '🚴', colour: '#378ADD', unit: 'W', fallbackLabel: 'Watt bike', getLabel: e => formatIntervalLabel(normalizeIntervalMode(e.interval_mode || e.type)) || e.type })}
                               {s.bodyweight && renderSetDetail(s.bodyweight, { icon: '💪', colour: '#EF9F27', unit: '', fallbackLabel: 'Bodyweight', getLabel: e => e.type })}
-                              {s.techniques && renderSetDetail(s.techniques, { icon: '🥋', colour: '#E24B4A', unit: ' reps', fallbackLabel: 'Techniques', getLabel: e => e.type })}
+                              {s.techniques && (() => {   // one line 'Techniques × n' -- tap to see them (name × count)
+                                const list = toEntries(s.techniques); if (!list.length) return null
+                                const counts = {}; for (const e of list) { const k = e.technique && e.technique !== 'Quick log' ? e.technique : (e.category && e.category !== 'Quick log' ? e.category : (e.type || 'Technique')); counts[k] = (counts[k] || 0) + 1 }
+                                const open = !!openRecTech[s.id]
+                                return (
+                                  <div style={{ marginTop: 6 }}>
+                                    <button type="button" onClick={() => setOpenRecTech(o => ({ ...o, [s.id]: !o[s.id] }))} style={{ all: 'unset', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#E24B4A' }}>🥋 Techniques × {list.length} {open ? '▲' : '▼'}</button>
+                                    {open && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>{Object.entries(counts).map(([k, n]) => <span key={k} style={{ background: '#E24B4A20', color: '#E24B4A', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{k}{n > 1 ? ` × ${n}` : ''}</span>)}</div>}
+                                  </div>
+                                )
+                              })()}
                               {Array.isArray(s.stretch_flows) && s.stretch_flows.some(Boolean) && (
                                 <p style={{ fontSize: 12, margin: '4px 0' }}>🧘 Stretch flows: {s.stretch_flows.filter(Boolean).join(', ')}</p>
                               )}
