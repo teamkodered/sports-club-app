@@ -9691,39 +9691,37 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     <div style={{ display: resultsGraphSection === 3 ? 'block' : 'none' }}>
                     {(() => {
                       const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16']
-                      const runTests = [...new Set(runData.map(s => s.running?.test).filter(Boolean))]
-                      const filteredRun = runChartFilter === 'all' ? runData : runData.filter(s => s.running?.test === runChartFilter)
-                      const isDistanceTest = filteredRun.some(s => (s.running?.category) === 'Distance over time')
-                      const maxSets = Math.max(1, ...filteredRun.map(s => s.running?.sets?.length || 0))
-                      const setLines = Array.from({length: maxSets}, (_,i) => ({
-                        key: `set${i}`, label: `Attempt ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length]
-                      }))
-                      const toChartValue = v => {
-                        if (v == null || v === '') return null
-                        if (v && typeof v === 'object') return v.isRest ? null : toChartValue(v.value ?? v.wattage)
-                        if (typeof v === 'string' && v.includes(':')) {
-                          const [mm, ss] = v.split(':').map(Number)
-                          return (mm || 0) * 60 + (ss || 0)
-                        }
-                        return v
-                      }
-                      const chartData = filteredRun.map(s => {
-                        const obj = { id: s.id, session_date: s.session_date }
-                        ;(s.running?.sets || []).forEach((v,i) => { obj[`set${i}`] = toChartValue(v) })
-                        return obj
-                      })
+                      // Run types as pills; sprints / distance runs = TIME (lower is better), interval runs = DISTANCE (higher is better)
+                      const typeKey = e => `${e.category || 'Running'}::${e.test || ''}`
+                      const typeLabel = k => { const [c, t] = k.split('::'); const short = { 'Timed Distance Run': 'Distance run', 'Timed Sprints': 'Sprint', 'Interval': 'Interval' }[c] || c; return t ? `${short} · ${shortInterval(t)}` : short }
+                      const isDist = k => /^Interval::|distance over time|track distance/i.test(k)
+                      const toSec = v => { if (v == null || v === '') return null; if (typeof v === 'object') v = v.value ?? v.time ?? null; const t = String(v).trim().toLowerCase(); if (/km|bpm|\bm\b/.test(t)) return null
+                        let m; if ((m = t.match(/^(\d+):(\d{1,2}):(\d{1,2})/))) return +m[1] * 3600 + +m[2] * 60 + +m[3]
+                        if ((m = t.match(/^(\d+):(\d{1,2}(?:\.\d+)?)/))) return +m[1] * 60 + +m[2]
+                        if ((m = t.match(/^([\d.]+)\s*min/))) return +m[1] * 60
+                        if ((m = t.match(/^([\d.]+)\s*s/))) return +m[1]
+                        const n = parseFloat(t); return isNaN(n) ? null : n }
+                      const toKm = v => { if (v == null || v === '') return null; if (typeof v === 'object') v = v.distance ?? v.value ?? null; const t = String(v).trim().toLowerCase(); const n = parseFloat(t); if (isNaN(n)) return null; return /\bm\b/.test(t) && !/km/.test(t) ? n / 1000 : n }
+                      const types = [...new Set(runData.map(r => typeKey(r.running)))].filter(k => runData.some(r => typeKey(r.running) === k && (r.running.sets || []).some(v => (isDist(k) ? toKm(v) : toSec(v)) != null)))
+                      const cur = types.includes(runChartFilter) ? runChartFilter : types[0]
+                      const dist = cur ? isDist(cur) : false
+                      const rows = runData.filter(r => typeKey(r.running) === cur)
+                      const maxSets = Math.max(1, ...rows.map(r => r.running.sets?.length || 0))
+                      const allSec = dist ? [] : rows.flatMap(r => (r.running.sets || []).map(toSec)).filter(v => v != null)
+                      const inMin = !dist && Math.max(0, ...allSec) > 300
+                      const val = v => dist ? toKm(v) : (toSec(v) == null ? null : inMin ? Math.round(toSec(v) / 6) / 10 : toSec(v))
+                      const setLines = Array.from({ length: maxSets }, (_, i) => ({ key: `set${i}`, label: maxSets > 1 ? `Attempt ${i + 1}` : (dist ? 'Distance' : 'Time'), colour: SET_COLOURS[i % SET_COLOURS.length] }))
+                      const chartData = rows.map(r => { const o = { id: r.id, session_date: r.session_date }; (r.running.sets || []).forEach((v, i) => { o[`set${i}`] = val(v) }); return o })
+                      const best = (() => { const vs = chartData.flatMap(o => setLines.map(l => o[l.key])).filter(v => v != null); return vs.length ? (dist ? Math.max(...vs) : Math.min(...vs)) : null })()
                       return (
                         <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                          {runTests.length > 1 && (
-                            <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
-                              <label style={{ fontSize: 11 }}>Show</label>
-                              <select value={runChartFilter} onChange={e => setRunChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
-                                <option value="all">All tests</option>
-                                {runTests.map(t => <option key={t} value={t}>{t}</option>)}
-                              </select>
+                          {types.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                              {types.map(k => <button key={k} type="button" onClick={() => setRunChartFilter(k)} className="btn btn-sm" style={{ fontSize: 11, borderRadius: 14, background: k === cur ? '#1D9E75' : undefined, color: k === cur ? '#fff' : undefined, borderColor: k === cur ? '#1D9E75' : undefined }}>{typeLabel(k)}</button>)}
                             </div>
                           )}
-                          <LineChart data={chartData.length > 1 ? chartData : []} lines={setLines} title="🏃 Running — each attempt over time" unit={isDistanceTest ? 'km' : 'sec'} />
+                          {cur && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>{dist ? 'Distance covered — higher is better' : 'Time — lower is better'}{best != null ? ` · best ${best}${dist ? ' km' : inMin ? ' min' : ' sec'}` : ''}</div>}
+                          <LineChart data={chartData.length > 1 ? chartData : []} lines={setLines} title={cur ? `🏃 ${typeLabel(cur)}` : '🏃 Running'} unit={dist ? 'km' : inMin ? 'min' : 'sec'} />
                         </div>
                       )
                     })()}
