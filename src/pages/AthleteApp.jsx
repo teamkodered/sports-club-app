@@ -3314,17 +3314,35 @@ export default function AthleteApp() {
     const set = Object.values(byPeriod).filter(p => p.target > 0)
     return set.length > 0 && set.every(p => p.done < p.target)   // done = before this log
   }
+  // Points per day (Nov 2026): Technical / Mentality / Tactical up to 3 a day, Physical up to 2 a day, Foundation once per question
+  const DAILY_CAP = { technique: 3, mentality: 3, tactical: 3, physical: 2, wellbeing: 1 }
+  const nth = (label, k) => k <= 1 ? label : `${label} #${k}`
+  function awardCounted(reason, label, oldN, newN, cap) {
+    for (let k = 1; k <= Math.min(newN, cap); k++) awardHousePoints(reason, nth(label, k))          // server ignores ones already given today
+    for (let k = Math.min(oldN, cap); k > Math.min(newN, cap); k--) revokeF2fQuestionPoint(nth(label, k))   // entries removed
+  }
+  function subCount(sec, label, sub, s) {
+    if (!s || !sub) return 0
+    const eq = v => String(v || '').trim().toLowerCase() === String(sub).trim().toLowerCase()
+    if (/^video analysis$/i.test(label)) return (s.mentality_log?.videoAnalysis?.entries || []).filter(e => eq(e.type) || eq(e.item)).length
+    if (sec === 'technique') return (s.techniques || []).filter(t => sameQ(t.category, label) && eq(t.technique)).length
+    if (sec === 'tactical') return (s.tactical || []).filter(t => sameQ(t.category, label) && eq(t.item)).length
+    if (sec === 'mentality') { const q = MENTALITY_QUESTIONS.find(q => sameQ(q.label, label)); return ((q ? s.mentality_log?.[q.key] : null)?.entries || []).filter(e => eq(e.category) || eq(e.type) || eq(e.item)).length }
+    return 0
+  }
   function checkF2fQuestionPoints(oldSessionLike, newSessionLike, affected) {
     affected.forEach(({ sectionKey, questionLabel }) => {
       if (sectionKey === 'physical') {
         const wasLogged = questionLogged(sectionKey, questionLabel, oldSessionLike)
         const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
-        if (!wasLogged && isLoggedNow) {
-          if (!physicalWithinTarget(questionLabel)) return
-          awardHousePoints('f2f_question', questionLabel)
+        const oN = wasLogged ? Math.max(1, questionLoggedCount(sectionKey, questionLabel, oldSessionLike)) : 0
+        const nN = isLoggedNow ? Math.max(1, questionLoggedCount(sectionKey, questionLabel, newSessionLike)) : 0
+        if (nN > oN) {   // a new log: points up to 2 a day, each one inside the weekly target
+          if (!physicalWithinTarget(questionLabel) || nN > DAILY_CAP.physical) return
+          awardHousePoints('f2f_question', nth(questionLabel, nN))
           const focus = myFocus.physical
-          if (focus && sameQ(focus, questionLabel)) awardHousePoints('f2f_focus', questionLabel)   // monthly focus = bonus on top
-        } else if (wasLogged && !isLoggedNow) revokeF2fQuestionPoint(questionLabel)
+          if (focus && sameQ(focus, questionLabel)) awardHousePoints('f2f_focus', nth(questionLabel, nN))   // monthly focus = bonus on top
+        } else if (nN < oN) for (let k = Math.min(oN, DAILY_CAP.physical); k > nN; k--) revokeF2fQuestionPoint(nth(questionLabel, k))
         return
       }
       if (sectionKey === 'wellbeing') {   // Foundation: always on -- 1 point per question per day (several entries in a day still 1)
@@ -3337,9 +3355,7 @@ export default function AthleteApp() {
       const subF = myFocus[`${sectionKey}__sub`]
       if (subF && myFocus[sectionKey]) {
         if (!sameQ(myFocus[sectionKey], questionLabel)) return   // other questions: no points while a sub-option is the focus
-        const was = subLogged(sectionKey, questionLabel, subF, oldSessionLike), now = subLogged(sectionKey, questionLabel, subF, newSessionLike)
-        if (now) awardHousePoints('f2f_focus', questionLabel)   // server: once a day per question
-        else if (was && !now) revokeF2fQuestionPoint(questionLabel)
+        awardCounted('f2f_focus', questionLabel, subCount(sectionKey, questionLabel, subF, oldSessionLike), subCount(sectionKey, questionLabel, subF, newSessionLike), DAILY_CAP[sectionKey] || 3)
         return
       }
       const isTargeted = sectionTargets.some(t => t.section_key === sectionKey && t.question_label === questionLabel)
@@ -3350,12 +3366,11 @@ export default function AthleteApp() {
       const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
       // No question points in a section until this month's 🎯 focus is chosen. Then: the focus question
       // scores f2f_focus (3), 'always on' questions score as normal, everything else logs without points.
-      if (isLoggedNow) {   // the server only awards once a day per question, so it's safe to ask each time
-        if (!focus) return
-        if (isFocusQ) awardHousePoints('f2f_focus', questionLabel)
-        else if (!isGreyedQ(sectionKey, questionLabel)) awardHousePoints('f2f_question', questionLabel)
-      }
-      else if (wasLogged && !isLoggedNow) revokeF2fQuestionPoint(questionLabel)
+      if (!focus) return
+      const oN = wasLogged ? Math.max(1, questionLoggedCount(sectionKey, questionLabel, oldSessionLike)) : 0
+      const nN = isLoggedNow ? Math.max(1, questionLoggedCount(sectionKey, questionLabel, newSessionLike)) : 0
+      if (isFocusQ) awardCounted('f2f_focus', questionLabel, oN, nN, DAILY_CAP[sectionKey] || 3)
+      else if (!isGreyedQ(sectionKey, questionLabel)) awardCounted('f2f_question', questionLabel, oN, nN, DAILY_CAP[sectionKey] || 3)
     })
   }
 
@@ -4107,7 +4122,7 @@ export default function AthleteApp() {
     supabase.from('points_log').select('point_type, points_awarded').eq('student_id', student.id).gte('awarded_at', monthStart).then(({ data }) => {
       const out = {}
       for (const r of data || []) {
-        const t = String(r.point_type || ''), detail = (t.split(': ').slice(1).join(': ') || '').toLowerCase()
+        const t = String(r.point_type || ''), detail = (t.split(': ').slice(1).join(': ') || '').toLowerCase().replace(/\s#\d+$/, '')
         let sec = lab[detail] || null
         if (!sec) { const lt = t.toLowerCase(); sec = /mentalit/.test(lt) ? 'mentality' : /tactic/.test(lt) ? 'tactical' : /techni/.test(lt) ? 'technique' : /physical|watt|run|bodyweight|stretch/.test(lt) ? 'physical' : /foundation|wellbeing|sleep|hydration|nutrition/.test(lt) ? 'wellbeing' : null }
         if (sec) out[sec] = (out[sec] || 0) + (r.points_awarded || 0)
