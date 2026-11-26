@@ -5420,9 +5420,10 @@ export default function AthleteApp() {
   }
   // photo / video attach + Add to timetable as small icon buttons only (no text)
   function QuestionMediaUpload(props) {
-    return <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>{QuestionMediaUploadInner(props)}<QuestionToTimetable questionLabel={props.questionLabel} />
+    // one line: ⬆ 📷 📅 on the left, ← Back on the right (wraps only while the timetable picker is open)
+    return <div className="kc-q-tools" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: athleteTimetableModal?.fromQuestion ? 'wrap' : 'nowrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>{QuestionMediaUploadInner(props)}<QuestionToTimetable questionLabel={props.questionLabel} />
       {/* ← Back: close this question and go back to the section's questions */}
-      <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto', alignSelf: 'center' }} aria-label="Back to the questions"
+      <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto', alignSelf: 'center', flexShrink: 0, whiteSpace: 'nowrap' }} aria-label="Back to the questions"
         onClick={e => { const sec = e.currentTarget.closest('.kc-bh-openwrap, .neon-pillar-quad > div, .neon-foundation-wrap') || document; (sec.querySelector('.neon-q.is-active') || document.querySelector('.neon-q.is-active'))?.click() }}>← Back</button>
     </div>
   }
