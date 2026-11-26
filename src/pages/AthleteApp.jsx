@@ -4003,6 +4003,7 @@ export default function AthleteApp() {
   const focusFirst = (sec, labelOf) => (a, b) => (fq(sec, labelOf(b)).includes('is-focus') ? 1 : 0) - (fq(sec, labelOf(a)).includes('is-focus') ? 1 : 0)
   const fq = (sec, label) => sec === 'wellbeing' ? '' : isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
   // 🎯 sub-option focus inside the focus question: only logging THAT option scores in the section
+  const subChangesLeft = sec => Math.max(0, 1 - (myFocus[`${sec}__subChanges`] || 0))
   const mySub = (sec, label) => (myFocus[sec] && sameQ(myFocus[sec], label)) ? (myFocus[`${sec}__sub`] || null) : null
   async function setMySubFocus(sec, label, sub) {
     if (!student) return
@@ -4010,7 +4011,13 @@ export default function AthleteApp() {
     const allF = { ...(cur.__focus || {}) }
     const m = { ...(allF[focusMonth] || {}) }
     if (!m[sec] || !sameQ(m[sec], label)) m[sec] = label   // choosing a sub-option also makes its question the focus
-    if (sub) m[`${sec}__sub`] = sub; else delete m[`${sec}__sub`]
+    if (m[`${sec}__sub`] && sub && m[`${sec}__sub`] !== sub) {
+      if ((m[`${sec}__subChanges`] || 0) >= 1) { alert('Your focus can only be changed once a month.'); return }
+      if (!confirm(`Change your focus to ${sub}? You can only change it once this month.`)) return
+      m[`${sec}__subChanges`] = (m[`${sec}__subChanges`] || 0) + 1
+    }
+    if (!sub) return   // no 'stop focusing' -- a focus option stays until the month ends (or its one change)
+    m[`${sec}__sub`] = sub
     allF[focusMonth] = m
     const updated = { ...cur, __focus: allF }
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
@@ -4888,9 +4895,12 @@ export default function AthleteApp() {
             {subFocus && availAll.length > 1 && (
               <button type="button" className="btn btn-sm" style={{ marginBottom: 10, fontSize: 11 }} onClick={() => set({ others: !d.others })}>{d.others ? '▲ Focus option only' : `▼ Other options (${availAll.length - 1})`}</button>
             )}
-            {onSetSub && sel.length === 1 && (
+            {onSetSub && sel.length === 1 && sel[0] !== subFocus && (!subFocus || subChangesLeft(draftKey.startsWith('tac:') ? 'tactical' : 'technique') > 0) && (
               <button type="button" className="btn btn-sm" style={{ marginBottom: 10, borderColor: '#E24B4A', color: '#FF8A8A' }}
-                onClick={() => onSetSub(subFocus === sel[0] ? null : sel[0])}>{subFocus === sel[0] ? `✕ Stop focusing on ${sel[0]}` : `🎯 Make ${sel[0]} my focus`}</button>
+                onClick={() => onSetSub(sel[0])}>{subFocus ? `🎯 Change my focus to ${sel[0]} (1 change left)` : `🎯 Make ${sel[0]} my focus`}</button>
+            )}
+            {onSetSub && subFocus && sel.length === 1 && sel[0] !== subFocus && subChangesLeft(draftKey.startsWith('tac:') ? 'tactical' : 'technique') === 0 && (
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 10px' }}>🔒 Your focus is locked for this month (already changed once).</p>
             )}
           </>
         )}
@@ -4945,8 +4955,10 @@ export default function AthleteApp() {
         {expandedCategory && (() => {
           const ql = MENTALITY_QUESTIONS.find(q => q.key === field)?.label; const c = categories.find(x => x.key === expandedCategory)
           if (!ql || !c) return null
-          const on = String(mySub('mentality', ql) || '').toLowerCase() === String(c.label).toLowerCase()
-          return <button type="button" className="btn btn-sm" style={{ marginBottom: 10, borderColor: '#E24B4A', color: '#FF8A8A' }} onClick={() => setMySubFocus('mentality', ql, on ? null : c.label)}>{on ? `✕ Stop focusing on ${c.label}` : `🎯 Make ${c.label} my focus`}</button>
+          const cur = mySub('mentality', ql), on = String(cur || '').toLowerCase() === String(c.label).toLowerCase()
+          if (on) return null
+          if (cur && subChangesLeft('mentality') === 0) return <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 10px' }}>🔒 Your focus is locked for this month (already changed once).</p>
+          return <button type="button" className="btn btn-sm" style={{ marginBottom: 10, borderColor: '#E24B4A', color: '#FF8A8A' }} onClick={() => setMySubFocus('mentality', ql, c.label)}>{cur ? `🎯 Change my focus to ${c.label} (1 change left)` : `🎯 Make ${c.label} my focus`}</button>
         })()}
         {cat && (
           <div style={{ width: '100%', minWidth: 0 }}>
