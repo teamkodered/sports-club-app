@@ -6183,7 +6183,7 @@ export default function AthleteApp() {
           {student ? (
             <>
               <InstallAppButton />
-              <BringAFriend memberId={student.member_id} />
+              {/* Bring a friend moved to the bottom, beside Settings */}
               {pushPermission === 'default' && (
                 <div className="card" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12 }}>🔔 Get notified when your coach logs something, or you move on the league ladder.</span>
@@ -7965,6 +7965,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     <span className="neon-emoji" style={{ fontSize: 24 }}>⚙️</span>
                     <span style={{ fontSize: 12, fontWeight: 500, color: '#F5C542' }}>Settings {appSettingsOpen ? '▲' : '▼'}</span>
                 </button>
+                {!appSettingsOpen && <BringAFriend memberId={student.member_id} tile />}
               </div>
               {appSettingsOpen && (
                 <div className="kc-app-settings">

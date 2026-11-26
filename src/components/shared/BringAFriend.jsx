@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 
 // 🤝 Athlete app: the member's own "bring a friend" code + share link.
 // When a friend joins with it and is approved, it's credited to this member (shown as a count).
-export default function BringAFriend({ memberId }) {
+export default function BringAFriend({ memberId, tile = false }) {
   const [code, setCode] = useState(null)
   const [count, setCount] = useState(0)
   const [copied, setCopied] = useState(false)
@@ -21,6 +21,15 @@ export default function BringAFriend({ memberId }) {
     } catch { return }   // share sheet closed
     try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch { prompt('Copy this:', text) }
   }
+  if (tile) return (   // home: a tile beside Settings -- tap to share the code
+    <button type="button" onClick={share} className="neon-tile" style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px', background: '#1D9E7512',
+      border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+      <span className="neon-emoji" style={{ fontSize: 24 }}>🤝</span>
+      <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>{copied ? '✓ Copied' : 'Bring a friend'}</span>
+      <span style={{ fontSize: 10, color: 'var(--text-tertiary)', letterSpacing: 1 }}>{code}{count > 0 ? ` · ${count} joined` : ''}</span>
+    </button>
+  )
   return (
     <div className="card" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
       <div style={{ flex: 1, minWidth: 180 }}>
