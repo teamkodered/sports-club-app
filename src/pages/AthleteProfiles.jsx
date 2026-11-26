@@ -8,6 +8,7 @@ import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import SaveBar from '../components/shared/SaveBar.jsx'
 import LabResults from '../components/shared/LabResults.jsx'
+import CoachCheckInDrawer from '../components/shared/CoachCheckInDrawer.jsx'
 import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
@@ -3322,6 +3323,7 @@ export default function AthleteProfiles() {
   const [newNoteShared, setNewNoteShared] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [showNotesList, setShowNotesList] = useState(false)
+  const [coachCheckInOpen, setCoachCheckInOpen] = useState(false)   // coach Home: CHECK IN side menu
   const [noteSearch, setNoteSearch] = useState('')   // coach Notes: search all notes
   // every word typed must appear somewhere in the note (text, title, author, date)
   const noteMatches = (n, q) => { const hay = `${n.note_text || ''} ${n.title || ''} ${n.author_name || ''} ${n.logged_at ? new Date(n.logged_at).toLocaleDateString('en-GB') : ''}`.toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)) }
@@ -11654,6 +11656,16 @@ export default function AthleteProfiles() {
                   </div>
                   </div>
 
+                  {/* CHECK IN (like the athlete app): check this athlete in, Log session, Sweep the sheds, Wearables, MTP */}
+                  <button type="button" className="neon-checkin-cta" onClick={() => setCoachCheckInOpen(true)}>CHECK IN</button>
+                  {coachCheckInOpen && selected && (
+                    <CoachCheckInDrawer student={selected} onClose={() => setCoachCheckInOpen(false)} onDone={() => refetchAttendanceFor(selected.id)}
+                      onLogSession={() => { window.location.href = `/fit2fight?student_id=${selected.id}` }}
+                      onSweep={() => { setCoachCheckInOpen(false); setTab('sweep'); loadShedTasksAll() }}
+                      onWearables={() => { setCoachCheckInOpen(false); setTab('whoop') }}
+                      wearablesLabel={`Wearables${Array.isArray(whoopConnection) && whoopConnection.length ? ` — ${whoopConnection.map(c => providerLabel(c.provider)).join(', ')} linked` : ' — none linked'}`}
+                      onMtp={() => { setCoachCheckInOpen(false); setTab('tpt') }} />
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
                     {[
                       { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },
@@ -11671,83 +11683,10 @@ export default function AthleteProfiles() {
                     ))}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
-                    {(() => {
-                      const completedPdpNotes = notesLog.filter(n =>
-                        n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)
-                      )
-                      const completedPdpCount = completedPdpNotes.length
-                      return [
-                        { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp', badge: completedPdpCount > 0 ? `${completedPdpCount} completed → Notes` : null, diagNotes: completedPdpNotes },
-                        { label: 'MTP', icon: '📊', colour: '#E24B4A', tab: 'tpt', badge: null, diagNotes: null },
-                      ].map(l => (
-                        <div key={l.label} style={{ position: 'relative' }}>
-                          <button onClick={() => setTab(l.tab)} style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: '100%',
-                            padding: '14px 8px', background: l.colour + '12',
-                            border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                            cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          }}>
-                            <span style={{ fontSize: 24 }}>{l.icon}</span>
-                            <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                            {l.badge && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{l.badge}</span>}
-                          </button>
-                          {l.diagNotes && l.diagNotes.length > 0 && (
-                            <button onClick={() => {
-                              const sample = l.diagNotes.slice(0, 15).map(n => `• ${n.note_text}  (${new Date(n.logged_at).toLocaleDateString('en-GB')})`).join('\n')
-                              alert(`Total counted: ${l.diagNotes.length} (raw notesLog size: ${notesLog.length})\n\nFirst 15:\n${sample}`)
-                            }} title="Show what's being counted" style={{
-                              position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%',
-                              background: 'var(--bg)', border: '1px solid var(--border-strong)', cursor: 'pointer', fontSize: 11,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-                            }}>🔍</button>
-                          )}
-                        </div>
-                      ))
-                    })()}
-                    <a href={`/fit2fight?student_id=${selected?.id}`} className="neon-tile" style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                      padding: '14px 8px', background: '#EF9F2712',
-                      border: '1px solid #EF9F2730', borderRadius: 'var(--border-radius-lg)',
-                      cursor: 'pointer', fontFamily: 'var(--font-sans)', textDecoration: 'none', gridColumn: 'span 2',
-                    }} title="Log a Fit II Fight session">
-                      <span className="neon-emoji" style={{ fontSize: 24 }}>💪</span><NeonTileIcon name="Fit II Fight — log session" />
-                      <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Fit II Fight — log session</span>
-                    </a>
-                    <button onClick={() => setTab('whoop')} className="neon-tile" style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                      padding: '14px 8px', background: '#0EA5E912',
-                      border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
-                      cursor: 'pointer', fontFamily: 'var(--font-sans)', gridColumn: 'span 2',
-                    }} title="View this athlete's wearable data">
-                      <span className="neon-emoji" style={{ fontSize: 24 }}>⌚</span><NeonTileIcon name="Wearables" />
-                      <span style={{ fontSize: 12, fontWeight: 500, color: '#0EA5E9' }}>
-                        Wearables{Array.isArray(whoopConnection) && whoopConnection.length ? ` — ${whoopConnection.map(c => providerLabel(c.provider)).join(', ')} linked` : ' — none linked'}
-                      </span>
-                    </button>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
-                    <button onClick={() => { setTab('sweep'); loadShedTasksAll() }} className="neon-tile" style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                      padding: '14px 8px', background: '#1D9E7512',
-                      border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
-                      cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                    }}>
-                      <span className="neon-emoji" style={{ fontSize: 24 }}>🧹</span><NeonTileIcon name="Sweep the sheds" />
-                      <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
-                    </button>
-                    <button onClick={() => setTab('leagues')} className="neon-tile" style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                      padding: '14px 8px', background: '#8B5CF612',
-                      border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
-                      cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                    }}>
-                      <span className="neon-emoji" style={{ fontSize: 24 }}>🏆</span><NeonTileIcon name="Leagues" />
-                      <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
-                    </button>
-                  </div>
-
+                  {/* 🏆 My standing (as the athlete sees it) -- tap for the full league */}
+                  <div style={{ marginBottom: 14 }}><LeagueBoard standingOnly student={selected} onOpen={() => setTab('leagues')} /></div>
+                  {/* PDP / MTP / Log session / Wearables / Sweep the sheds / Leagues tiles moved: PDP = the top tile, the rest are
+                      in the CHECK IN side menu (like the athlete app); Leagues = My standing above */}
                   {/* Opponents moved to the Notes tab */}
 
                   {sessionPoints.length > 0 && (
