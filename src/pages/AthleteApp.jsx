@@ -4867,7 +4867,7 @@ export default function AthleteApp() {
           <button type="button" className="btn neon-save" style={{ width: '100%', justifyContent: 'center', height: 46, fontSize: 16, marginBottom: 8 }} onClick={() => onAdd(1)}>✓ DONE <small style={{ opacity: 0.7, marginLeft: 6 }}>+1 each press</small></button>
         ) : <label>Add</label>}
         {presets.length > 0 && (unit || step < 1) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          <div className="kc-preset-row" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(presets.length, 4)}, minmax(0, 1fr))`, gap: 6, marginBottom: 8 }}>
             {presets.map(v => {
               const on = false // the + buttons add to the amount box
               return (

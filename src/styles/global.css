@@ -2263,3 +2263,6 @@ body.kc-bh .kc-bh-openwrap { will-change: auto; }
     -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
   }
 }
+
+/* + amount buttons (e.g. +10 / +20 / +30 mins, +0.25 / +0.5 / +1 L): all on one line, equal widths */
+.kc-preset-row > .btn { min-width: 0 !important; padding-left: 6px !important; padding-right: 6px !important; justify-content: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
