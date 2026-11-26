@@ -1962,6 +1962,8 @@ export default function AthleteApp() {
   const [showTacticalSection, setShowTacticalSection] = useState(false)
   const tacticalSectionRef = useRef(null)
   const [expandedTacticalCategory, setExpandedTacticalCategory] = useState(null)
+  // closing / changing the open question folds its 'Logged today' list again (so it's folded next time it opens)
+  useEffect(() => { setPickDraft(p => { let ch = false; const n = {}; for (const [k, v] of Object.entries(p)) { if (v?.showLog) { ch = true; n[k] = { ...v, showLog: false } } else n[k] = v } return ch ? n : p }) }, [expandedTechniqueCategory, expandedTacticalCategory]) // eslint-disable-line react-hooks/exhaustive-deps
   const [todaysTactical, setTodaysTactical] = useState([])
   const [showMentalitySection, setShowMentalitySection] = useState(false)
   // Sections open like a new page: straight to the top of the open section; closing returns to the squares
