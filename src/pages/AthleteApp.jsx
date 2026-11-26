@@ -4789,7 +4789,7 @@ export default function AthleteApp() {
       <div className="neon-picker" style={{ width: '100%', minWidth: 0 }}>
         {pk.bar}
         {fSub && types.length > 1 && (
-          <button type="button" className="btn btn-sm" style={{ marginBottom: 8, fontSize: 11 }} onClick={() => setMentalityDraftDurations(p => ({ ...p, [`${field}::__others`]: !showOthers }))}>{showOthers ? '▲ Focus option only' : `▼ Other options (${types.length - 1})`}</button>
+          <button type="button" className="btn btn-sm" style={{ marginBottom: 8, fontSize: 11 }} onClick={() => setMentalityDraftDurations(p => ({ ...p, [`${field}::__others`]: !showOthers }))}>{showOthers ? '▲ Focus only' : `▼ Others (${types.length - 1})`}</button>
         )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
           {shownTypes.map(t => {
@@ -4936,7 +4936,7 @@ export default function AthleteApp() {
               })}
             </div>
             {subFocus && availAll.length > 1 && (
-              <button type="button" className="btn btn-sm" style={{ marginBottom: 10, fontSize: 11 }} onClick={() => set({ others: !d.others })}>{d.others ? '▲ Focus option only' : `▼ Other options (${availAll.length - 1})`}</button>
+              <button type="button" className="btn btn-sm" style={{ marginBottom: 10, fontSize: 11 }} onClick={() => set({ others: !d.others })}>{d.others ? '▲ Focus only' : `▼ Others (${availAll.length - 1})`}</button>
             )}
             {onSetSub && sel.length === 1 && sel[0] !== subFocus && (!subFocus || subChangesLeft(draftKey.startsWith('tac:') ? 'tactical' : 'technique') > 0) && (
               <button type="button" className="btn btn-sm" style={{ marginBottom: 10, borderColor: '#E24B4A', color: '#FF8A8A' }}
@@ -4980,9 +4980,6 @@ export default function AthleteApp() {
       <div className="field" style={{ marginBottom: 0, width: '100%', minWidth: 0 }}>
         {LoggedTodayList({ field, colour })}
         <label>Choose a performance area</label>
-        {(() => { const ql = MENTALITY_QUESTIONS.find(q => q.key === field)?.label; const sub = ql ? mySub('mentality', ql) : null; return sub && categories.length > 1 ? (
-          <button type="button" className="btn btn-sm" style={{ marginBottom: 8, fontSize: 11 }} onClick={() => setMentalityDraftDurations(p => ({ ...p, [`${field}::__others`]: !p[`${field}::__others`] }))}>{mentalityDraftDurations[`${field}::__others`] ? '▲ Focus area only' : `▼ Other areas (${categories.length - 1})`}</button>
-        ) : null })()}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
           {categories.filter(c => { const ql = MENTALITY_QUESTIONS.find(q => q.key === field)?.label; const sub = ql ? mySub('mentality', ql) : null; return !sub || mentalityDraftDurations[`${field}::__others`] || String(c.label).toLowerCase() === String(sub).toLowerCase() }).map(c => (
             <button key={c.key} type="button"
@@ -4994,6 +4991,9 @@ export default function AthleteApp() {
               {mySub('mentality', MENTALITY_QUESTIONS.find(q => q.key === field)?.label || '') && String(mySub('mentality', MENTALITY_QUESTIONS.find(q => q.key === field)?.label || '')).toLowerCase() === String(c.label).toLowerCase() ? '🎯 ' : ''}{c.label}
             </button>
           ))}
+          {(() => { const ql = MENTALITY_QUESTIONS.find(q => q.key === field)?.label; const sub = ql ? mySub('mentality', ql) : null; return sub && categories.length > 1 ? (
+            <button type="button" className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setMentalityDraftDurations(p => ({ ...p, [`${field}::__others`]: !p[`${field}::__others`] }))}>{mentalityDraftDurations[`${field}::__others`] ? '▲ Focus only' : `▼ Others (${categories.length - 1})`}</button>
+          ) : null })()}
         </div>
         {expandedCategory && (() => {
           const ql = MENTALITY_QUESTIONS.find(q => q.key === field)?.label; const c = categories.find(x => x.key === expandedCategory)
