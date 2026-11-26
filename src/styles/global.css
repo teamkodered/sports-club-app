@@ -2266,3 +2266,6 @@ body.kc-bh .kc-bh-openwrap { will-change: auto; }
 
 /* + amount buttons (e.g. +10 / +20 / +30 mins, +0.25 / +0.5 / +1 L): all on one line, equal widths */
 .kc-preset-row > .btn { min-width: 0 !important; padding-left: 6px !important; padding-right: 6px !important; justify-content: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* room below an open section, so its last boxes (e.g. Watt bike reps) can always be scrolled up above the keyboard */
+body.kc-bh.kc-bh-open .neon-home { padding-bottom: 45vh; }

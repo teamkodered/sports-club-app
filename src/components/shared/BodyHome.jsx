@@ -22,6 +22,21 @@ const has = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ?
 const tileEl = s => document.querySelector(`.neon-pillar.${s.tile}`)
 
 export default function BodyHome({ sessions = [], gender, openKey }) {
+  // Typing in a box inside a section: once the keyboard is up, bring the box into the visible part of the screen
+  // (iPhones / Android don't always do it for boxes in the floating section)
+  useEffect(() => {
+    const onFocus = e => {
+      const el = e.target
+      if (!el?.matches?.('input, textarea') || !el.closest('.neon-home')) return
+      setTimeout(() => {
+        const vv = window.visualViewport, r = el.getBoundingClientRect()
+        const visBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
+        if (r.bottom > visBottom - 16 || r.top < (vv ? vv.offsetTop : 0) + 16) window.scrollTo({ top: window.scrollY + r.top - (vv ? vv.offsetTop : 0) - (vv ? vv.height : window.innerHeight) * 0.35, behavior: 'smooth' })
+      }, 380)
+    }
+    document.addEventListener('focusin', onFocus)
+    return () => document.removeEventListener('focusin', onFocus)
+  }, [])
   // Physical cards (SNC, Stretch flows, Tests…) and other buttons that open something new inside a section:
   // whatever opens is brought into view (its top near the top of the screen) if it would be off screen
   useEffect(() => {

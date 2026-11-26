@@ -36,6 +36,7 @@ export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries,
   const pickInterval = m => {
     setSingle(null)
     const patch = { interval_mode: m, group: groupOf(normalize(m)) }
+    setTimeout(() => { const el = document.querySelector('.kc-wb-reps'); if (el) { const r = el.getBoundingClientRect(); if (r.top > window.innerHeight * 0.6 || r.top < 0) window.scrollTo({ top: window.scrollY + r.top - window.innerHeight * 0.3, behavior: 'smooth' }) } }, 250)   // show the Watts / km boxes
     if (current && (entry.sets || []).some(s => num(s?.wattage) != null || num(s?.distance) != null)) {
       const id = newRunId(); save([...entries, { sets: [], ...patch, id }]); setSel(id)       // results already in -> new effort
     } else upsert({ ...entry, ...patch, sets: entry.sets || [] })
@@ -122,7 +123,7 @@ export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries,
 
       {/* reps */}
       {!single && mode && (
-        <div>
+        <div className="kc-wb-reps">
           <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 1fr 28px', gap: 6, alignItems: 'center', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
             <span>Rep</span><span style={{ textAlign: 'center' }}>Watts</span><span style={{ textAlign: 'center' }}>km</span><span />
           </div>
