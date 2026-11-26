@@ -10741,7 +10741,7 @@ export default function AthleteProfiles() {
                   <div ref={wattPanelRef}>
                   <WattBikePanel entries={todaysWattBike} onSaveEntries={list => savePhysicalField('watt_bike', list, setTodaysWattBike)}
                     history={f2fData || []} groups={WATT_BIKE_GROUPS} presets={WATT_BIKE_PRESETS} normalize={normalizeIntervalMode}
-                    singleTests={TEST_CATEGORIES.find(c => c.key === 'wattbike')?.tests || []} todaysTest={todaysTest} onSaveTest={saveTestValue} saving={savingPhysical}
+                    singleTests={TEST_CATEGORIES.find(c => c.key === 'wattbike')?.tests || []} todaysTest={todaysTest} onSaveTest={saveTestValue} onSaveTestValues={saveTestValues} saving={savingPhysical}
                     pdpNotesFor={gk => PdpNotes({ links: pdpInfo('physical', `watt:${gk}`).links })} />
                   </div>
                   )}

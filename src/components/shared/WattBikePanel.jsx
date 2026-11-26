@@ -1,3 +1,4 @@
+import HrrEntry from './HrrEntry.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { newRunId, runKey, EffortSwitcher } from './RunEfforts.jsx'
 
@@ -13,7 +14,7 @@ const SINGLE_SHORT = { 'Watt bike 10 second (output)': '10 sec output', 'Watt bi
 const secLabel = t => t.split(/(\d+)s\b/).map((part, i) => i % 2 ? <span key={i}>{part}<span style={{ color: '#000', textShadow: 'none' }}>s</span></span> : part)
 const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n }
 
-export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries, history = [], groups, presets, normalize = m => m, singleTests = [], todaysTest = {}, onSaveTest, saving, pdpNotesFor, groupLabel }) {
+export default function WattBikePanel({ onSaveTestValues = null, entries: entriesRaw = [], onSaveEntries, history = [], groups, presets, normalize = m => m, singleTests = [], todaysTest = {}, onSaveTest, saving, pdpNotesFor, groupLabel }) {
   const [secKey, setSecKey] = useState(null)
   const [savedAt, setSavedAt] = useState(null)   // which section of options is showing
   const entries = Array.isArray(entriesRaw) ? entriesRaw : (entriesRaw && typeof entriesRaw === 'object' && Object.keys(entriesRaw).length ? [entriesRaw] : [])
@@ -161,6 +162,7 @@ export default function WattBikePanel({ entries: entriesRaw = [], onSaveEntries,
         </div>
       )}
       {!single && !mode && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>Pick an interval (or a single set) to start.</p>}
+      {onSaveTestValues && <HrrEntry afterTest="Watt bike" colour="#F5C542" onSaveValues={onSaveTestValues} />}
     </div>
   )
 }

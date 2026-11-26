@@ -28,7 +28,7 @@ export function hrrResults(sessions = []) {
     for (const [k, v] of Object.entries(t)) {
       const n = parseFloat(v); if (isNaN(n)) continue
       if (k === 'Heart Rate Recovery (1 min)') out.push({ date: s.session_date, label: 'Watt bike (profile test)', value: n, unit: ' bpm', start: t['HRR start heart rate (bpm)'], end: t['HRR end heart rate (bpm)'] })
-      else if (/^HRR %/.test(k)) out.push({ date: s.session_date, label: (k.match(/\((.*)\)/)?.[1] || 'HR recovery').replace(/^after /i, 'after '), value: n, unit: '%' })
+      else if (/^HRR %/.test(k)) { const inner = k.match(/\((.*)\)/)?.[1] || ''; out.push({ date: s.session_date, label: inner || 'HR recovery', value: n, unit: '%', start: t[`HRR start bpm (${inner})`], end: t[`HRR end bpm (${inner})`] }) }
     }
   }
   return out.sort((a, b) => String(b.date).localeCompare(String(a.date)))
