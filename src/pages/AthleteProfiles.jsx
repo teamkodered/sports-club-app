@@ -3498,6 +3498,12 @@ export default function AthleteProfiles() {
   const bodyweightPanelRef = useRef(null)
   const stretchPanelRef = useRef(null)
   const [activePhysicalCategory, setActivePhysicalCategory] = useState(null)
+  // section header tapped (go back one step): an open Physical card (Watt bike, Running…) closes first, then the section
+  useEffect(() => {
+    const onBack = e => { if (activePhysicalCategory) { e.detail.handled = true; setActivePhysicalCategory(null); } }
+    window.addEventListener('kc-section-back', onBack)
+    return () => window.removeEventListener('kc-section-back', onBack)
+  }, [activePhysicalCategory]) // eslint-disable-line react-hooks/exhaustive-deps
   const showRunCards = activePhysicalCategory === 'running'
   const showWattCards = activePhysicalCategory === 'watt_bike'
   const showBodyweightCards = activePhysicalCategory === 'bodyweight'

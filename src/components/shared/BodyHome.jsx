@@ -192,7 +192,7 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
     <>
       {createPortal(
         <div className="kc-bh-hd" style={{ '--c': cur.colour, cursor: 'pointer' }} role="button" aria-label={`Close ${cur.label}`}
-          onPointerDown={press} onClick={() => { const q = tileEl(cur)?.parentElement?.querySelector('.neon-q.is-active'); if (q) q.click(); else open(cur) }} title="Tap to go back">
+          onPointerDown={press} onClick={() => { const q = tileEl(cur)?.parentElement?.querySelector('.neon-q.is-active'); if (q) { q.click(); return } const ev = new CustomEvent('kc-section-back', { detail: { sec: cur.key, handled: false } }); window.dispatchEvent(ev); if (!ev.detail.handled) open(cur) }} title="Tap to go back">
           <div className="kc-bh-hrow"><img src={cur.icon} alt="" /><b>{cur.label}</b><span>{slots.pts}</span></div>
           <div className="kc-bh-hrow2">
             {slots.viewEl && <button type="button" className="kc-bh-chip" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); slots.viewEl.click() }}>📈 VIEW</button>}
