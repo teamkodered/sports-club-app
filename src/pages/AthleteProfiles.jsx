@@ -11748,72 +11748,7 @@ export default function AthleteProfiles() {
                     </button>
                   </div>
 
-                  {/* Opponents -- moved here from the bottom of the PDP
-                      tab's coach view, so it's visible right on the
-                      Home tab instead of buried at the end of a long list. */}
-                  <div className="card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 14 }}>
-                    <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', marginBottom: 10 }}>🥊 Opponents</h3>
-                    {(() => {
-                      const opponentNames = [...new Set(opponentNotes.map(n => n.opponent_name))].sort()
-                      if (!opponentNames.length) return <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>No opponent notes yet.</p>
-                      return opponentNames.map(name => {
-                        const notes = opponentNotes.filter(n => n.opponent_name === name)
-                        const isOpen = expandedOpponent === name
-                        return (
-                          <div key={name} style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                            <button onClick={() => setExpandedOpponent(isOpen ? null : name)}
-                              style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-sans)' }}>
-                              <span style={{ fontSize: 13, fontWeight: 600 }}>{name}</span>
-                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{notes.length} note{notes.length === 1 ? '' : 's'} {isOpen ? '▲' : '▼'}</span>
-                            </button>
-                            {isOpen && (
-                              <div style={{ padding: '0 12px 10px' }}>
-                                {notes.map(n => (
-                                  <div key={n.id} style={{ padding: '6px 0', borderTop: '1px solid var(--border)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                                      <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
-                                        {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 Athlete'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
-                                      </span>
-                                      {isAdmin && (
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                          {n.author_role === 'coach' && (
-                                            <button onClick={() => toggleOpponentNoteShared(n)} style={{ fontSize: 10, background: 'none', border: 'none', color: n.is_shared ? '#1D9E75' : 'var(--text-tertiary)', cursor: 'pointer' }}>
-                                              {n.is_shared ? '✓ Shared' : 'Share'}
-                                            </button>
-                                          )}
-                                          <button onClick={() => { setEditingOpponentNoteId(n.id); setOpponentNoteDraft(n.note_text) }} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✎ Edit</button>
-                                          <button onClick={() => deleteOpponentNote(n.id)} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
-                                        </div>
-                                      )}
-                                    </div>
-                                    {editingOpponentNoteId === n.id ? (
-                                      <div style={{ marginTop: 4 }}>
-                                        <textarea value={opponentNoteDraft} onChange={e => setOpponentNoteDraft(e.target.value)}
-                                          rows={6} style={{ width: '100%', fontSize: 15, padding: '10px 12px', resize: 'vertical', marginBottom: 4 }} />
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => updateOpponentNote(n.id, opponentNoteDraft)}>Save</button>
-                                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingOpponentNoteId(null)}>Cancel</button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <p style={{ fontSize: 12, margin: 0, whiteSpace: 'pre-line' }}>{n.note_text}</p>
-                                    )}
-                                  </div>
-                                ))}
-                                <OpponentQuickNoteForm opponentName={name} onSave={(text, sharedFlag) => addOpponentNote(name, text, 'coach', sharedFlag)} showShareToggle />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })
-                    })()}
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                      <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>+ New opponent</p>
-                      <input value={newOpponentName} onChange={e => setNewOpponentName(e.target.value)} placeholder="Opponent name"
-                        style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
-                      <OpponentQuickNoteForm opponentName={newOpponentName} onSave={(text, sharedFlag) => { addOpponentNote(newOpponentName, text, 'coach', sharedFlag); setNewOpponentName('') }} showShareToggle disabled={!newOpponentName.trim()} />
-                    </div>
-                  </div>
+                  {/* Opponents moved to the Notes tab */}
 
                   {sessionPoints.length > 0 && (
                     <div className="card" style={{ padding: 0, marginBottom: 14 }}>
@@ -14104,6 +14039,70 @@ export default function AthleteProfiles() {
             {/* ── Notes tab ── */}
             {tab === 'notes' && (
               <div>
+                {/* 🥊 Opponents (moved here from Home) */}
+                <div className="card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 14 }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', marginBottom: 10 }}>🥊 Opponents</h3>
+                    {(() => {
+                      const opponentNames = [...new Set(opponentNotes.map(n => n.opponent_name))].sort()
+                      if (!opponentNames.length) return <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>No opponent notes yet.</p>
+                      return opponentNames.map(name => {
+                        const notes = opponentNotes.filter(n => n.opponent_name === name)
+                        const isOpen = expandedOpponent === name
+                        return (
+                          <div key={name} style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                            <button onClick={() => setExpandedOpponent(isOpen ? null : name)}
+                              style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-sans)' }}>
+                              <span style={{ fontSize: 13, fontWeight: 600 }}>{name}</span>
+                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{notes.length} note{notes.length === 1 ? '' : 's'} {isOpen ? '▲' : '▼'}</span>
+                            </button>
+                            {isOpen && (
+                              <div style={{ padding: '0 12px 10px' }}>
+                                {notes.map(n => (
+                                  <div key={n.id} style={{ padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                                      <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
+                                        {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 Athlete'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
+                                      </span>
+                                      {isAdmin && (
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                          {n.author_role === 'coach' && (
+                                            <button onClick={() => toggleOpponentNoteShared(n)} style={{ fontSize: 10, background: 'none', border: 'none', color: n.is_shared ? '#1D9E75' : 'var(--text-tertiary)', cursor: 'pointer' }}>
+                                              {n.is_shared ? '✓ Shared' : 'Share'}
+                                            </button>
+                                          )}
+                                          <button onClick={() => { setEditingOpponentNoteId(n.id); setOpponentNoteDraft(n.note_text) }} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✎ Edit</button>
+                                          <button onClick={() => deleteOpponentNote(n.id)} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {editingOpponentNoteId === n.id ? (
+                                      <div style={{ marginTop: 4 }}>
+                                        <textarea value={opponentNoteDraft} onChange={e => setOpponentNoteDraft(e.target.value)}
+                                          rows={6} style={{ width: '100%', fontSize: 15, padding: '10px 12px', resize: 'vertical', marginBottom: 4 }} />
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => updateOpponentNote(n.id, opponentNoteDraft)}>Save</button>
+                                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingOpponentNoteId(null)}>Cancel</button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p style={{ fontSize: 12, margin: 0, whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                                    )}
+                                  </div>
+                                ))}
+                                <OpponentQuickNoteForm opponentName={name} onSave={(text, sharedFlag) => addOpponentNote(name, text, 'coach', sharedFlag)} showShareToggle />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
+                    })()}
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>+ New opponent</p>
+                      <input value={newOpponentName} onChange={e => setNewOpponentName(e.target.value)} placeholder="Opponent name"
+                        style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+                      <OpponentQuickNoteForm opponentName={newOpponentName} onSave={(text, sharedFlag) => { addOpponentNote(newOpponentName, text, 'coach', sharedFlag); setNewOpponentName('') }} showShareToggle disabled={!newOpponentName.trim()} />
+                    </div>
+                  </div>
                 {pendingNoteDelete && (
                   <div style={{
                     position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300,
