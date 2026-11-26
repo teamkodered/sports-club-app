@@ -12,7 +12,7 @@ import CoachCheckInDrawer from '../components/shared/CoachCheckInDrawer.jsx'
 import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
-import { wearableVitals, latestTest } from '../lib/vitals.js'
+import { wearableVitals, latestTest, hrrResults } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
 import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
@@ -3323,7 +3323,8 @@ export default function AthleteProfiles() {
   const [newNoteShared, setNewNoteShared] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [showNotesList, setShowNotesList] = useState(false)
-  const [coachCheckInOpen, setCoachCheckInOpen] = useState(false)   // coach Home: CHECK IN side menu
+  const [coachCheckInOpen, setCoachCheckInOpen] = useState(false)
+  const [hrrOpenC, setHrrOpenC] = useState(false)   // coach Home: CHECK IN side menu
   const [noteSearch, setNoteSearch] = useState('')   // coach Notes: search all notes
   // every word typed must appear somewhere in the note (text, title, author, date)
   const noteMatches = (n, q) => { const hay = `${n.note_text || ''} ${n.title || ''} ${n.author_name || ''} ${n.logged_at ? new Date(n.logged_at).toLocaleDateString('en-GB') : ''}`.toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)) }
@@ -10066,9 +10067,11 @@ export default function AthleteProfiles() {
                         const sorted = [...f2fData].sort((a, b) => new Date(b.session_date) - new Date(a.session_date))
                         const latest = sorted.find(s => s.test?.['Heart Rate Recovery (1 min)'] != null)
                         const t = latest?.test || {}
+                        const hAll = hrrResults(f2fData), hL = hAll[0], fdh = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB')
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                            {latest ? <span style={{ fontSize: 12 }}>{t['HRR start heart rate (bpm)'] && t['HRR end heart rate (bpm)'] ? <span style={{ color: 'var(--text-tertiary)' }}>{t['HRR start heart rate (bpm)']} → {t['HRR end heart rate (bpm)']} · </span> : null}<b>{t['Heart Rate Recovery (1 min)']} bpm</b> <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(latest.session_date).toLocaleDateString('en-GB')}</span></span> : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                            {hL ? <span role="button" tabIndex={0} onClick={() => setHrrOpenC(v => !v)} style={{ fontSize: 12, cursor: 'pointer', textAlign: 'right' }}>{hL.start && hL.end ? <span style={{ color: 'var(--text-tertiary)' }}>{hL.start} → {hL.end} · </span> : null}<b>{hL.value}{hL.unit}</b> <span style={{ color: 'var(--text-tertiary)' }}>· {hL.label} · {fdh(hL.date)} {hAll.length > 1 ? (hrrOpenC ? '▲' : '▼') : ''}</span>{hrrOpenC && hAll.length > 1 && <span style={{ display: 'block', marginTop: 4, color: 'var(--text-secondary)' }}>{hAll.slice(1, 12).map((x, k) => <span key={k} style={{ display: 'block' }}>{fdh(x.date)} · {x.label} · <b>{x.value}{x.unit}</b></span>)}</span>}</span> : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                            {/* old profile-test-only display replaced by the latest-from-anywhere above */}
                             {isAdmin && <button type="button" className="btn btn-sm" onClick={() => setHrrRunFor(selected)}>❤️ Run test</button>}
                           </div>
                         )

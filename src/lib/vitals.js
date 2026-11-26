@@ -18,3 +18,18 @@ export function latestTest(sessions = [], name) {
   const s = [...(sessions || [])].sort((a, b) => String(b.session_date).localeCompare(String(a.session_date))).find(x => x?.test?.[name] != null && x.test[name] !== '')
   return s ? { value: s.test[name], day: s.session_date } : null
 }
+
+// Every heart-rate-recovery result, wherever it was taken (profile Run test, Test session, Start activity -> recovery)
+// -> newest first: { date, label, value, unit, start, end }
+export function hrrResults(sessions = []) {
+  const out = []
+  for (const s of sessions || []) {
+    const t = s?.test; if (!t || typeof t !== 'object') continue
+    for (const [k, v] of Object.entries(t)) {
+      const n = parseFloat(v); if (isNaN(n)) continue
+      if (k === 'Heart Rate Recovery (1 min)') out.push({ date: s.session_date, label: 'Watt bike (profile test)', value: n, unit: ' bpm', start: t['HRR start heart rate (bpm)'], end: t['HRR end heart rate (bpm)'] })
+      else if (/^HRR %/.test(k)) out.push({ date: s.session_date, label: (k.match(/\((.*)\)/)?.[1] || 'HR recovery').replace(/^after /i, 'after '), value: n, unit: '%' })
+    }
+  }
+  return out.sort((a, b) => String(b.date).localeCompare(String(a.date)))
+}

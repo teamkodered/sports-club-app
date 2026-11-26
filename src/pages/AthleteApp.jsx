@@ -18,7 +18,7 @@ import StatHeader, { rememberStat } from '../components/shared/StatHeader.jsx'
 import SwipeHint from '../components/shared/SwipeHint.jsx'
 import BodyHome from '../components/shared/BodyHome.jsx'
 import ActivityTimer from '../components/shared/ActivityTimer.jsx'
-import { wearableVitals, latestTest } from '../lib/vitals.js'
+import { wearableVitals, latestTest, hrrResults } from '../lib/vitals.js'
 import { RadarChart as BoxMtpRadar, CATEGORIES as BOX_MTP_CATS, GROUP_COLOURS as MTP_GROUP_COLOURS } from './forms/BoxingTPT.jsx'
 import { RadarChart as KbMtpRadar, CATEGORIES as KB_MTP_CATS } from './forms/KickboxingTPT.jsx'
 import { shortLevel, shortDivision, shortInterval } from '../lib/divisions.js'
@@ -1773,6 +1773,7 @@ export default function AthleteApp() {
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
   const [pendingLiveHr, setPendingLiveHr] = useState(null)
   const [focusTip, setFocusTip] = useState(null)
+  const [hrrOpen, setHrrOpen] = useState(false)
   const [doneNote, setDoneNote] = useState(null)   // after ✓ DONE: 'Add a note?' -> write -> saved on that entry
   const [myNoteSearch, setMyNoteSearch] = useState('')   // Notes page: search my notes
   const myNoteMatches = (n, q) => { const hay = `${n.note_text || ''} ${n.title || ''} ${n.logged_at ? new Date(n.logged_at).toLocaleDateString('en-GB') : ''}`.toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)) }
@@ -6022,11 +6023,15 @@ export default function AthleteApp() {
                 ['Record', `${student.wins || 0}W ${student.losses || 0}L ${student.draws || 0}D`],
                 ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—', targetWeight],
                 ['Comp weight', apData?.weight_division ? `${apData.weight_division}${/kg/i.test(apData.weight_division) ? '' : 'kg'}` : '—'],
-                ['HRR test', (() => {
-                  const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['Heart Rate Recovery (1 min)'] != null)
-                  if (!latest) return '—'
-                  const t = latest.test, se = t['HRR start heart rate (bpm)'] && t['HRR end heart rate (bpm)'] ? `${t['HRR start heart rate (bpm)']} → ${t['HRR end heart rate (bpm)']} · ` : ''
-                  return `${se}${t['Heart Rate Recovery (1 min)']} bpm`
+                ['HRR test', (() => {   // latest heart rate recovery from anywhere in the app; tap for all of them
+                  const all = hrrResults(sessions); if (!all.length) return '—'
+                  const h = all[0], fd = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB')
+                  return (
+                    <span role="button" tabIndex={0} onClick={() => setHrrOpen(v => !v)} style={{ cursor: 'pointer', textAlign: 'right' }}>
+                      {h.start && h.end ? <span style={{ color: 'var(--text-tertiary)' }}>{h.start} → {h.end} · </span> : null}<b>{h.value}{h.unit}</b> <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>· {h.label} · {fd(h.date)} {all.length > 1 ? (hrrOpen ? '▲' : '▼') : ''}</span>
+                      {hrrOpen && all.length > 1 && <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>{all.slice(1, 12).map((x, i) => <span key={i} style={{ display: 'block' }}>{fd(x.date)} · {x.label} · <b>{x.value}{x.unit}</b></span>)}</span>}
+                    </span>
+                  )
                 })()],
                 ['Anaerobic threshold', (() => {
                   const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['Anaerobic Threshold'] != null)
