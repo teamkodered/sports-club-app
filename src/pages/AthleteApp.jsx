@@ -4878,14 +4878,16 @@ export default function AthleteApp() {
     const d = { ...blank, ...(pickDraft[draftKey] || {}) }
     const set = patch => setPickDraft(p => ({ ...p, [draftKey]: { ...blank, ...(p[draftKey] || {}), ...patch } }))
     const loggedNames = logged.map(l => l.item)
-    const editing = d.edit && loggedNames.includes(d.edit) ? d.edit : null
+    const occ = {}; const loggedK = logged.map(l => ({ ...l, n: (occ[l.item] = (occ[l.item] ?? -1) + 1), k: `${l.item}#${occ[l.item]}` }))   // same name logged twice = two entries
+    const editKey = d.edit && loggedK.some(l => l.k === d.edit) ? d.edit : null
+    const editing = editKey ? loggedK.find(l => l.k === editKey).item : null
     const availAll = items.filter(i => !loggedNames.includes(i)).sort((a, b) => (b === subFocus) - (a === subFocus))   // focus option first
     const avail = subFocus && !d.others ? availAll.filter(i => i === subFocus) : availAll   // focus option only, unless '▼ Other options'
     const sel = d.sel.filter(i => avail.includes(i))
     const canSave = editing ? true : sel.length > 0
     const save = () => {
       if (!canSave) return
-      if (editing) onUpdateNote(editing, d.note)
+      if (editing) onUpdateNote(editing, d.note, loggedK.find(l => l.k === editKey).n)
       else onAdd(sel, d.note)
       setPickDraft(p => ({ ...p, [draftKey]: blank }))
     }
@@ -4903,14 +4905,14 @@ export default function AthleteApp() {
           <div style={{ marginBottom: 12 }}>
             <label>Logged today</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {logged.map(l => (
-                <div key={l.item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editing === l.item ? `1px solid ${colour}` : (pdpItems.has(l.item) ? `1px solid ${PDP_GOLD}` : '1px solid transparent') }}>
-                  <button type="button" onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: l.item }) : set({ edit: editing === l.item ? null : l.item, note: editing === l.item ? '' : (l.note || ''), sel: [] })}
+              {loggedK.map(l => (
+                <div key={l.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editKey === l.k ? `1px solid ${colour}` : (pdpItems.has(l.item) ? `1px solid ${PDP_GOLD}` : '1px solid transparent') }}>
+                  <button type="button" onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: l.item }) : set({ edit: editKey === l.k ? null : l.k, note: editKey === l.k ? '' : (l.note || ''), sel: [] })}
                     style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>
                     {l.item}{(subFocus ? l.item === subFocus : isFocus) && <span title="Monthly focus" style={{ marginLeft: 6 }}>🎯</span>}
                     <span style={{ display: 'block', fontSize: 11, color: l.note ? 'var(--text-secondary)' : 'var(--text-tertiary)', marginTop: 2 }}>{l.note || 'Tap to add a note'}</span>
                   </button>
-                  <button type="button" aria-label={`Remove ${l.item}`} onClick={() => { onRemove(l.item); if (editing === l.item) set(blank) }}
+                  <button type="button" aria-label={`Remove ${l.item}`} onClick={() => { onRemove(l.item, l.n); if (editKey === l.k) set(blank) }}
                     style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>×</button>
                 </div>
               ))}
@@ -7140,7 +7142,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           return (
                             <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
                               {HistoryViewButton({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' }, style: { marginBottom: 8 } })}
-                              {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, isFocus: fq('technique', cat).includes('is-focus'), subFocus: mySub('technique', cat), onSetSub: sub => setMySubFocus('technique', cat, sub), items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: null, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
+                              {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, isFocus: fq('technique', cat).includes('is-focus'), subFocus: mySub('technique', cat), onSetSub: sub => setMySubFocus('technique', cat, sub), items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: null, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: (technique, nth = 0) => { let k = -1; savePhysicalField('techniques', todaysTechniques.filter(t => !((t.style === style && t.category === cat && t.technique === technique) && ++k === nth)), setTodaysTechniques) }, onUpdateNote: (technique, note, nth = 0) => { let k = -1; savePhysicalField('techniques', todaysTechniques.map(t => ((t.style === style && t.category === cat && t.technique === technique) && ++k === nth) ? { ...t, note } : t), setTodaysTechniques) } })}
                               <QuestionMediaUpload sectionKey="technique" questionLabel={cat} />
                             </div>
                           )
@@ -7235,7 +7237,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       return (
                         <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                           {HistoryViewButton({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' }, style: { marginBottom: 8 } })}
-                          {ChecklistPicker({ draftKey: `tac:${cat}`, isFocus: fq('tactical', cat).includes('is-focus'), subFocus: mySub('tactical', cat), onSetSub: sub => setMySubFocus('tactical', cat, sub), items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: null, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
+                          {ChecklistPicker({ draftKey: `tac:${cat}`, isFocus: fq('tactical', cat).includes('is-focus'), subFocus: mySub('tactical', cat), onSetSub: sub => setMySubFocus('tactical', cat, sub), items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: null, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: (item, nth = 0) => { let k = -1; savePhysicalField('tactical', todaysTactical.filter(t => !((t.category === cat && t.item === item) && ++k === nth)), setTodaysTactical) }, onUpdateNote: (item, note, nth = 0) => { let k = -1; savePhysicalField('tactical', todaysTactical.map(t => ((t.category === cat && t.item === item) && ++k === nth) ? { ...t, note } : t), setTodaysTactical) } })}
                           <QuestionMediaUpload sectionKey="tactical" questionLabel={cat} />
                         </div>
                       )
