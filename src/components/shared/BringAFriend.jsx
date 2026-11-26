@@ -26,8 +26,7 @@ export default function BringAFriend({ memberId, tile = false }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px', background: '#1D9E7512',
       border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
       <span className="neon-emoji" style={{ fontSize: 24 }}>🤝</span>
-      <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>{copied ? '✓ Copied' : 'Bring a friend'}</span>
-      <span style={{ fontSize: 10, color: 'var(--text-tertiary)', letterSpacing: 1 }}>{code}{count > 0 ? ` · ${count} joined` : ''}</span>
+      <span className="kc-baf">{copied ? '✓ Copied' : 'Bring a friend'}<small className="kc-baf-code">Code {code}{count > 0 ? ` · ${count} joined` : ''}</small></span>
     </button>
   )
   return (
