@@ -31,13 +31,17 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
       // anywhere in the open section (header, question card, the panel's empty space) -- but not where sideways
       // swiping already does something (option / card swipe rows, inputs, sliders)
       const el = e.target.closest?.('.kc-bh-hd, .kc-bh-openwrap, .neon-q.is-active, .neon-qpanel')
-      if (!el || e.target.closest('.opt-swipe, .q-swipe, input, textarea, select, [data-noswipe], .neon-run-carousel')) { x0 = null; return }
+      // the open question's card + panel sit INSIDE the cards' swipe row, so only skip the parts that scroll sideways themselves
+      const own = e.target.closest('.kc-bh-hd, .neon-q.is-active, .neon-qpanel')
+      if (!el || e.target.closest('.opt-swipe, input, textarea, select, [data-noswipe], .neon-run-carousel') || (!own && e.target.closest('.q-swipe'))) { x0 = null; return }
       if (!document.querySelector('.neon-q.is-active')) { x0 = null; return }
-      x0 = t.clientX; y0 = t.clientY; from = el
+      x0 = t.clientX; y0 = t.clientY; lx = x0; ly = y0; from = el
     }
+    let lx = 0, ly = 0
+    const move = e => { const t = e.touches?.[0]; if (t) { lx = t.clientX; ly = t.clientY } }
     const up = e => {
       if (x0 == null) return
-      const t = e.changedTouches?.[0]; if (!t) return
+      const t = e.changedTouches?.[0] || { clientX: lx, clientY: ly }
       const dx = t.clientX - x0, dy = t.clientY - y0; x0 = null
       if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return
       const active = (from.classList.contains('neon-q') && from.classList.contains('is-active')) ? from : (from.closest('.kc-bh-openwrap')?.querySelector('.neon-q.is-active') || document.querySelector('.neon-q.is-active')); if (!active) return
@@ -49,8 +53,10 @@ export default function BodyHome({ sessions = [], gender, openKey }) {
       if (next) { e.preventDefault?.(); next.click() }
     }
     document.addEventListener('touchstart', down, { passive: true, capture: true })
+    document.addEventListener('touchmove', move, { passive: true, capture: true })
     document.addEventListener('touchend', up, { capture: true })
-    return () => { document.removeEventListener('touchstart', down, { capture: true }); document.removeEventListener('touchend', up, { capture: true }) }
+    document.addEventListener('touchcancel', up, { capture: true })
+    return () => { for (const [ev, fn] of [['touchstart', down], ['touchmove', move], ['touchend', up], ['touchcancel', up]]) document.removeEventListener(ev, fn, { capture: true }) }
   }, [])
   // A question opened inside a section: if it (and what opens under it) is off screen, scroll just enough to show it
   useEffect(() => {
