@@ -22,8 +22,10 @@ export default function ActivityTimer({ label = 'activity', afterTest, studentId
         </button>
       )}
       {hrr && createPortal(
-        <HrrTestTool zIndex={700} variant="recovery" afterTest={afterTest} mode={mode} studentId={studentId} studentName={studentName}
-          onClose={() => setHrr(false)} onResult={r => onRecovery?.(r)} />, document.body)}
+        <div role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
+          <HrrTestTool zIndex={700} variant="recovery" afterTest={afterTest} mode={mode} studentId={studentId} studentName={studentName}
+            onClose={() => setHrr(false)} onResult={r => onRecovery?.(r)} />
+        </div>, document.body)}
     </>
   )
 }

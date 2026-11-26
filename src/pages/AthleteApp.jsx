@@ -2119,6 +2119,7 @@ export default function AthleteApp() {
   useEffect(() => {
     if (!expandedHomeRun) return
     function handleClick(e) {
+      if (e.target?.closest?.('[role="dialog"], [aria-modal="true"]')) return   // a pop-up on top (e.g. HR recovery) isn't 'outside'
       if (runPanelRef.current && !runPanelRef.current.contains(e.target)) setExpandedHomeRun(null)
     }
     document.addEventListener('mousedown', handleClick)
@@ -2128,6 +2129,7 @@ export default function AthleteApp() {
   useEffect(() => {
     if (!expandedHomeWatt) return
     function handleClick(e) {
+      if (e.target?.closest?.('[role="dialog"], [aria-modal="true"]')) return   // a pop-up on top (e.g. HR recovery) isn't 'outside'
       if (wattPanelRef.current && !wattPanelRef.current.contains(e.target)) setExpandedHomeWatt(null)
     }
     document.addEventListener('mousedown', handleClick)
@@ -2137,6 +2139,7 @@ export default function AthleteApp() {
   useEffect(() => {
     if (!expandedHomeBodyweight) return
     function handleClick(e) {
+      if (e.target?.closest?.('[role="dialog"], [aria-modal="true"]')) return   // a pop-up on top (e.g. HR recovery) isn't 'outside'
       if (bodyweightPanelRef.current && !bodyweightPanelRef.current.contains(e.target)) setExpandedHomeBodyweight(null)
     }
     document.addEventListener('mousedown', handleClick)
@@ -2146,6 +2149,7 @@ export default function AthleteApp() {
   useEffect(() => {
     if (expandedHomeStretch == null) return
     function handleClick(e) {
+      if (e.target?.closest?.('[role="dialog"], [aria-modal="true"]')) return   // a pop-up on top (e.g. HR recovery) isn't 'outside'
       if (stretchPanelRef.current && !stretchPanelRef.current.contains(e.target)) setExpandedHomeStretch(null)
     }
     document.addEventListener('mousedown', handleClick)
