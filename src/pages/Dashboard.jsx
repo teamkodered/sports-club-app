@@ -385,10 +385,10 @@ export default function Dashboard() {
           { label: 'Classes',    icon: '🗓️', to: '/classes',    colour: '#378ADD' },
           { label: 'Check in',   icon: '✅', to: '/checkin',    colour: '#1D9E75' },
           { label: 'Forms',      icon: '📝', to: '/forms',      colour: '#EF9F27' },
-          { label: 'Trackers',   icon: '📈', to: '/trackers',   colour: '#E24B4A' },
+          { label: 'Quick enquiry', icon: '📞', to: null, action: 'quickEnquiry', colour: '#06B6D4' },
           { label: 'My App',     icon: '🎽', to: '/athlete-app', colour: '#8B5CF6' },
           { label: 'Add Points', icon: '⭐', to: null, action: 'addPoints', colour: '#EC4899' },
-          { label: 'Quick enquiry', icon: '📞', to: null, action: 'quickEnquiry', colour: '#06B6D4' },
+          { label: 'Trackers',   icon: '📈', to: '/trackers',   colour: '#E24B4A' },
           { label: 'Coaching tools', icon: '🧰', to: '/coaching-tools', colour: '#64748B' },
         ].filter(l => {
           // only show shortcuts to pages this person can open (e.g. a Head Coach)
