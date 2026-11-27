@@ -34,6 +34,8 @@ export default function JoinConfirmPrompt() {
       const { member_id, name } = e.detail || {}
       if (!member_id) return
       const { data: m } = await supabase.from('members').select('status, first_name, last_name').eq('id', member_id).maybeSingle()
+      // printing the form = they're here: a Trial booked enquiry moves to Attended
+      supabase.rpc('kc_enquiry_mark_attended', { p_member: member_id }).then(() => {}, () => {})
       if (!m || m.status === 'active') return   // already joined -- nothing to ask
       setAsk({ member_id, name: name || `${m.first_name} ${m.last_name}`.trim(), by: profile?.id })
     }
