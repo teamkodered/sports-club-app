@@ -46,6 +46,8 @@ function writeAndPrint(w, title, bodyHtml) {
 
 // A submitted membership form (PKA child / PKA adult / KRBA), laid out like the form
 export async function printMembershipForm(f, { blank = false } = {}) {
+  // a real member's form printed -> ask the person who printed whether they've joined (JoinConfirmPrompt)
+  if (!blank && f?.member_id) setTimeout(() => window.dispatchEvent(new CustomEvent('kc-membership-printed', { detail: { member_id: f.member_id, name: `${f.first_name || ''} ${f.last_name || ''}`.trim() } })), 800)
   const w = openTab()
   let logoSrc = null
   try {

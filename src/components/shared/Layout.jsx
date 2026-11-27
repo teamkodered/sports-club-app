@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import JoinConfirmPrompt from './JoinConfirmPrompt.jsx'
 import { useDisplayScale } from '../../lib/displayScale.js'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth.jsx'
@@ -124,6 +125,8 @@ export default function Layout() {
   ]
 
   return (
+    <>
+    <JoinConfirmPrompt />
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-tertiary)' }}>
 
       {/* Mobile overlay */}
@@ -341,6 +344,7 @@ export default function Layout() {
       <FightFootageUploadIndicator />
 
     </div>
+    </>
   )
 }
 
