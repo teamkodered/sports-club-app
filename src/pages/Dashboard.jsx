@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import QuickEnquiry from '../components/dashboard/QuickEnquiry.jsx'
 import InstallAppButton from '../components/shared/InstallAppButton.jsx'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -20,6 +21,7 @@ const HOUSE_COLOURS = {
 const MEDALS = ['🥇','🥈','🥉','🎖️']
 
 export default function Dashboard() {
+  const [showQuickEnquiry, setShowQuickEnquiry] = useState(false)   // 📞 Quick enquiry tile
   const { profile, isAdmin, isHeadCoach, pageAccess } = useAuth()
   const [websiteWaiting, setWebsiteWaiting] = useState(0) // 🌐 website profile changes waiting for a coach
   const showWebsite = isAdmin   // website profile approvals: admins only
@@ -376,6 +378,7 @@ export default function Dashboard() {
         return krbaCoach ? <FocusAndFormat team="krba" /> : <FocusAndFormat team="pka" />
       })()}
 
+      {showQuickEnquiry && <QuickEnquiry onClose={() => setShowQuickEnquiry(false)} />}
       {/* Quick links */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
         {[
@@ -385,15 +388,16 @@ export default function Dashboard() {
           { label: 'Trackers',   icon: '📈', to: '/trackers',   colour: '#E24B4A' },
           { label: 'My App',     icon: '🎽', to: '/athlete-app', colour: '#8B5CF6' },
           { label: 'Add Points', icon: '⭐', to: null, action: 'addPoints', colour: '#EC4899' },
-          { label: 'Events',     icon: '🏆', to: '/calendar',   colour: '#06B6D4' },
+          { label: 'Quick enquiry', icon: '📞', to: null, action: 'quickEnquiry', colour: '#06B6D4' },
           { label: 'Coaching tools', icon: '🧰', to: '/coaching-tools', colour: '#64748B' },
         ].filter(l => {
           // only show shortcuts to pages this person can open (e.g. a Head Coach)
           const PAGE = { '/classes': 'classes', '/forms': 'forms', '/trackers': 'crm', '/fixtures': 'fixtures', '/checkin': 'registers' }
           if (l.action === 'addPoints') return pageAccess('registers') === 'edit'
+          if (l.action === 'quickEnquiry') return pageAccess('crm') !== 'none'
           return !PAGE[l.to] || pageAccess(PAGE[l.to]) !== 'none'
         }).map(l => l.action ? (
-          <button key={l.label} onClick={() => setShowAddPoints(true)} style={{
+          <button key={l.label} onClick={() => l.action === 'quickEnquiry' ? setShowQuickEnquiry(true) : setShowAddPoints(true)} style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
             padding: '14px 8px', background: l.colour + '12',
             border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
