@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase.js'
 
 // 📞 Quick enquiry (Dashboard): name, number, note -- for while you're on a call or answering a text.
 // Saves straight into CRM -> Enquiries (status Enquiry), same as "+ Log new enquiry".
-const METHODS = [['call', '📞 Call'], ['text', '💬 Text'], ['social_media', '📱 Social'], ['walk_in', '🚶 Walk-in']]
+const METHODS = [['call', '📞 Call'], ['text', '💬 Text'], ['facebook_ad', '📱 Social'], ['walk_in', '🚶 Walk-in']]
 export default function QuickEnquiry({ onClose }) {
   const [f, setF] = useState({ name: '', phone: '', notes: '', method: 'call' })
   const [busy, setBusy] = useState(false), [done, setDone] = useState(null)
