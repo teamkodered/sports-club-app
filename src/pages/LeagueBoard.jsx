@@ -462,7 +462,8 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6, textAlign: 'center', marginBottom: badges.length ? 10 : 0 }}>
               {SECT.map(([k, l, c]) => <div key={k}><div style={{ ...NUM, fontSize: 18, color: c, textShadow: `0 0 6px ${c}66` }}>{sectionPos[k]?.rank ? ord(sectionPos[k].rank) : '–'}</div><div style={{ fontSize: 10, color: '#9A9A9A' }}>{l}</div></div>)}
             </div>
-            {badges.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{badges.map(([e, t]) => <span key={t} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, border: '1px solid #F5C54266', color: '#F5C542', background: '#F5C54214' }}>{e} {t}</span>)}</div>}
+            {/* badges in two equal columns so they line up */}
+            {badges.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>{badges.map(([e, t]) => <span key={t} title={t} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 12, border: '1px solid #F5C54266', color: '#F5C542', background: '#F5C54214', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{e} {t}</span>)}</div>}
           </div>
     )
     if (only) return standing || null
