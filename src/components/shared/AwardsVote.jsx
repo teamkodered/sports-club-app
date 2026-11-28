@@ -5,6 +5,7 @@ import { loadAwardsCurrent, nominationsOpen } from '../../lib/awards.js'
 // 🏆 Athletes: vote for the Fighters fighter in their squad (KR / KRBA) -- one vote, can change until
 // nominations close. Results stay admin-only.
 export default function AwardsVote({ student }) {
+  const [justVoted, setJustVoted] = useState(false)
   const [cats, setCats] = useState([])        // [{ cat, options, mine }]
   const [busy, setBusy] = useState(null)
   const [open, setOpen] = useState(false)
@@ -27,7 +28,8 @@ export default function AwardsVote({ student }) {
       setCats(out)
     })()
   }, [student?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-  if (!cats.length) return null
+  // once they've voted it goes away (it stays just for this visit right after voting, to show it saved)
+  if (!cats.length || (cats.every(c => c.mine) && !justVoted)) return null
 
   async function vote(i, o) {
     const c = cats[i]
@@ -36,6 +38,7 @@ export default function AwardsVote({ student }) {
     setBusy(null)
     if (error) return alert('Could not vote: ' + error.message)
     setCats(cs => cs.map((x, j) => j === i ? { ...x, mine: data } : x))
+    setJustVoted(true)
   }
 
   return (
